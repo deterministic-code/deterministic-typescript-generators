@@ -1,5 +1,10 @@
 import { parseDatasourceTypes } from "@deterministic-code/generator-sdk/codegen/lib/parse-datasource-types";
-import { resolveLibraryReferenceMode } from "@deterministic-code/generator-sdk/read-settings";
+import { libraryReferenceModeFromSettings } from "@deterministic-code/generator-sdk/codegen/lib/generate-settings-options";
+import {
+  makeGenerate,
+  type GenerateContext,
+} from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
+import type { SettingsDict } from "@deterministic-code/generator-sdk/settings-dict";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { CONTENT } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import { perfServerTypescriptEntries } from "@deterministic-code/generator-sdk/codegen/lib/migrate-perf-harness";
@@ -14,11 +19,9 @@ interface PerfServerTsOptions {
   libraryReferenceMode?: string;
 }
 
-interface PerfServerTsGenerateInput {
+interface PerfServerTsGenerateInput extends GenerateContext {
   inputs: { all: () => Promise<{ datasourceYamlText: string }> };
-  settings: {
-    languages: Parameters<typeof resolveLibraryReferenceMode>[0];
-  };
+  settings: SettingsDict;
 }
 
 /** why: verify-only wrapper that applies migrations before createBackendApp() so perf hits every generated table (dist/server.js stays migration-free per #690). skip_migrations entities now ride the migrations chain via deterministic/custom/<dialect>/*_up.sql — single source of truth, no baked DDL constant. */
@@ -95,22 +98,20 @@ bootstrap().catch((err) => {
   return { path: "perf-server.ts", content };
 }
 
-export const entriesNative = true;
-
 /** Self-describing catalog `perf_server` (typescript): the verify-only server entrypoint plus its vitest.perf harness (config file + `test:perf` package.json script), routed through GeneratePlan's content/patch writers. */
-export async function generate({ inputs, settings }: PerfServerTsGenerateInput) {
+async function planPerfServer({ inputs, settings }: PerfServerTsGenerateInput) {
   const { datasourceYamlText } = await inputs.all();
   const file = generatePerfServerTypescript({
     datasourceData: parseDatasourceTypes(datasourceYamlText, settings),
-    libraryReferenceMode: resolveLibraryReferenceMode(
-      settings.languages,
+    libraryReferenceMode: libraryReferenceModeFromSettings(
+      settings,
       "typescript",
     ),
   });
-  return {
-    entries: [
-      { kind: CONTENT, filename: file.path, contents: file.content },
-      ...(await perfServerTypescriptEntries()),
-    ],
-  };
+  return [
+    { kind: CONTENT, filename: file.path, contents: file.content },
+    ...(await perfServerTypescriptEntries()),
+  ];
 }
+
+export const generate = makeGenerate(planPerfServer);

@@ -1,4 +1,4 @@
-import type { ParsedSettings } from "@deterministic-code/generator-sdk/read-settings";
+import type { SettingsDict } from "@deterministic-code/generator-sdk/settings-dict";
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -64,7 +64,7 @@ interface BindingObject {
 
 interface BindingContext {
   inputs: unknown;
-  settings: ParsedSettings;
+  settings: SettingsDict;
 }
 
 type DocOptions = Parameters<typeof buildOpenApiDocFromInputs>[0];

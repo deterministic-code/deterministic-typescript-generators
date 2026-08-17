@@ -6,7 +6,11 @@ import {
   CONTENT,
   PATCH,
 } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
-import { COMBINED_FLAG } from "@deterministic-code/generator-sdk/codegen/lib/backend-lane";
+import {
+  makeGenerate,
+  type GenerateContext,
+} from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
+import { settingsStr } from "@deterministic-code/generator-sdk/settings-dict";
 import {
   FRONTEND_SERVICE,
   FRONTEND_PORT,
@@ -31,34 +35,6 @@ const TEMPLATE_TO_OUTPUT: [string, string][] = [
   ["tsconfig.json", "tsconfig.json"],
   ["src/main.tsx", "src/main.tsx"],
   ["src/App.tsx.tmpl", "src/App.tsx"],
-];
-
-interface FrontendAppArgs {
-  language?: string;
-  framework?: string;
-  combined?: boolean;
-}
-
-interface FrontendAppSettings {
-  frontend?: { framework?: string };
-  applicationName?: string;
-}
-
-interface FrontendAppInput {
-  settings?: FrontendAppSettings;
-  args?: FrontendAppArgs;
-}
-
-/** `--framework` is declared here so the runner (generate.mjs `profileFor`) merges it into the validated flag set for this step only — the sanctioned per-step extension, not a CANONICAL_FLAGS change. `--language` already rides the common flag set. */
-export const flags = [
-  {
-    flag: "--framework",
-    target: "framework",
-    kind: "value",
-    placeholder: "<name>",
-    description: "Frontend framework to scaffold (React).",
-  },
-  COMBINED_FLAG,
 ];
 
 function renderFrontendComposeService(): string {
@@ -110,12 +86,13 @@ function assertSupported(language: string, framework: string): void {
 }
 
 /** Scaffold a minimal React + Vite + TypeScript app under `frontend/`. Reads the merged settings.yaml (settings.frontend.framework + settings.application_name); `--framework` overrides the file, the file overrides the defaults. Throws on any {language, framework} outside the supported set so an unsupported request fails loudly instead of generating a broken app. */
-export async function generate({ settings, args }: FrontendAppInput) {
-  const language = args?.language ?? DEFAULT_LANGUAGE;
+async function planFrontendApp({ settings }: GenerateContext) {
+  const language = settingsStr(settings, "frontend.language") ?? DEFAULT_LANGUAGE;
   const framework =
-    args?.framework ?? settings?.frontend?.framework ?? DEFAULT_FRAMEWORK;
+    settingsStr(settings, "frontend.framework") ?? DEFAULT_FRAMEWORK;
   assertSupported(language, framework);
-  const appName = settings?.applicationName ?? DEFAULT_APP_NAME;
+  const appName = settingsStr(settings, "application_name") ?? DEFAULT_APP_NAME;
+  const combined = settingsStr(settings, "application_tier") === "full-stack";
 
   const entries = [];
   for (const [templateFile, outputFile] of TEMPLATE_TO_OUTPUT) {
@@ -142,13 +119,13 @@ export async function generate({ settings, args }: FrontendAppInput) {
       appName,
     }),
   });
-  if (args?.combined === true) {
+  if (combined) {
     entries.push(...frontendDeploymentEntries());
   }
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planFrontendApp);
 
 /** A lone `generate --step frontend_app --output X` must compose its own PATCH pieces (package.json + frontend/.gitignore) immediately — otherwise they'd sit un-assembled under deterministic/patches/. Fires only on that standalone single-step path; `generate --all --tier frontend`, the `--assemble` orchestration, and the in-process server path all run frontend_app through runOneStep and assemble once at the end, so this flag never fires there. */
 export const assembleAfterStep = true;

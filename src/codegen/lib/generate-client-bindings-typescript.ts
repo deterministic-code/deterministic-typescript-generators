@@ -1,4 +1,8 @@
-import type { ParsedSettings } from "@deterministic-code/generator-sdk/read-settings";
+import {
+  settingsBool,
+  type SettingsDict,
+} from "@deterministic-code/generator-sdk/settings-dict";
+import { makeGenerate } from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
 import type { RawTypesDoc } from "@deterministic-code/generator-sdk/deterministic-shapes";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -34,7 +38,7 @@ import {
 import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-naming";
 import type { CodegenLayout } from "@deterministic-code/generator-sdk/codegen-layout";
 
-type ResolvedSettings = ParsedSettings;
+type ResolvedSettings = SettingsDict;
 
 interface SchemaObject {
   $ref?: string;
@@ -379,11 +383,8 @@ export function renderClientFile(
 }
 
 /** The single settings.frontend.generate_validators flag both generates each object's colocated validators.ts and drives whether clients wrap requests/responses in `Schema.parse()` — so the client always has the schema it imports. */
-function resolveValidate(settings: ParsedSettings): boolean {
-  return (
-    (settings as { frontend?: { generateValidators?: boolean } })?.frontend
-      ?.generateValidators === true
-  );
+function resolveValidate(settings: SettingsDict): boolean {
+  return settingsBool(settings, "frontend.generate_validators");
 }
 
 /** The type names frontend_types actually generates (read entities/views, not write-body DTOs) — the exact set the client may `import type` from the barrel, derived the same way frontend_types derives its output. */
@@ -501,7 +502,7 @@ async function buildBaseCtx(
 }
 
 /** Generate typed client libraries for each datasource in frontend_bindings.yaml that declares a `clients` array. For `schema: self`, the datasource's OpenAPI doc is built in-process from this project's own routes/view/datasource (identical to the openapi_docs step), then projected to route rows grouped by object; each requested library (`fetch`/`axios`/`tanstack`) renders one file per object, placed by layout mode via `CodegenLayout.frontendClientFile` and importing the entity/view read types through the layout's resolved specifier. A `package.json` patch adds the npm dependency each selected client needs. `id:`/`url:`/`file:` schemas are not resolved yet and throw. */
-export async function generate({
+async function planClientBindings({
   inputs,
   settings,
 }: {
@@ -509,7 +510,7 @@ export async function generate({
   settings: ResolvedSettings;
 }) {
   const { datasources } = await readBindings(inputs);
-  if (datasources.length === 0) return { entries: [] };
+  if (datasources.length === 0) return [];
   const base = await buildBaseCtx(inputs, settings);
   const entries = [];
   const clientsUsed = new Set<string>();
@@ -520,9 +521,9 @@ export async function generate({
   }
   const patch = dependencyPatch(clientsUsed);
   if (patch) entries.push(patch);
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planClientBindings);
 
 export const assembleAfterStep = true;

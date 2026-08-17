@@ -1,4 +1,4 @@
-import type { ParsedSettings } from "@deterministic-code/generator-sdk/read-settings";
+import type { SettingsDict } from "@deterministic-code/generator-sdk/settings-dict";
 import { toCase } from "@deterministic-code/generator-sdk/case";
 import { testCasingOptionsFromSettings } from "@deterministic-code/generator-sdk/codegen/lib/generate-settings-options";
 import {
@@ -390,7 +390,7 @@ const baseCreateGenerator = viewGenerator((view, ctx) => {
 export const createGenerator = () => {
   const base = baseCreateGenerator(TypescriptImports);
   return {
-    generate: (config: { settings: ParsedSettings; language: string }) =>
+    generate: (config: { settings: SettingsDict; language: string }) =>
       base.generate({
         ...DEFAULT_GENERATE_OPTIONS,
         ...testCasingOptionsFromSettings(config),

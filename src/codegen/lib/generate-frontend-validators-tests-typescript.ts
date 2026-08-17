@@ -17,6 +17,7 @@ import {
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
 import type { GenerateEntry } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import type { GenerateArgs } from "./frontend-generate-types.ts";
+import { makeGenerate } from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
 import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-naming";
 import type { CodegenLayout } from "@deterministic-code/generator-sdk/codegen-layout";
 
@@ -81,7 +82,7 @@ function testFileContents(
 }
 
 /** Generate a `validators.test.ts` next to every object's `validators.ts` — one describe per zod schema that file exports, driven by the same route projection + reachable-component closure the validators generator uses, so the tests cover exactly the schemas that were generated. Each schema gets a valid-payload case, a nullable-fields case when it has any, and a rejecting case per invalid mutation (missing/null required, wrong scalar type). Adds the vitest + zod harness to frontend/package.json. */
-export async function generate({ inputs, settings }: GenerateArgs) {
+async function planFrontendValidatorsTests({ inputs, settings }: GenerateArgs) {
   const names = namesForSettings(settings, "typescript");
   const fields = new CodegenFieldNames({ fieldFormat: names.fieldFormat });
   const ident = (key: string) => fields.ident(key);
@@ -109,9 +110,9 @@ export async function generate({ inputs, settings }: GenerateArgs) {
   if (entries.length > 0) {
     entries.push(frontendTestHarnessPatch({ needsZod: true }));
   }
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planFrontendValidatorsTests);
 
 export const assembleAfterStep = true;

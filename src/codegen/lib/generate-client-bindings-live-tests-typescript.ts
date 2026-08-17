@@ -1,4 +1,5 @@
-import type { ParsedSettings } from "@deterministic-code/generator-sdk/read-settings";
+import type { SettingsDict } from "@deterministic-code/generator-sdk/settings-dict";
+import { makeGenerate } from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
 import {
   readBindings,
   bindingDatasource,
@@ -13,12 +14,12 @@ import {
 import { CONTENT } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import { bindingsLiveHarnessEntries } from "./frontend-test-harness.ts";
 
-type ResolvedSettings = ParsedSettings;
+type ResolvedSettings = SettingsDict;
 
 const LIVE_CLIENT_LIBS = ["fetch", "axios"];
 
 /** Generate a `<client>.bindings.live.ts` beside every generated fetch/axios client, driving the REAL client functions against a running backend + real database — no `vi.mock`, no stubbed transport. Unlike the mocked `client_bindings_mock_tests`, and unlike the previous list-only smoke test, these exercise EVERY endpoint of each object: a full CRUD lifecycle (create → read → update → delete), readonly reads, and sub-resource routes, seeding each route's FK parents recursively up the tree by driving the parents' own generated clients (so a `phone` create first creates its `contact`, whose `contact_source` id is read from the seeded lookup). tanstack is excluded (its hook needs a React renderer to run un-mocked). The `client_bindings_live` verify step launches the composed stack, points `BINDINGS_BASE_URL` at the proxy, and runs `npm run test:bindings-live`. Generates the frontend-root live harness once. */
-export async function generate({
+async function planLiveTests({
   inputs,
   settings,
 }: {
@@ -62,9 +63,9 @@ export async function generate({
     }
   }
   entries.push(...bindingsLiveHarnessEntries());
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planLiveTests);
 
 export const assembleAfterStep = true;

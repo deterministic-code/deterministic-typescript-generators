@@ -1,10 +1,7 @@
-import type { ParsedSettings } from "@deterministic-code/generator-sdk/read-settings";
+import type { SettingsDict } from "@deterministic-code/generator-sdk/settings-dict";
 
-/** The loader-resolved settings tree accepted by the settings→naming/layout bridges (`namesForSettings`/`layoutForSettings` share this parameter). */
-type Settings = ParsedSettings;
-
-/** The `{ inputs, settings }` argument every bindings-driven frontend generator's `generate` receives — `inputs` is the untyped codegen input adapter, `settings` the resolved settings the naming bridges read. */
-export type GenerateArgs = { inputs: unknown; settings: Settings };
+/** The `{ inputs, settings }` argument every bindings-driven frontend generator's `generate` receives — `inputs` is the untyped codegen input adapter, `settings` the flat `SettingsDict` the naming bridges read. */
+export type GenerateArgs = { inputs: unknown; settings: SettingsDict };
 
 /** An OpenAPI `components/schemas` node as the frontend generators read it: a scalar (`type`/`format`), a `$ref`, a `oneOf` union, an `array` with `items`, or an object with `properties`. Validators additionally read `required`, `maxLength`, and `x-references`; every field is optional so both the types and validators lanes share one shape. */
 export interface SchemaProp {

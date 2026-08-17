@@ -15,6 +15,7 @@ import { escapeForTestName } from "./zod-test-cases.ts";
 import { CONTENT } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
 import type { GenerateArgs } from "./frontend-generate-types.ts";
+import { makeGenerate } from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
 import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-naming";
 import type { CodegenLayout } from "@deterministic-code/generator-sdk/codegen-layout";
 
@@ -127,9 +128,9 @@ function datasourceTestEntries(
 }
 
 /** Generate a `<stem>.test.ts` next to every read type frontend_types generates — under `bindings/<datasource>/types/` for each `frontend_bindings.yaml` datasource, the same entity/view components filtered to read types the same way. Each test constructs a fully-typed instance (a compile-time shape check against the generated interface) and exercises get/set on its plain scalar fields plus null-assignment on its nullable ones. Adds the vitest harness to frontend/package.json. */
-export async function generate({ inputs, settings }: GenerateArgs) {
+async function planFrontendTypesTests({ inputs, settings }: GenerateArgs) {
   const { datasources } = await readBindings(inputs);
-  if (datasources.length === 0) return { entries: [] };
+  if (datasources.length === 0) return [];
   const { components, names, fields, datetime } = await buildFrontendComponents(
     { inputs, settings },
   );
@@ -154,9 +155,9 @@ export async function generate({ inputs, settings }: GenerateArgs) {
     entries.push(...datasourceTestEntries(ds.name, model));
   }
   if (entries.length > 0) entries.push(frontendTestHarnessPatch());
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planFrontendTypesTests);
 
 export const assembleAfterStep = true;

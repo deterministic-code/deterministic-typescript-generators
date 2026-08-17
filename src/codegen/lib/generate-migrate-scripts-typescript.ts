@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveLibraryReferenceMode } from "@deterministic-code/generator-sdk/read-settings";
+import { libraryReferenceModeFromSettings } from "@deterministic-code/generator-sdk/codegen/lib/generate-settings-options";
 import { replaceMarkedBlockText } from "@deterministic-code/patch-merger";
 import { rewriteLibraryImports } from "./library-import.ts";
 import { setupSql } from "@deterministic-code/generator-sdk/lib/migrate-setup-sql";
@@ -28,11 +28,7 @@ import {
   CONTENT,
   PATCH,
 } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
-import {
-  makeMigrateGenerate,
-  MIGRATE_DIR_FLAG,
-} from "@deterministic-code/generator-sdk/codegen/lib/migrate-generate-helpers";
-import { COMBINED_FLAG } from "@deterministic-code/generator-sdk/codegen/lib/backend-lane";
+import { makeMigrateGenerate } from "@deterministic-code/generator-sdk/codegen/lib/migrate-generate-helpers";
 import { layoutForSettings } from "@deterministic-code/generator-sdk/codegen/lib/ts-codegen-naming";
 import type {
   ContentEntry,
@@ -142,8 +138,8 @@ async function tsEntries({
   settings,
   combined,
 }: MigrateRenderOptions): Promise<MigrateEntry[]> {
-  const libraryReferenceMode = resolveLibraryReferenceMode(
-    settings?.languages,
+  const libraryReferenceMode = libraryReferenceModeFromSettings(
+    settings,
     "typescript",
   );
   const layout = layoutForSettings(settings, "typescript");
@@ -261,7 +257,7 @@ export const migrateTypescript = {
   generate: tsEntries,
 };
 
-export const generate = makeMigrateGenerate(tsEntries);
-export const flags = [MIGRATE_DIR_FLAG, COMBINED_FLAG];
-export const entriesNative = true;
+const MIGRATE_DIR = "migrate";
+
+export const generate = makeMigrateGenerate(tsEntries, MIGRATE_DIR);
 export const pinProjectRoot = true;
