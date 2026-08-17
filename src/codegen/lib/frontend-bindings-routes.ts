@@ -3,7 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
 import type { CodegenLayout } from "@deterministic-code/generator-sdk/codegen-layout";
-import { buildOpenApiDocFromInputs } from "./emit-openapi-docs-shared.ts";
+import { buildOpenApiDocFromInputs } from "@deterministic-code/generator-sdk/codegen/lib/emit-openapi-docs-shared";
 import { layoutForSettings } from "@deterministic-code/generator-sdk/codegen/lib/ts-codegen-naming";
 import {
   CONTENT,

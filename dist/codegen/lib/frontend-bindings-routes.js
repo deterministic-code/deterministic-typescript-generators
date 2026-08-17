@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { buildOpenApiDocFromInputs } from "./emit-openapi-docs-shared.js";
+import { buildOpenApiDocFromInputs } from "@deterministic-code/generator-sdk/codegen/lib/emit-openapi-docs-shared";
 import { layoutForSettings } from "@deterministic-code/generator-sdk/codegen/lib/ts-codegen-naming";
 import { CONTENT, } from "@deterministic-code/generator-sdk/codegen/lib/emit-result";
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
