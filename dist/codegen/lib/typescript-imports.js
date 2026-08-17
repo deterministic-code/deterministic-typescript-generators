@@ -1,0 +1,21 @@
+import { renderGroupedImports } from "@deterministic-code/generator-sdk/emitter-shared";
+import { libraryImportSpecifier } from "./library-import.js";
+/** The TypeScript lane's import renderer, injected into an emitter as `ctx.imports`. Owns the three TS import mechanics: importing from the runtime library, cross-artifact relative specifiers, and rendering grouped `import { ... }` statements. */
+export class TypescriptImports {
+    ctx;
+    constructor(ctx) {
+        this.ctx = ctx;
+    }
+    /** Specifier for importing `subpath` from the deterministic runtime library, relative to the emitted `from` file (`{ entity, artifact }`). */
+    library(subpath, mode, from) {
+        return libraryImportSpecifier(subpath, mode, this.ctx.layout.srcPath(from.entity, from.artifact));
+    }
+    /** Relative specifier from `from`'s file to another generated artifact's file. */
+    crossArtifact(from, to) {
+        return this.ctx.layout.importSpecifier(from, to);
+    }
+    /** Render import intents `{ original, alias, fromPath }` into deduped, sorted import lines. */
+    render(entries, { typeOnly = true } = {}) {
+        return renderGroupedImports(entries, { typeOnly });
+    }
+}

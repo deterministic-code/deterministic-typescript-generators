@@ -1,0 +1,212 @@
+export interface EagerChildSpec {
+  fieldName: string;
+  childTable: string;
+  refColumn: string;
+  joinTable?: string;
+  joinChildColumn?: string;
+  /** When true, attach only on member reads (findById + mutation returns), never on the collection list. */
+  memberOnly?: boolean;
+}
+
+export type EagerLoadTree = Map<string, EagerLoadTree>;
+export type EagerLoadGate = '*' | EagerLoadTree | null | undefined;
+
+function isFieldIncluded(gate: EagerLoadGate, fieldName: string): boolean {
+  if (gate === '*') return true;
+  if (gate === null || gate === undefined) return false;
+  return gate.has(fieldName);
+}
+
+export function subtreeFor(gate: EagerLoadGate, fieldName: string): EagerLoadGate {
+  if (gate === '*') return '*';
+  if (gate === null || gate === undefined) return undefined;
+  return gate.get(fieldName) ?? new Map();
+}
+
+type RawField = {
+  type?: string;
+  references?: string;
+};
+
+type RawViewType = {
+  inherits?: string;
+  fields?: Array<Record<string, RawField>>;
+};
+
+type ViewTypesDoc = {
+  types?: Array<Record<string, RawViewType>>;
+};
+
+type RawDatasourceType = {
+  datasource_type?: string;
+  fields?: Array<Record<string, RawField>>;
+};
+
+type DatasourceDoc = {
+  types?: Array<Record<string, RawDatasourceType>>;
+};
+
+export function computeEagerChildren(
+  entityName: string,
+  viewTypesDoc: ViewTypesDoc | null | undefined,
+  gate: EagerLoadGate,
+  datasourceDoc?: DatasourceDoc | null,
+): EagerChildSpec[] {
+  if (gate === null || gate === undefined) return [];
+  if (gate !== '*' && !(gate instanceof Map)) return [];
+  if (gate !== '*' && gate.size === 0) return [];
+
+  const viewType = findViewType(entityName, viewTypesDoc);
+  if (!viewType) return [];
+
+  const result: EagerChildSpec[] = [];
+
+  const parentTable = parseInheritsTable(viewType.inherits) ?? entityName;
+
+  for (const fieldObj of viewType.fields ?? []) {
+    const [fieldName, fieldDef] = Object.entries(fieldObj)[0];
+
+    if (!isFieldIncluded(gate, fieldName)) continue;
+
+    const typeMatch = parseArrayType(fieldDef.type);
+    if (!typeMatch) continue;
+
+    const refMatch = parseReference(fieldDef.references);
+
+    if (!refMatch) {
+      const auto = autoDetectM2MJunction(parentTable, typeMatch.elementType, datasourceDoc);
+      if (!auto) continue;
+      result.push({
+        fieldName,
+        childTable: typeMatch.elementType,
+        refColumn: auto.parentFkColumn,
+        joinTable: auto.joinTable,
+        joinChildColumn: auto.childFkColumn,
+      });
+      continue;
+    }
+
+    if (refMatch.table === typeMatch.elementType) {
+      result.push({
+        fieldName,
+        childTable: typeMatch.elementType,
+        refColumn: refMatch.column,
+      });
+      continue;
+    }
+
+    const joinChildColumn = findJoinChildColumn(
+      refMatch.table,
+      typeMatch.elementType,
+      datasourceDoc,
+    );
+    if (!joinChildColumn) continue;
+
+    result.push({
+      fieldName,
+      childTable: typeMatch.elementType,
+      refColumn: refMatch.column,
+      joinTable: refMatch.table,
+      joinChildColumn,
+    });
+  }
+
+  return result;
+}
+
+function parseInheritsTable(inherits: string | undefined): string | null {
+  if (!inherits || typeof inherits !== 'string') return null;
+  const m = inherits.match(/^datasource_types\.([a-z_][a-z0-9_]*)$/);
+  return m ? m[1] : null;
+}
+
+function autoDetectM2MJunction(
+  parentTable: string,
+  childTable: string,
+  datasourceDoc: DatasourceDoc | null | undefined,
+): { joinTable: string; parentFkColumn: string; childFkColumn: string } | null {
+  if (!datasourceDoc?.types) return null;
+  const candidates: Array<{ joinTable: string; parentFkColumn: string; childFkColumn: string }> =
+    [];
+  for (const entry of datasourceDoc.types) {
+    const [joinTable, def] = Object.entries(entry)[0];
+    if (def.datasource_type !== 'many-to-many') continue;
+    let parentFkColumn: string | null = null;
+    let childFkColumn: string | null = null;
+    for (const fieldObj of def.fields ?? []) {
+      const [columnName, fieldDef] = Object.entries(fieldObj)[0];
+      const refs = parseReferences(fieldDef.references);
+      if (!refs) continue;
+      if (refs.table === parentTable && parentFkColumn === null) parentFkColumn = columnName;
+      else if (refs.table === childTable && childFkColumn === null) childFkColumn = columnName;
+    }
+    if (parentFkColumn && childFkColumn) {
+      candidates.push({ joinTable, parentFkColumn, childFkColumn });
+    }
+  }
+  if (candidates.length === 1) return candidates[0];
+  return null;
+}
+
+function findViewType(
+  entityName: string,
+  viewTypesDoc: ViewTypesDoc | null | undefined,
+): RawViewType | null {
+  if (!viewTypesDoc || !viewTypesDoc.types) return null;
+  for (const entry of viewTypesDoc.types) {
+    if (entityName in entry) return entry[entityName];
+  }
+  return null;
+}
+
+function findDatasourceType(
+  tableName: string,
+  datasourceDoc: DatasourceDoc | null | undefined,
+): RawDatasourceType | null {
+  if (!datasourceDoc || !datasourceDoc.types) return null;
+  for (const entry of datasourceDoc.types) {
+    if (tableName in entry) return entry[tableName];
+  }
+  return null;
+}
+
+function findJoinChildColumn(
+  joinTable: string,
+  childTable: string,
+  datasourceDoc: DatasourceDoc | null | undefined,
+): string | null {
+  const junction = findDatasourceType(joinTable, datasourceDoc);
+  if (!junction) return null;
+
+  for (const fieldObj of junction.fields ?? []) {
+    const [columnName, fieldDef] = Object.entries(fieldObj)[0];
+    const refsMatch = parseReferences(fieldDef.references);
+    if (!refsMatch) continue;
+    if (refsMatch.table === childTable) {
+      return columnName;
+    }
+  }
+
+  return null;
+}
+
+function parseArrayType(typeStr: string | undefined): { elementType: string } | null {
+  if (!typeStr || typeof typeStr !== 'string') return null;
+  const match = typeStr.match(/^datasource_types\.([a-z_][a-z0-9_]*)\[\]$/);
+  if (!match) return null;
+  return { elementType: match[1] };
+}
+
+function parseReference(refStr: string | undefined): { table: string; column: string } | null {
+  if (!refStr || typeof refStr !== 'string') return null;
+  const match = refStr.match(/^datasource_types\.([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)$/);
+  if (!match) return null;
+  return { table: match[1], column: match[2] };
+}
+
+function parseReferences(refStr: string | undefined): { table: string; column: string } | null {
+  if (!refStr || typeof refStr !== 'string') return null;
+  const match = refStr.match(/^([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)$/);
+  if (!match) return null;
+  return { table: match[1], column: match[2] };
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@deterministic-code/typescript-generators",
+  "version": "0.0.1",
+  "description": "TypeScript generator pack for the deterministic toolchain: the emit-*-typescript lane modules + frontend/client/zod helpers.",
+  "type": "module",
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "dependencies": {
+    "@deterministic-code/generator-sdk": "github:deterministic-code/generators-common",
+    "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pluralize": "^0.0.33",
+    "typescript": "^5.8.0"
+  }
+}
