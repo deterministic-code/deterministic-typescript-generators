@@ -5,8 +5,8 @@ import { pathExists } from "@deterministic-code/generator-sdk/path-exists";
 import {
   normalizeDialect,
   q,
-} from "@deterministic-code/generator-sdk/lib/emit-sql";
-import type { SqlDialect } from "@deterministic-code/generator-sdk/lib/emit-sql";
+} from "@deterministic-code/generator-sdk/lib/generate-sql";
+import type { SqlDialect } from "@deterministic-code/generator-sdk/lib/generate-sql";
 import type { Connection as MysqlConnection } from "mysql2/promise";
 import type { Request as MssqlRequest } from "mssql";
 

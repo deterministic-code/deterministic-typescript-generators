@@ -1,0 +1,271 @@
+const FILE_BODY = `import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { readFile, access } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
+
+const ITERATIONS = Number(process.env.PERF_ITERATIONS ?? "100");
+const WARMUP = Number(process.env.PERF_WARMUP_ITERATIONS ?? "0");
+const BASE_URL = process.env.PERF_BASE_URL ?? "http://127.0.0.1:3000";
+const DIALECT = process.env.PERF_DIALECT ?? process.env.DATABASE_BACKEND ?? "sqlite";
+const LANGUAGE = process.env.PERF_LANGUAGE ?? "typescript";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+async function findDeterministicDir(): Promise<string> {
+  let cur = __dirname;
+  for (let i = 0; i < 6; i++) {
+    const candidate = resolve(cur, "deterministic", "performance-plan.yaml");
+    if (await access(candidate).then(() => true, () => false)) return resolve(cur, "deterministic");
+    cur = resolve(cur, "..");
+  }
+  return resolve(__dirname, "..", "deterministic");
+}
+
+interface PerfStep {
+  id: string;
+  phase: "lookup" | "iter" | "iter_teardown";
+  op: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  path: string;
+  body?: Record<string, unknown>;
+  if_match?: string;
+  capture?: Record<string, string>;
+}
+interface PerfPlan {
+  project_name?: string;
+  steps: PerfStep[];
+}
+
+async function loadYaml<T>(p: string): Promise<T> {
+  return yaml.load(await readFile(p, "utf8")) as T;
+}
+
+function randSuffix(): string {
+  return \`\${Date.now().toString(36)}-\${Math.random().toString(36).slice(2, 8)}\`;
+}
+
+interface RunCtx {
+  ids: Record<string, Array<number | string>>;
+  lookups: Record<string, { ids: Array<number | string>; first_id: number | string | null; first_name: number | string | null }>;
+  i: number;
+}
+
+function resolveTemplate(value: unknown, ctx: RunCtx): unknown {
+  if (typeof value !== "string") return value;
+  const isPureSubstitution = /^\\\$\\{[^}]+\\}$/.test(value);
+  const replaced = value.replace(/\\\$\\{([^}]+)\\}/g, (_m, expr) => {
+    const trimmed = expr.trim();
+    if (trimmed === "randSuffix()") return randSuffix();
+    if (trimmed === "i") return String(ctx.i);
+    const idsMatch = trimmed.match(/^ids\\.([a-z_][a-z0-9_]*)\\[i\\]$/i);
+    if (idsMatch) {
+      const pool = ctx.ids[idsMatch[1]];
+      if (!pool || pool[ctx.i] === undefined) throw new Error(\`unresolved \${trimmed} (pool length=\${pool?.length ?? 0}, i=\${ctx.i})\`);
+      return String(pool[ctx.i]);
+    }
+    const lookupFirst = trimmed.match(/^lookups\\.([a-z_][a-z0-9_]*)\\.first_id$/i);
+    if (lookupFirst) {
+      const lk = ctx.lookups[lookupFirst[1]];
+      if (!lk || lk.first_id === null) throw new Error(\`unresolved \${trimmed}\`);
+      return String(lk.first_id);
+    }
+    const lookupFirstName = trimmed.match(/^lookups\\.([a-z_][a-z0-9_]*)\\.first_name$/i);
+    if (lookupFirstName) {
+      const lk = ctx.lookups[lookupFirstName[1]];
+      if (!lk || lk.first_name === null) throw new Error(\`unresolved \${trimmed}\`);
+      return String(lk.first_name);
+    }
+    const lookupIdxMatch = trimmed.match(/^lookups\\.([a-z_][a-z0-9_]*)\\.ids\\[(\\d+)\\]$/i);
+    if (lookupIdxMatch) {
+      const lk = ctx.lookups[lookupIdxMatch[1]];
+      const idx = Number(lookupIdxMatch[2]);
+      if (!lk || lk.ids[idx] === undefined) throw new Error(\`unresolved \${trimmed}\`);
+      return String(lk.ids[idx]);
+    }
+    throw new Error(\`unrecognized template expression \${trimmed}\`);
+  });
+  if (isPureSubstitution && /^-?\\d+$/.test(replaced)) return Number(replaced);
+  return replaced;
+}
+
+function resolveTemplateDeep(value: unknown, ctx: RunCtx): unknown {
+  if (Array.isArray(value)) return value.map((v) => resolveTemplateDeep(v, ctx));
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = resolveTemplateDeep(v, ctx);
+    }
+    return out;
+  }
+  return resolveTemplate(value, ctx);
+}
+
+function resolveBody(body: Record<string, unknown> | undefined, ctx: RunCtx): Record<string, unknown> | undefined {
+  if (!body) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body)) out[k] = resolveTemplateDeep(v, ctx);
+  return out;
+}
+
+function extractByJsonPath(body: unknown, path: string): unknown {
+  const itemsFirst = path.match(/^\\\$\\.items\\[0\\]\\.([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (itemsFirst) {
+    const col = itemsFirst[1];
+    const items = (body as { items?: Array<Record<string, unknown>> })?.items;
+    return Array.isArray(items) && items[0] ? items[0][col] ?? null : null;
+  }
+  const itemsAll = path.match(/^\\\$\\.items\\[\\*\\]\\.([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (itemsAll) {
+    const col = itemsAll[1];
+    const items = (body as { items?: Array<Record<string, unknown>> })?.items;
+    return Array.isArray(items) ? items.map((it) => it[col] ?? null) : [];
+  }
+  const scalar = path.match(/^\\\$\\.([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (scalar) {
+    const col = scalar[1];
+    const direct = (body as Record<string, unknown>)?.[col];
+    if (direct !== undefined) return direct;
+    const item = (body as { item?: Record<string, unknown> })?.item;
+    if (item && item[col] !== undefined) return item[col];
+    return null;
+  }
+  throw new Error(\`unsupported JSONPath \${path}\`);
+}
+
+function applyCapture(captureSpec: Record<string, string> | undefined, body: unknown, ctx: RunCtx): void {
+  if (!captureSpec) return;
+  for (const [target, jsonPath] of Object.entries(captureSpec)) {
+    const value = extractByJsonPath(body, jsonPath);
+    if (target.startsWith("ids.")) {
+      const m = target.match(/^ids\\.([a-z_][a-z0-9_]*)\\[i\\]$/i);
+      if (!m) throw new Error(\`unsupported capture target \${target}\`);
+      const entity = m[1];
+      if (!ctx.ids[entity]) ctx.ids[entity] = [];
+      ctx.ids[entity][ctx.i] = value as number | string;
+    } else if (target.startsWith("lookups.")) {
+      const m = target.match(/^lookups\\.([a-z_][a-z0-9_]*)\\.(ids|first_id|first_name)$/);
+      if (!m) throw new Error(\`unsupported capture target \${target}\`);
+      const entity = m[1];
+      if (!ctx.lookups[entity]) ctx.lookups[entity] = { ids: [], first_id: null, first_name: null };
+      if (m[2] === "ids") ctx.lookups[entity].ids = Array.isArray(value) ? (value as Array<number | string>) : [];
+      else if (m[2] === "first_id") ctx.lookups[entity].first_id = (value as number | string) ?? null;
+      else ctx.lookups[entity].first_name = (value as number | string) ?? null;
+    }
+  }
+}
+
+function expectedStatusFor(op: PerfStep["op"]): number[] {
+  switch (op) {
+    case "POST": return [201];
+    case "GET":
+    case "PUT":
+    case "PATCH": return [200];
+    case "DELETE": return [200, 204];
+  }
+}
+
+async function executeStep(step: PerfStep, ctx: RunCtx, timings: Record<string, number[]>, record: boolean = true): Promise<void> {
+  const path = resolveTemplate(step.path, ctx) as string;
+  const body = resolveBody(step.body, ctx);
+  const url = BASE_URL + path;
+  const headers: Record<string, string> = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (step.if_match) {
+    const token = String(resolveTemplate(step.if_match, ctx));
+    if (token === "" || token === "null") {
+      throw new Error(\`step \${step.id}: If-Match \${step.if_match} resolved to '\${token}' — the captured updated token is missing (empty version pool)\`);
+    }
+    headers["If-Match"] = token;
+  }
+  const init: RequestInit = {
+    method: step.op,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  };
+  const t0 = performance.now();
+  const res = await fetch(url, init);
+  const elapsed = performance.now() - t0;
+  if (record) {
+    if (!timings[step.id]) timings[step.id] = [];
+    timings[step.id].push(elapsed);
+  }
+  const expected = expectedStatusFor(step.op);
+  if (!expected.includes(res.status)) {
+    const bodyText = await res.text().catch((err: unknown) => { console.warn("perf e2e: response body read failed; continuing with empty body", err); return ""; });
+    const sentJson = body === undefined ? "<none>" : JSON.stringify(body);
+    throw new Error(\`step \${step.id} \${step.op} \${url} expected \${expected.join("|")} got \${res.status} body=\${bodyText.slice(0, 500)} sent=\${sentJson.slice(0, 500)}\`);
+  }
+  if (step.capture) {
+    const json = await res.json().catch(() => null);
+    applyCapture(step.capture, json, ctx);
+  }
+}
+
+let plan: PerfPlan;
+const ctx: RunCtx = { ids: {}, lookups: {}, i: 0 };
+const timings: Record<string, number[]> = {};
+const stepOpById = new Map<string, PerfStep["op"]>();
+const stepPathById = new Map<string, string>();
+
+beforeAll(async () => {
+  const deterministicDir = process.env.PERF_DETERMINISTIC_DIR ?? (await findDeterministicDir());
+  const planPath = process.env.PERF_PLAN_PATH ?? resolve(deterministicDir, "performance-plan.yaml");
+  plan = await loadYaml<PerfPlan>(planPath);
+  for (const s of plan.steps) {
+    stepOpById.set(s.id, s.op);
+    stepPathById.set(s.id, s.path);
+  }
+  const lookupSteps = plan.steps.filter((s) => s.phase === "lookup");
+  const iterSteps = plan.steps.filter((s) => s.phase === "iter");
+  const teardownSteps = plan.steps.filter((s) => s.phase === "iter_teardown");
+  if (WARMUP > 0) {
+    for (const step of lookupSteps) await executeStep(step, ctx, timings, false);
+    for (let w = 0; w < WARMUP; w++) {
+      const warmupCtx: RunCtx = { ids: {}, lookups: ctx.lookups, i: w };
+      for (const step of iterSteps) await executeStep(step, warmupCtx, timings, false);
+      for (const step of teardownSteps) await executeStep(step, warmupCtx, timings, false);
+    }
+  }
+  for (const step of lookupSteps) await executeStep(step, ctx, timings, true);
+});
+
+afterAll(async () => {
+  for (const [id, samples] of Object.entries(timings)) {
+    if (samples.length === 0) continue;
+    const sorted = [...samples].sort((a, b) => a - b);
+    const p50 = sorted[Math.floor(0.50 * sorted.length)];
+    const p95 = sorted[Math.min(sorted.length - 1, Math.floor(0.95 * sorted.length))];
+    const max = Math.max(...samples);
+    const op = stepOpById.get(id) ?? "?";
+    const path = stepPathById.get(id) ?? "?";
+    const iso = new Date().toISOString();
+    console.log(\`[\${iso}]-[perf-e2e][Finish]-[\${op} \${path}] step_id=\${id} language=\${LANGUAGE} dialect=\${DIALECT} iterations=\${samples.length} p50=\${Math.round(p50 * 1000) / 1000}ms p95=\${Math.round(p95 * 1000) / 1000}ms max=\${Math.round(max * 1000) / 1000}ms\`);
+  }
+});
+
+describe(\`perf-e2e — execute performance-plan.yaml × \${ITERATIONS} against \${BASE_URL}\`, () => {
+  for (let iter = 0; iter < Number(process.env.PERF_ITERATIONS ?? "100"); iter++) {
+    it(\`iteration \${iter}\`, async () => {
+      ctx.i = iter;
+      for (const step of plan.steps.filter((s) => s.phase === "iter")) {
+        await executeStep(step, ctx, timings);
+      }
+      for (const step of plan.steps.filter((s) => s.phase === "iter_teardown")) {
+        await executeStep(step, ctx, timings);
+      }
+    });
+  }
+  it("metrics generated", () => { expect(true).toBe(true); });
+});
+`;
+
+export function generatePerfE2eTestTypescript(): string {
+  return FILE_BODY;
+}
+
+const PERF_E2E_BASENAME = "app.perf.client.test.ts";
+
+/** Self-describing catalog `perf_e2e_tests` (typescript): the perf e2e client that replays performance-plan.yaml against a running backend. The `--output` already resolves to the `__tests__` dir, so the file is placed by basename. */
+export async function generate() {
+  return {
+    files: [{ path: PERF_E2E_BASENAME, content: generatePerfE2eTestTypescript() }],
+  };
+}

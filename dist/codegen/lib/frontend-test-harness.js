@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { CONTENT, PATCH, } from "@deterministic-code/generator-sdk/codegen/lib/emit-result";
+import { CONTENT, PATCH, } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 const VITEST_VERSION = "^2.1.0";
 const ZOD_VERSION = "^3.23.8";
 /** The bindings-live setup + axios live tests read process.env.BINDINGS_BASE_URL; the frontend's `tsc && vite build` type-checks src (browser lib, no node globals), so it needs @types/node or `process` is TS2580-undefined. */
@@ -30,7 +30,7 @@ export default defineConfig({
   },
 });
 `;
-/** The add-if-absent `frontend/package.json` patch every frontend test emitter needs so the emitted `*.test.ts` files can run: `vitest` as a devDependency and a `test` script. Pass `needsZod` for the validators tests, whose imported `validators.ts` resolves `zod` at runtime. Deep-merged with the frontend_app skeleton and the client dependency patch, so a version already pinned wins. */
+/** The add-if-absent `frontend/package.json` patch every frontend test generator needs so the generated `*.test.ts` files can run: `vitest` as a devDependency and a `test` script. Pass `needsZod` for the validators tests, whose imported `validators.ts` resolves `zod` at runtime. Deep-merged with the frontend_app skeleton and the client dependency patch, so a version already pinned wins. */
 export function frontendTestHarnessPatch({ needsZod = false, } = {}) {
     const patch = {
         devDependencies: { vitest: VITEST_VERSION },
@@ -44,7 +44,7 @@ export function frontendTestHarnessPatch({ needsZod = false, } = {}) {
         content: JSON.stringify(patch),
     };
 }
-/** The frontend-root harness the live client-bindings tests need: a base-URL setup that rewrites the emitted clients' relative `/api/...` fetches at `BINDINGS_BASE_URL` (a resolver, not a mock — real requests pass through to the running backend), a dedicated `passWithNoTests` vitest config whose `bindings.live.ts` include keeps these files out of the default `vitest run`, and a `test:bindings-live` script the verify runner invokes. Always emitted, so a project with zero frontend bindings still has the script the verify step calls — it just runs zero live tests and passes. */
+/** The frontend-root harness the live client-bindings tests need: a base-URL setup that rewrites the generated clients' relative `/api/...` fetches at `BINDINGS_BASE_URL` (a resolver, not a mock — real requests pass through to the running backend), a dedicated `passWithNoTests` vitest config whose `bindings.live.ts` include keeps these files out of the default `vitest run`, and a `test:bindings-live` script the verify runner invokes. Always generated, so a project with zero frontend bindings still has the script the verify step calls — it just runs zero live tests and passes. */
 export function bindingsLiveHarnessEntries() {
     return [
         {

@@ -1,6 +1,6 @@
 import type { ParsedSettings } from "@deterministic-code/generator-sdk/read-settings";
 import type { CodegenLayout } from "@deterministic-code/generator-sdk/codegen-layout";
-import { type EmitEntry } from "@deterministic-code/generator-sdk/codegen/lib/emit-result";
+import { type GenerateEntry } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 declare const HTTP_METHODS: readonly ["get", "post", "put", "patch", "delete"];
 type HttpMethod = (typeof HTTP_METHODS)[number];
 interface SchemaObject {
@@ -53,11 +53,11 @@ interface BindingContext {
     settings: ParsedSettings;
 }
 export declare function refName(ref: string): string;
-/** The object/entity a route belongs to: the openapi doc's group tag (`toPathGroupTag`, e.g. `Contacts`) when present, else the path's own resource segment so grouping never depends on `groupByEntity` being on. Exported so the live client-binding emitter derives an object's directory identically to the client emitter. */
+/** The object/entity a route belongs to: the openapi doc's group tag (`toPathGroupTag`, e.g. `Contacts`) when present, else the path's own resource segment so grouping never depends on `groupByEntity` being on. Exported so the live client-binding generator derives an object's directory identically to the client generator. */
 export declare function entityOf(operation: Operation, path: string): string;
-/** Bucket route rows by their `entity` so an emitter can render one file per object. Insertion order is preserved, so the emitted file set is deterministic. */
+/** Bucket route rows by their `entity` so an generator can render one file per object. Insertion order is preserved, so the generated file set is deterministic. */
 export declare function groupRowsByEntity<T>(rows: T[]): Map<string, T[]>;
-/** Read `frontend_bindings.yaml`'s `datasources` array (empty when the file is absent — a bare scaffold emits nothing). */
+/** Read `frontend_bindings.yaml`'s `datasources` array (empty when the file is absent — a bare scaffold generates nothing). */
 export declare function readBindings(inputs: unknown): Promise<{
     datasources: unknown[];
 }>;
@@ -68,18 +68,18 @@ type ValidatorRender = (closure: Set<string>, components: Record<string, SchemaO
     entity: string;
     layout: CodegenLayout;
 }) => string;
-/** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test emitter (`validators.test.ts`) share. `test` picks the validators file vs its test via `CodegenLayout.frontendValidatorFile`, so placement stays mode-aware. `render(closure, components, { ds, entity, layout })` produces the body; objects whose routes touch no component are skipped. */
+/** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test generator (`validators.test.ts`) share. `test` picks the validators file vs its test via `CodegenLayout.frontendValidatorFile`, so placement stays mode-aware. `render(closure, components, { ds, entity, layout })` produces the body; objects whose routes touch no component are skipped. */
 export declare function validatorObjectEntries({ inputs, settings }: BindingContext, { test }: {
     test?: boolean;
-}, render: ValidatorRender): Promise<EmitEntry[]>;
+}, render: ValidatorRender): Promise<GenerateEntry[]>;
 interface ClientBindingTestArgs extends BindingContext {
     clientLibs: string[];
-    entryFor: (object: BindingObject, clients: string[], layout: CodegenLayout) => EmitEntry[];
-    harness: () => EmitEntry[];
+    entryFor: (object: BindingObject, clients: string[], layout: CodegenLayout) => GenerateEntry[];
+    harness: () => GenerateEntry[];
 }
-/** The per-(object, client) test-emitter loop shared by the mocked and live client-binding test emitters: yield `entryFor(object, clients, layout)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was emitted. Keeps the two emitters' bodies to just their client set, per-entity renderer, and harness. */
+/** The per-(object, client) test-generator loop shared by the mocked and live client-binding test generators: yield `entryFor(object, clients, layout)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was generated. Keeps the two generators' bodies to just their client set, per-entity renderer, and harness. */
 export declare function clientBindingTestEntries({ inputs, settings, clientLibs, entryFor, harness, }: ClientBindingTestArgs): Promise<{
-    entries: EmitEntry[];
+    entries: GenerateEntry[];
 }>;
 /** Build the project's own OpenAPI doc in-process and project it to `{ rows, components }`. Only `schema: self` resolves today; `id:`/`url:`/`file:` throw. */
 export declare function resolveSelfDoc({ schema, inputs, settings, }: BindingContext & {

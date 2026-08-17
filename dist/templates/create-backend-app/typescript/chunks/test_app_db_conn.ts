@@ -1,5 +1,5 @@
 async function resolveTestConnection(): Promise<DatabaseConnection> {
-  // Dynamic imports keep this patched block self-contained — the unpatched emitter default must compile without them.
+  // Dynamic imports keep this patched block self-contained — the unpatched generator default must compile without them.
   const { access } = await import("node:fs/promises");
   const { resolve } = await import("node:path");
   const { connectDatabase } = await import("{{libImport}}");

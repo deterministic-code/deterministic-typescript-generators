@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Idempotent migrate-setup for the consumer's container — creates the migrates + migrate_logs tracking tables per dialect. The per-dialect bookkeeping DDL is inlined below (SETUP_DDL_BY_DIALECT) so this runner is self-contained, matching the rust/csharp setup binaries; the codegen emitter fills it from the canonical datasource-migrate DDL source.
+// Idempotent migrate-setup for the consumer's container — creates the migrates + migrate_logs tracking tables per dialect. The per-dialect bookkeeping DDL is inlined below (SETUP_DDL_BY_DIALECT) so this runner is self-contained, matching the rust/csharp setup binaries; the codegen generator fills it from the canonical datasource-migrate DDL source.
 
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve as pathResolve } from "node:path";

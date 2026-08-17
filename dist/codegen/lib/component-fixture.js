@@ -80,7 +80,7 @@ export function sampleForSchema(schema, components, { datetime = "string", ident
         nullableVariant: false,
     }, new Set());
 }
-/** A complete JS value conforming to component `name`, filling every property so it satisfies both the frontend_types interface and the zod schema. `datetime` picks the date-time representation: `"native"` yields `Date` objects (matching the emitted interface), `"string"` yields ISO strings (the wire shape client bodies and `z.coerce.date()` accept). `ident` casing-maps each property key so the fixture matches the emitted field names (types/validators pass `CodegenFieldNames.ident`; wire-key bodies pass identity). */
+/** A complete JS value conforming to component `name`, filling every property so it satisfies both the frontend_types interface and the zod schema. `datetime` picks the date-time representation: `"native"` yields `Date` objects (matching the generated interface), `"string"` yields ISO strings (the wire shape client bodies and `z.coerce.date()` accept). `ident` casing-maps each property key so the fixture matches the generated field names (types/validators pass `CodegenFieldNames.ident`; wire-key bodies pass identity). */
 export function sampleForComponent(name, components, { datetime = "string", ident = IDENTITY } = {}) {
     const comps = components;
     const schema = comps[name];
@@ -96,7 +96,7 @@ export function nullableVariantForComponent(name, components, { datetime = "stri
         throw new Error(`nullableVariantForComponent: unknown component "${name}"`);
     return objectSample(schema, { components: comps, datetime, ident, nullableVariant: true }, new Set([name]));
 }
-/** The top-level nullable field names of component `name` (casing-mapped by `ident`) — the set a nullable-variant payload nulls out (empty means no nullable field, so no nullable case is worth emitting). */
+/** The top-level nullable field names of component `name` (casing-mapped by `ident`) — the set a nullable-variant payload nulls out (empty means no nullable field, so no nullable case is worth generating). */
 export function nullableFieldNames(name, components, { ident = IDENTITY } = {}) {
     const props = components[name]?.properties ?? {};
     return Object.keys(props)

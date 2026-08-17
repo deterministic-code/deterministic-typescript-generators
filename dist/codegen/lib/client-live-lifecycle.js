@@ -10,7 +10,7 @@ function sanitize(s) {
         .replace(/[^A-Za-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "");
 }
-/** Project the in-process OpenAPI doc into the shape the live-lifecycle emitter walks: stub-stripped paths and classified CRUD/readonly/other buckets, resolved once so every block derives structure one way. */
+/** Project the in-process OpenAPI doc into the shape the live-lifecycle generator walks: stub-stripped paths and classified CRUD/readonly/other buckets, resolved once so every block derives structure one way. */
 export function buildLiveCtx(input) {
     const doc = input;
     const paths = stripStubOperations(doc.paths ?? {});
@@ -111,7 +111,7 @@ function requestBodyExpr(ctx, op, { idByField }) {
     emptyUpdateChildArrays(sample);
     return serializeSampleValue(sample);
 }
-/** Emit the recursive FK-parent seed chain for `bucket`, driving the parents' own emitted client functions. Dedupes by PARENT (collection + captured column), so a route's path param and a body FK that both reference the same parent reuse one created row — keeping the nested resource's path id and its body FK coherent. Returns the map from each dep field to the in-scope JS expression holding its resolved id. */
+/** Generate the recursive FK-parent seed chain for `bucket`, driving the parents' own generated client functions. Dedupes by PARENT (collection + captured column), so a route's path param and a body FK that both reference the same parent reuse one created row — keeping the nested resource's path id and its body FK coherent. Returns the map from each dep field to the in-scope JS expression holding its resolved id. */
 function seedBucket(builder, bucket, depth = 0) {
     const idByField = {};
     if (depth > SEED_DEPTH_LIMIT)
@@ -141,14 +141,14 @@ function resolveParentId(builder, dep, depth) {
         s: slotName(builder, dep.field),
     };
     if (hasOp(parent.classification.collectionItem, "post")) {
-        emitCreatedParent(builder, seed);
+        generateCreatedParent(builder, seed);
     }
     else {
-        emitLookupParent(builder, seed);
+        generateLookupParent(builder, seed);
     }
     return seed.s;
 }
-function emitCreatedParent(builder, seed) {
+function generateCreatedParent(builder, seed) {
     const { ctx } = builder;
     const { dep, parent, parentTag, grand, s } = seed;
     const fn = fnAt(ctx, "post", parent.collectionPath);
@@ -159,7 +159,7 @@ function emitCreatedParent(builder, seed) {
     const args = [...collectionPathArgs(parent, grand), body].filter((a) => a != null);
     builder.lines.push(`${SEED_INDENT}const ${s} = ((await ${fn}(${args.join(", ")})) as any).${dep.capture};`);
 }
-function emitLookupParent(builder, seed) {
+function generateLookupParent(builder, seed) {
     const { ctx } = builder;
     const { dep, parent, parentTag, grand, s } = seed;
     const fn = fnAt(ctx, "get", parent.collectionPath);
@@ -385,7 +385,7 @@ function vitestImport(client) {
         symbols.push("beforeAll");
     return `import { ${symbols.join(", ")} } from "vitest";`;
 }
-/** Render a `<client>.bindings.live.ts` file for one object tag: a full-coverage lifecycle per bucket (CRUD create→read→update→delete, readonly reads, and other/sub-resource routes), seeding FK parents up the tree via the emitted parent clients. Returns null when the tag has no buckets. */
+/** Render a `<client>.bindings.live.ts` file for one object tag: a full-coverage lifecycle per bucket (CRUD create→read→update→delete, readonly reads, and other/sub-resource routes), seeding FK parents up the tree via the generated parent clients. Returns null when the tag has no buckets. */
 export function renderLiveFile(ctx, { ds, entity, client, layout }) {
     const buckets = ctx.buckets.filter((b) => tagOfBucket(ctx, b) === entity);
     if (buckets.length === 0)

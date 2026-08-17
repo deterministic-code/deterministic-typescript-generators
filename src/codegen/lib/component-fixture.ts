@@ -138,7 +138,7 @@ export function sampleForSchema(
   );
 }
 
-/** A complete JS value conforming to component `name`, filling every property so it satisfies both the frontend_types interface and the zod schema. `datetime` picks the date-time representation: `"native"` yields `Date` objects (matching the emitted interface), `"string"` yields ISO strings (the wire shape client bodies and `z.coerce.date()` accept). `ident` casing-maps each property key so the fixture matches the emitted field names (types/validators pass `CodegenFieldNames.ident`; wire-key bodies pass identity). */
+/** A complete JS value conforming to component `name`, filling every property so it satisfies both the frontend_types interface and the zod schema. `datetime` picks the date-time representation: `"native"` yields `Date` objects (matching the generated interface), `"string"` yields ISO strings (the wire shape client bodies and `z.coerce.date()` accept). `ident` casing-maps each property key so the fixture matches the generated field names (types/validators pass `CodegenFieldNames.ident`; wire-key bodies pass identity). */
 export function sampleForComponent(
   name: string,
   components: unknown,
@@ -172,7 +172,7 @@ export function nullableVariantForComponent(
   );
 }
 
-/** The top-level nullable field names of component `name` (casing-mapped by `ident`) — the set a nullable-variant payload nulls out (empty means no nullable field, so no nullable case is worth emitting). */
+/** The top-level nullable field names of component `name` (casing-mapped by `ident`) — the set a nullable-variant payload nulls out (empty means no nullable field, so no nullable case is worth generating). */
 export function nullableFieldNames(
   name: string,
   components: unknown,

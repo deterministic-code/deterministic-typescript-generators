@@ -2,7 +2,7 @@ import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-nam
 
 type ClassNamer = Pick<CodegenNames, "className">;
 
-/** The exported zod const for an OpenAPI component — `<ClassName>Schema` — so the validators emitter and client_bindings (reference) all name a schema one way. */
+/** The exported zod const for an OpenAPI component — `<ClassName>Schema` — so the validators generator and client_bindings (reference) all name a schema one way. */
 export function schemaSymbol(componentName: string, names: ClassNamer): string {
   return `${names.className(componentName)}Schema`;
 }

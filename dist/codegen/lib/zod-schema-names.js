@@ -1,4 +1,4 @@
-/** The exported zod const for an OpenAPI component — `<ClassName>Schema` — so the validators emitter and client_bindings (reference) all name a schema one way. */
+/** The exported zod const for an OpenAPI component — `<ClassName>Schema` — so the validators generator and client_bindings (reference) all name a schema one way. */
 export function schemaSymbol(componentName, names) {
     return `${names.className(componentName)}Schema`;
 }

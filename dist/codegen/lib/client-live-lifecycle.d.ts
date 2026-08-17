@@ -17,7 +17,7 @@ interface SampleObject {
     [key: string]: SampleValue;
 }
 type SampleValue = string | number | boolean | bigint | null | undefined | Date | Uint8Array | RawTsExpr | RuntimeValue | SampleValue[] | SampleObject;
-/** Project the in-process OpenAPI doc into the shape the live-lifecycle emitter walks: stub-stripped paths and classified CRUD/readonly/other buckets, resolved once so every block derives structure one way. */
+/** Project the in-process OpenAPI doc into the shape the live-lifecycle generator walks: stub-stripped paths and classified CRUD/readonly/other buckets, resolved once so every block derives structure one way. */
 export declare function buildLiveCtx(input: SelfDoc): LiveCtx;
 /** The distinct object tags (client directories) present in the doc, insertion-sorted for deterministic output. */
 export declare function liveTags(ctx: LiveCtx): string[];
@@ -29,6 +29,6 @@ interface RenderLiveArgs {
     client: string;
     layout: CodegenLayout;
 }
-/** Render a `<client>.bindings.live.ts` file for one object tag: a full-coverage lifecycle per bucket (CRUD create→read→update→delete, readonly reads, and other/sub-resource routes), seeding FK parents up the tree via the emitted parent clients. Returns null when the tag has no buckets. */
+/** Render a `<client>.bindings.live.ts` file for one object tag: a full-coverage lifecycle per bucket (CRUD create→read→update→delete, readonly reads, and other/sub-resource routes), seeding FK parents up the tree via the generated parent clients. Returns null when the tag has no buckets. */
 export declare function renderLiveFile(ctx: LiveCtx, { ds, entity, client, layout }: RenderLiveArgs): string | null;
 export {};

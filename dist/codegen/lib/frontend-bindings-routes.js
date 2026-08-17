@@ -1,9 +1,9 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { buildOpenApiDocFromInputs } from "@deterministic-code/generator-sdk/codegen/lib/emit-openapi-docs-shared";
+import { buildOpenApiDocFromInputs } from "@deterministic-code/generator-sdk/codegen/lib/generate-openapi-docs-shared";
 import { layoutForSettings } from "@deterministic-code/generator-sdk/codegen/lib/ts-codegen-naming";
-import { CONTENT, } from "@deterministic-code/generator-sdk/codegen/lib/emit-result";
+import { CONTENT, } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"];
 export function refName(ref) {
     return ref.slice("#/components/schemas/".length);
@@ -19,7 +19,7 @@ function successSchema(operation) {
     }
     return undefined;
 }
-/** The object/entity a route belongs to: the openapi doc's group tag (`toPathGroupTag`, e.g. `Contacts`) when present, else the path's own resource segment so grouping never depends on `groupByEntity` being on. Exported so the live client-binding emitter derives an object's directory identically to the client emitter. */
+/** The object/entity a route belongs to: the openapi doc's group tag (`toPathGroupTag`, e.g. `Contacts`) when present, else the path's own resource segment so grouping never depends on `groupByEntity` being on. Exported so the live client-binding generator derives an object's directory identically to the client generator. */
 export function entityOf(operation, path) {
     const tag = operation.tags?.[0];
     if (tag)
@@ -28,7 +28,7 @@ export function entityOf(operation, path) {
     const head = segments[0] === "api" ? segments[1] : segments[0];
     return head ?? "api";
 }
-/** The focused projection of an in-process OpenAPI doc onto the per-operation fields the frontend emitters need (verb, path, operationId, grouping entity, request/response body schema) — resolved once via resolveSelfDoc so client_bindings and frontend_validators group routes one way. */
+/** The focused projection of an in-process OpenAPI doc onto the per-operation fields the frontend generators need (verb, path, operationId, grouping entity, request/response body schema) — resolved once via resolveSelfDoc so client_bindings and frontend_validators group routes one way. */
 function operationRows(doc) {
     const rows = [];
     for (const [path, item] of Object.entries(doc.paths ?? {})) {
@@ -65,7 +65,7 @@ function collectRefs(node, acc) {
     }
     return acc;
 }
-/** The transitive set of component schemas an object's routes touch: seed from every operation's request + response body, then follow `$ref` edges through the component graph. This is exactly the set the object's `validators.ts` declares and its client `.parse()`s — consumed by `validatorObjectEntries` so the validators emitter and its test emitter derive membership one way. */
+/** The transitive set of component schemas an object's routes touch: seed from every operation's request + response body, then follow `$ref` edges through the component graph. This is exactly the set the object's `validators.ts` declares and its client `.parse()`s — consumed by `validatorObjectEntries` so the validators generator and its test generator derive membership one way. */
 function reachableComponents(rows, components) {
     const stack = [];
     for (const row of rows) {
@@ -85,7 +85,7 @@ function reachableComponents(rows, components) {
     }
     return closure;
 }
-/** Bucket route rows by their `entity` so an emitter can render one file per object. Insertion order is preserved, so the emitted file set is deterministic. */
+/** Bucket route rows by their `entity` so an generator can render one file per object. Insertion order is preserved, so the generated file set is deterministic. */
 export function groupRowsByEntity(rows) {
     const groups = new Map();
     for (const row of rows) {
@@ -96,7 +96,7 @@ export function groupRowsByEntity(rows) {
     }
     return groups;
 }
-/** Read `frontend_bindings.yaml`'s `datasources` array (empty when the file is absent — a bare scaffold emits nothing). */
+/** Read `frontend_bindings.yaml`'s `datasources` array (empty when the file is absent — a bare scaffold generates nothing). */
 export async function readBindings(inputs) {
     const path = join(inputs.dir, "frontend_bindings.yaml");
     const present = await access(path).then(() => true, () => false);
@@ -118,7 +118,7 @@ export function bindingDatasource(entry) {
         clients: Array.isArray(def.clients) ? def.clients : [],
     };
 }
-/** The per-object work-list the frontend datasource emitters share (via `clientBindingTestEntries` / `validatorObjectEntries`): for each binding datasource, resolve its OpenAPI doc once and yield `{ ds, entity, entityRows, components }` per object (route-group). Emitters derive placement from `ds.name`/`entity` through `CodegenLayout`, so the layout owns paths one way. */
+/** The per-object work-list the frontend datasource generators share (via `clientBindingTestEntries` / `validatorObjectEntries`): for each binding datasource, resolve its OpenAPI doc once and yield `{ ds, entity, entityRows, components }` per object (route-group). Generators derive placement from `ds.name`/`entity` through `CodegenLayout`, so the layout owns paths one way. */
 async function bindingObjects({ inputs, settings, }) {
     const { datasources } = await readBindings(inputs);
     const objects = [];
@@ -135,7 +135,7 @@ async function bindingObjects({ inputs, settings, }) {
     }
     return objects;
 }
-/** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test emitter (`validators.test.ts`) share. `test` picks the validators file vs its test via `CodegenLayout.frontendValidatorFile`, so placement stays mode-aware. `render(closure, components, { ds, entity, layout })` produces the body; objects whose routes touch no component are skipped. */
+/** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test generator (`validators.test.ts`) share. `test` picks the validators file vs its test via `CodegenLayout.frontendValidatorFile`, so placement stays mode-aware. `render(closure, components, { ds, entity, layout })` produces the body; objects whose routes touch no component are skipped. */
 export async function validatorObjectEntries({ inputs, settings }, { test = false }, render) {
     const layout = layoutForSettings(settings, "typescript");
     const entries = [];
@@ -154,7 +154,7 @@ export async function validatorObjectEntries({ inputs, settings }, { test = fals
     }
     return entries;
 }
-/** The per-(object, client) test-emitter loop shared by the mocked and live client-binding test emitters: yield `entryFor(object, clients, layout)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was emitted. Keeps the two emitters' bodies to just their client set, per-entity renderer, and harness. */
+/** The per-(object, client) test-generator loop shared by the mocked and live client-binding test generators: yield `entryFor(object, clients, layout)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was generated. Keeps the two generators' bodies to just their client set, per-entity renderer, and harness. */
 export async function clientBindingTestEntries({ inputs, settings, clientLibs, entryFor, harness, }) {
     const layout = layoutForSettings(settings, "typescript");
     const entries = [];
