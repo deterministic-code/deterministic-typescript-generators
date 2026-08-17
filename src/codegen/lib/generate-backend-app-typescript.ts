@@ -15,11 +15,15 @@ import { PACK_TEMPLATES_DIR } from "../../pack-root.ts";
 
 const { loadChunk } = makeChunkLoader(PACK_TEMPLATES_DIR);
 import { pathExists } from "@deterministic-code/generator-sdk/path-exists";
+import { readSettingsWithDefault } from "@deterministic-code/generator-sdk/read-settings";
 import {
-  readSettingsWithDefault,
-  resolveLibraryReferenceMode,
-  type ParsedSettings,
-} from "@deterministic-code/generator-sdk/read-settings";
+  flattenSettings,
+  settingsBool,
+  settingsList,
+  settingsStr,
+  type SettingsDict,
+} from "@deterministic-code/generator-sdk/settings-dict";
+import { libraryReferenceModeFromSettings } from "@deterministic-code/generator-sdk/codegen/lib/generate-settings-options";
 import { normalizeDialect } from "@deterministic-code/generator-sdk/lib/generate-sql";
 import { namesForSettings } from "@deterministic-code/generator-sdk/codegen/lib/ts-codegen-naming";
 import { resolveCustomGeneratePath } from "./generate-services-typescript.ts";
@@ -45,11 +49,7 @@ import {
 } from "@deterministic-code/patch-merger";
 import { loadBackendAppInputs } from "@deterministic-code/generator-sdk/codegen/lib/backend-app-inputs";
 import { makeBackendAppGenerate } from "@deterministic-code/generator-sdk/codegen/lib/backend-app-generate-helpers";
-import { isMultiLanguage } from "@deterministic-code/generator-sdk/codegen/lib/declared-languages";
-import {
-  backendLaneDir,
-  COMBINED_FLAG,
-} from "@deterministic-code/generator-sdk/codegen/lib/backend-lane";
+import { backendLaneDir } from "@deterministic-code/generator-sdk/codegen/lib/backend-lane";
 import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-naming";
 
 type AppModel = ReturnType<typeof buildAppModel>;
@@ -583,7 +583,7 @@ async function typescriptScaffoldEntries({
 
 interface TestEntriesInput {
   inputs: BackendAppInputs;
-  settings: ParsedSettings;
+  settings: SettingsDict;
   libraryReferenceMode: string;
 }
 
@@ -621,7 +621,7 @@ async function typescriptTestEntries({
     uuid: ds.uuidRepr,
     idType: ds.idType,
     libraryReferenceMode,
-    organizeByFeature: settings.other.organizeByFeature === true,
+    organizeByFeature: settingsBool(settings, "other.organize_by_feature"),
   });
   entries.push({
     kind: PATCH,
@@ -632,27 +632,25 @@ async function typescriptTestEntries({
 }
 
 async function resolveTypescriptBackend(inputDir: string) {
-  const settings = await readSettingsWithDefault(inputDir);
-  const inputs = await loadBackendAppInputs(inputDir, settings);
-  const dialects = (
-    settings.backend.datasources.length > 0
-      ? settings.backend.datasources
-      : ["sqlite"]
-  )
+  const parsed = await readSettingsWithDefault(inputDir);
+  const inputs = await loadBackendAppInputs(inputDir, parsed);
+  const settings = flattenSettings(parsed);
+  const datasources = settingsList(settings, "backend.datasources");
+  const dialects = (datasources.length > 0 ? datasources : ["sqlite"])
     .map((d: string) => normalizeDialect(d))
     .filter((d): d is Exclude<typeof d, null> => d !== null);
   const model = buildAppModel({
     ...inputs,
-    applicationName: settings.applicationName,
-    byFeature: settings.other.organizeByFeature === true,
+    applicationName: settingsStr(settings, "application_name"),
+    byFeature: settingsBool(settings, "other.organize_by_feature"),
   } as Parameters<typeof buildAppModel>[0]);
   return {
     inputs,
     settings,
     dialects,
     model,
-    libraryReferenceMode: resolveLibraryReferenceMode(
-      settings.languages,
+    libraryReferenceMode: libraryReferenceModeFromSettings(
+      settings,
       "typescript",
     ),
   };
@@ -675,13 +673,13 @@ export async function generateBackendApp(args: GenerateArgs): Promise<GenerateEn
   }
   const { inputs, settings, dialects, model, libraryReferenceMode } =
     await resolveTypescriptBackend(inputDir);
-  const multiLanguage = isMultiLanguage(settings);
+  const multiLanguage = settingsList(settings, "backend.languages").length > 1;
   const laneDir = backendLaneDir({
     combined: args.combined === true,
     multiLanguage,
     language: "typescript",
   });
-  const customModulePaths = settings.other.organizeByFeature
+  const customModulePaths = settingsBool(settings, "other.organize_by_feature")
     ? buildCustomModulePaths({
         servicesDoc: inputs.servicesDoc as { services?: unknown } | null,
         routesDoc: inputs.routesDoc as { routes?: unknown } | null,
@@ -696,7 +694,7 @@ export async function generateBackendApp(args: GenerateArgs): Promise<GenerateEn
       customModulePaths,
       multiLanguage,
       laneDir,
-      organizeByFeature: settings.other.organizeByFeature === true,
+      organizeByFeature: settingsBool(settings, "other.organize_by_feature"),
     })),
     ...(await typescriptTestEntries({
       inputs,
@@ -711,6 +709,4 @@ export async function generateBackendApp(args: GenerateArgs): Promise<GenerateEn
 }
 
 export const generate = makeBackendAppGenerate(generateBackendApp, "typescript");
-export const entriesNative = true;
 export const pinProjectRoot = true;
-export const flags = [COMBINED_FLAG];

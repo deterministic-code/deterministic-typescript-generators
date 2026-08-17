@@ -8,6 +8,7 @@ import {
 } from "./frontend-bindings-routes.ts";
 import { CONTENT } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import type { GenerateArgs, SchemaProp } from "./frontend-generate-types.ts";
+import { makeGenerate } from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
 import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-naming";
 import type { CodegenFieldNames } from "@deterministic-code/generator-sdk/field-names";
 import type { CodegenLayout } from "@deterministic-code/generator-sdk/codegen-layout";
@@ -187,18 +188,18 @@ export function datasourceTypeEntries(
 }
 
 /** Generate the entity/view read types under `frontend/src/bindings/<datasource>/types/` — one file per type plus a barrel `index.ts` — for every datasource in `frontend_bindings.yaml`. The datasource is the type-sharing boundary, so each datasource folder is self-contained (a view type spanning entities still belongs to one datasource). No bindings → no frontend types, matching `client_bindings`/`frontend_validators`. Each type's flattened shape matches the OpenAPI `components/schemas` via `buildComponents` (the oracle), so frontend types can't drift from the backend contract; write-body DTOs (create/update/eager) are filtered out; casing flows through `CodegenNames`/`CodegenFieldNames`/`CodegenLayout` from settings. */
-export async function generate({ inputs, settings }: GenerateArgs) {
+async function planFrontendTypes({ inputs, settings }: GenerateArgs) {
   const { datasources } = await readBindings(inputs);
-  if (datasources.length === 0) return { entries: [] };
+  if (datasources.length === 0) return [];
   const model = await buildReadTypeModel({ inputs, settings });
   const entries = [];
   for (const entry of datasources) {
     const ds = bindingDatasource(entry);
     entries.push(...datasourceTypeEntries(ds.name, model));
   }
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planFrontendTypes);
 
 export const assembleAfterStep = true;

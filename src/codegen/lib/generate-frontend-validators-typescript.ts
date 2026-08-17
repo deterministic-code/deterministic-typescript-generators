@@ -7,6 +7,7 @@ import { refName, validatorObjectEntries } from "./frontend-bindings-routes.ts";
 import { PATCH } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import type { GenerateEntry } from "@deterministic-code/generator-sdk/codegen/lib/generate-result";
 import type { GenerateArgs, SchemaProp } from "./frontend-generate-types.ts";
+import { makeGenerate } from "@deterministic-code/generator-sdk/codegen/lib/make-generate";
 import type { CodegenNames } from "@deterministic-code/generator-sdk/codegen-naming";
 
 const ZOD_VERSION = "^3.23.8";
@@ -161,7 +162,7 @@ function zodDependencyPatch() {
 }
 
 /** Generate a self-contained zod validators file per object, placed by layout mode via `CodegenLayout.frontendValidatorFile` (flat `validators/<object>.ts`, by-feature `features/<object>/validators.ts`) — driven by the same `frontend_bindings.yaml` + route projection as `client_bindings`, so validators track the clients. Each file holds the zod schemas for the read + create/update/eager types that object's routes send/receive (transitive `$ref` closure); `client_bindings` imports them through the layout's `frontendRelImport`. Always generates when the step runs; `settings.frontend.generate_validators` gates only whether the frontend `--all` sweep includes this step (see generate.mjs runAll). `$ref` becomes `z.lazy(() => XSchema)` so circular refs survive ESM module init; datetime honors the setting (native → `z.coerce.date()`). */
-export async function generate({ inputs, settings }: GenerateArgs) {
+async function planFrontendValidators({ inputs, settings }: GenerateArgs) {
   const names = namesForSettings(settings, "typescript");
   const fields = new CodegenFieldNames({ fieldFormat: names.fieldFormat });
   const base: ValidatorBase = {
@@ -176,9 +177,9 @@ export async function generate({ inputs, settings }: GenerateArgs) {
       renderObjectValidators(closure, components, base),
   );
   if (entries.length > 0) entries.push(zodDependencyPatch());
-  return { entries };
+  return entries;
 }
 
-export const entriesNative = true;
+export const generate = makeGenerate(planFrontendValidators);
 
 export const assembleAfterStep = true;
