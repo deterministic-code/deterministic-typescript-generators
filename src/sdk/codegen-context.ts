@@ -89,21 +89,6 @@ export class EntityGenerator {
   }
 }
 
-/** `createGenerator` for a datasource-types generator: source is `config.datasourceTypes.types` mapped through `normalizeTable`. */
-export const datasourceTypesGenerator =
-  (
-    normalizeTable: (entry: any) => any,
-    render: RenderFn,
-    indexLine?: IndexLineFn,
-  ) =>
-  (Imports?: ImportsCtor) =>
-    new EntityGenerator({
-      normalize: (config) => config.datasourceTypes.types.map(normalizeTable),
-      render,
-      indexLine,
-      Imports,
-    });
-
 /** `createGenerator` for a view generator: source is `normalizeAll(config.viewTypes)`. */
 export const viewGenerator =
   (render: RenderFn, indexLine?: IndexLineFn) => (Imports?: ImportsCtor) =>
@@ -128,10 +113,13 @@ export const datasourceValidatorGenerator =
 export const datasourceTestsGenerator = (
   generateForTable: (entry: any, datasourceTypes: any, opts: any) => any,
 ) =>
-  datasourceTypesGenerator(
-    (entry) => entry,
-    (entry, ctx) => generateForTable(entry, ctx.opts.datasourceTypes, ctx.opts),
-  );
+  (Imports?: ImportsCtor) =>
+    new EntityGenerator({
+      normalize: (config) => config.datasourceTypes.types,
+      render: (entry, ctx) =>
+        generateForTable(entry, ctx.opts.datasourceTypes, ctx.opts),
+      Imports,
+    });
 
 /** Legacy `generateFromSchema` for a datasource-tests generator (colocated unit tests). */
 export const datasourceTestsGenerateFromSchema =

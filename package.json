@@ -4,6 +4,10 @@
   "description": "TypeScript generator pack for the deterministic toolchain: the emit-*-typescript lane modules + frontend/client/zod helpers.",
   "type": "module",
   "exports": {
+    "./generate-context": {
+      "types": "./dist/generate-context.d.ts",
+      "import": "./dist/generate-context.js"
+    },
     "./field-converter": {
       "types": "./dist/field-converter.d.ts",
       "import": "./dist/field-converter.js"

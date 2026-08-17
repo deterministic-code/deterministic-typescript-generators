@@ -11,7 +11,7 @@ Write TypeScript functions as arrows, including exports and helpers.
 ```typescript
 import type { GenerateContext } from "./common/generate-context.ts";
 
-export const generateBackendApp = async (
+export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   // ...

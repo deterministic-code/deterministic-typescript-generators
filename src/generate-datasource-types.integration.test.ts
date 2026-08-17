@@ -8,11 +8,8 @@ import {
   memoryReader,
 } from "./common/deterministic-reader.ts";
 import { DATASOURCE_TYPES_YAML } from "./common/parse-datasource-types.ts";
-import {
-  generate,
-  generateDatasourceTypes,
-  type GenerateEntry,
-} from "./generate-datasource-types.ts";
+import type { GenerateEntry } from "./common/generate-entry.ts";
+import { generate } from "./generate-datasource-types.ts";
 
 const FIXTURE_YAML = `types:
   - user:
@@ -68,7 +65,7 @@ const requireEntry = (
   return entry;
 };
 
-describe("generateDatasourceTypes", () => {
+describe("generate", () => {
   const generateWith = (settings: Record<string, string>) =>
     generate({
       reader: fixtureReader(),
@@ -128,7 +125,7 @@ describe("generateDatasourceTypes", () => {
     const dir = await mkdtemp(join(tmpdir(), "generate-datasource-types-"));
     try {
       await writeFile(join(dir, DATASOURCE_TYPES_YAML), FIXTURE_YAML);
-      const wrapped = await generateDatasourceTypes({
+      const wrapped = await generate({
         reader: fileReader(dir),
         settings: { "codegen.schema_version": "2.0" },
       });
@@ -137,15 +134,6 @@ describe("generateDatasourceTypes", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-  });
-
-  it("generateDatasourceTypes forwards reader and settings to generate", async () => {
-    const wrapped = await generateDatasourceTypes({
-      reader: fixtureReader(),
-      settings: { "codegen.schema_version": "2.0" },
-    });
-    const user = entryBody(requireEntry(indexEntries(wrapped), "user.ts"));
-    assert.match(user, /schema-version: 2\.0/);
   });
 
   it("emits one interface file per datasource type", async () => {
