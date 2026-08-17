@@ -1,6 +1,6 @@
 {
   "name": "@deterministic-code/deterministic",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "TypeScript base classes used to generate REST and GraphQL APIs.",
   "type": "module",
   "main": "./dist/index.cjs",
