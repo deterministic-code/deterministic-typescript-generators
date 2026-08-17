@@ -1,0 +1,29 @@
+// schema-version: {{schemaVersion}}
+import { describe, it, expect } from "vitest";
+import type { {{className}} } from "{{typeImport}}";
+
+describe("{{className}} field accessors (datasource_types.{{tableName}})", () => {
+  const sample = (): {{className}} => ({{&fixture}});
+
+{{#fields}}
+  it("gets {{testName}}", () => {
+    const initial = {{&sampleExpr}};
+    const value: {{className}} = { ...sample(), {{ident}}: initial };
+    expect(value{{&access}}).toEqual(initial);
+  });
+
+  it("sets {{testName}}", () => {
+    const value: {{className}} = sample();
+    const next = {{&nextExpr}};
+    value{{&access}} = next;
+    expect(value{{&access}}).toEqual(next);
+  });
+{{#nullable}}
+  it("allows setting {{testName}} to null", () => {
+    const value: {{className}} = sample();
+    value{{&access}} = null;
+    expect(value{{&access}}).toBeNull();
+  });
+{{/nullable}}
+{{/fields}}
+});

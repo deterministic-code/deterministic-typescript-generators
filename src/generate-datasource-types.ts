@@ -1,5 +1,6 @@
 import {
   datasourceSettings,
+  declaredFields,
   nativeFieldType,
   type DatasourceSettings,
 } from "./common/datasource-settings.ts";
@@ -9,7 +10,8 @@ import type { GenerateContext, SettingsDict } from "./common/generate-context.ts
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
 import {
-  loadDatasourceTypes,
+  DATASOURCE_TYPES_YAML,
+  parseDatasourceTypes,
   type DatasourceType,
 } from "./common/parse-datasource-types.ts";
 import { settingsBool, settingsStr } from "./common/settings.ts";
@@ -48,9 +50,7 @@ const renderType = (
 ): GenerateEntry => {
   const { ds, naming, schemaVersion, style, libraryMode } = opts;
   const className = naming.className(dsType.name);
-  const fields = ds.withUuidColumn
-    ? dsType.fields
-    : dsType.fields.filter((f) => f.name !== "uuid");
+  const fields = declaredFields(dsType.fields, ds);
   return content(
     naming.filePath(dsType.name),
     fill(typeTmpl, {
@@ -95,7 +95,10 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const types = await loadDatasourceTypes(ctx.reader, opts.ds.idType);
+  const types = parseDatasourceTypes({
+    yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
+    idType: opts.ds.idType,
+  });
   const entries = types.map((dsType) => renderType(dsType, opts));
   if (opts.createIndex) entries.push(renderIndex(types, opts.naming));
   return entries;

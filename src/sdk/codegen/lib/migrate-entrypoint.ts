@@ -1,10 +1,16 @@
+import { readFile } from "node:fs/promises";
+import { fill } from "../../../common/fill.ts";
 import type { CodegenLayout } from "../../codegen-layout.ts";
-import { loadChunk, applyTokens } from "./chunk-loader.ts";
 
-const ENTRYPOINT_MIGRATE_CHUNK = await loadChunk(
-  "typescript",
-  "entrypoint_migrate.sh",
-);
+const ENTRYPOINT_MIGRATE_CHUNK = (
+  await readFile(
+    new URL(
+      "../../../templates/create-backend-app/typescript/chunks/entrypoint_migrate.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  )
+).trimEnd();
 
 interface CommandSet {
   setupCmd: string;
@@ -72,7 +78,7 @@ export function buildEntrypointMigrateBlock(
     );
   }
   return (
-    applyTokens(ENTRYPOINT_MIGRATE_CHUNK, {
+    fill(ENTRYPOINT_MIGRATE_CHUNK, {
       ...commandsFor(migrateDir),
       containerSqlRoot: layout.containerSqlRoot(),
       testMigrationsExport: testMigrationsExportLine(language, layout),

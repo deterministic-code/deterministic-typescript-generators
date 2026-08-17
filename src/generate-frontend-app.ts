@@ -1,6 +1,5 @@
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { renderTemplate } from "./sdk/codegen/lib/chunk-loader.ts";
+import { join, resolve } from "node:path";
+import { fillFile } from "./common/fill.ts";
 import { PACK_TEMPLATES_DIR } from "./pack-root.ts";
 import {
   CONTENT,
@@ -16,7 +15,6 @@ import {
   FRONTEND_PORT,
 } from "./sdk/codegen/lib/compose-services.ts";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const templatesDir = resolve(PACK_TEMPLATES_DIR, "create-frontend-app");
 
 const DEFAULT_APP_NAME = "generated-frontend";
@@ -96,7 +94,7 @@ async function planFrontendApp({ settings }: GenerateContext) {
 
   const entries = [];
   for (const [templateFile, outputFile] of TEMPLATE_TO_OUTPUT) {
-    const contents = await renderTemplate(resolve(templatesDir, templateFile), {
+    const contents = await fillFile(resolve(templatesDir, templateFile), {
       appName,
     });
     entries.push({
@@ -108,14 +106,14 @@ async function planFrontendApp({ settings }: GenerateContext) {
   entries.push({
     kind: PATCH,
     filename: join("frontend", "package.json"),
-    content: await renderTemplate(resolve(templatesDir, "package.json.tmpl"), {
+    content: await fillFile(resolve(templatesDir, "package.json.tmpl"), {
       appName,
     }),
   });
   entries.push({
     kind: PATCH,
     filename: join("frontend", ".gitignore"),
-    content: await renderTemplate(resolve(templatesDir, "gitignore"), {
+    content: await fillFile(resolve(templatesDir, "gitignore"), {
       appName,
     }),
   });

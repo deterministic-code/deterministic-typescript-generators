@@ -1,17 +1,34 @@
 import { posix } from "node:path";
 import { toCase, apiPathSegment } from "./case.ts";
-import { ImportPaths, STEPS } from "./import-paths.ts";
 import { backendLaneDir } from "./backend-lane.ts";
 import type { CodegenNames } from "./codegen-naming.ts";
 
-const ARTIFACT_STEP: Record<string, string> = Object.freeze({
-  "datasource-type": STEPS.DATASOURCE_TYPES,
-  "view-type": STEPS.VIEW_TYPES,
-  "view-validator": STEPS.VIEW_TYPE_VALIDATORS,
-  service: STEPS.SERVICES,
-  route: STEPS.ROUTES,
-  enrichment: STEPS.ROUTES,
-});
+const FLAT_SRC_DIR: Record<string, Record<string, string>> = {
+  typescript: {
+    "datasource-type": "types/generated/datasource",
+    "view-type": "types/generated/views",
+    "view-validator": "types/generated/views/validators",
+    service: "services/generated",
+    route: "routes/generated",
+    enrichment: "routes/generated",
+  },
+  rust: {
+    "datasource-type": "src/types/generated/datasource",
+    "view-type": "src/types/generated/views",
+    "view-validator": "src/types/generated/views/validators",
+    service: "src/services/generated",
+    route: "src/routes/generated",
+    enrichment: "src/routes/generated",
+  },
+  csharp: {
+    "datasource-type": "datasource_types",
+    "view-type": "view_types",
+    "view-validator": "view_validators",
+    service: "Services/Generated",
+    route: "Routes/Generated",
+    enrichment: "Routes/Generated",
+  },
+};
 
 /** The container's sql root — a deliberately DECOUPLED constant, not a host-relative path. The Dockerfile always flattens the backend-shared sql tree to this absolute path regardless of the host lane→shared depth (`sql` vs `../sql`), so the entrypoint and the docker-run pretest read migrations at a location that never depends on `multiLanguage`. The single literal behind `containerSqlRoot()`/`containerMigrationsDir()`; do NOT derive it from `migrateRoot()`, which would re-couple the container frame to the host layout the flatten deliberately severs. */
 export const CONTAINER_SQL_ROOT = "/app/sql";
@@ -29,18 +46,15 @@ export class CodegenLayout {
     this.names = names;
   }
 
-  /** Generated path relative to the PROJECT ROOT (not the step dir): by-feature is already root-relative; flat prepends the step's output dir from ImportPaths so callers stop hardcoding `types/generated/...`. */
+  /** Generated path relative to the PROJECT ROOT (not the step dir): by-feature is already root-relative; flat prepends the artifact's output dir so callers stop hardcoding `types/generated/...`. */
   srcPath(entity: string, artifact: string): string {
     if (this.names.byFeature) return this.filePath(entity, artifact);
-    const step = ARTIFACT_STEP[artifact];
-    if (!step) {
-      throw new Error(`srcPath: no step mapping for artifact=${artifact}`);
+    const dir = FLAT_SRC_DIR[this.names.language]?.[artifact];
+    if (!dir) {
+      throw new Error(
+        `srcPath: no flat dir for language=${this.names.language} artifact=${artifact}`,
+      );
     }
-    const dir = ImportPaths.outputDir({
-      outRoot: "",
-      step,
-      language: this.names.language,
-    });
     return `${dir}/${this.filePath(entity, artifact)}`;
   }
 

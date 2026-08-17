@@ -49,16 +49,17 @@ function buildViewGenerateConfig({
   };
 }
 
-/** Build a self-describing catalog-runner `generate` for one view step: read the whole-dir inputs and render via the language generator's `createGenerator`. The generated paths are output-root-relative (bare when flat, `features/<dir>/` under by-feature); the runner's `--output` (from `outputFor`) supplies the step's artifact directory, so the generator never re-prefixes it. The nine `generate-view-*.mjs` modules each export `makeViewGenerate(createGenerator, step, language)` so the wrapper body lives once. */
+/** Build a self-describing catalog-runner `generate` for one view step: read the whole-dir inputs and render via the language generator's `createGenerator`. The generated paths are output-root-relative (bare when flat, `features/<dir>/` under by-feature); the runner's `--output` (from `outputFor`) supplies the step's artifact directory, so the generator never re-prefixes it. `makeViewGenerate(createGenerator, language)`. A leftover three-arg form `makeViewGenerate(createGenerator, step, language)` still works. */
 export function makeViewGenerate<C>(
   createGenerator: () => { generate: (config: C) => unknown },
-  _step: string,
   language: string,
+  maybeLanguage?: string,
 ) {
+  const lang = maybeLanguage ?? language;
   return makeGenerate(async ({ inputs, settings }: ViewGenerateContext) => {
     const { viewYamlText, datasourceYamlText } = await inputs.all();
     const config = buildViewGenerateConfig({
-      language,
+      language: lang,
       viewYamlText,
       datasourceYamlText,
       settings,

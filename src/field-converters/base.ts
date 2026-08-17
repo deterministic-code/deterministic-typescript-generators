@@ -46,6 +46,8 @@ export interface ConverterModule {
   conversions: Conversion[];
   defaults: DefaultsTable;
   jsonSample?: Record<string, string>;
+  /** Distinct-from-`jsonSample` literals for setter tests — same keys as `jsonSample`. */
+  jsonNext?: Record<string, string>;
   /** The language expression that generates a fresh, collision-free uuid rendered as the field's wire value — the "unique" arm of `generatedSample`. */
   newIdSample?: () => string;
   /** The language expression that generates a fresh, collision-free string rendered as the field's wire value — the "unique" arm of `sampleLiteral` for `string`/`character`. Bounded by `maxLength` so a small unique column can't overflow/409. */
@@ -189,7 +191,7 @@ export const nativeTypeFor = (
 /** The SQL `DEFAULT` expression for a field, translating each symbolic default token to this dialect's form — the dialect-invariant cases live here, the varying ones in the dialect module's `defaults` table. */
 export function renderSqlDefault(
   mod: ConverterModule,
-  field: ConverterField,
+  field: ConverterField,  
 ): string | null {
   const { token, arg } = parseDefaultToken(field.type, field.defaultValue);
   switch (token) {
