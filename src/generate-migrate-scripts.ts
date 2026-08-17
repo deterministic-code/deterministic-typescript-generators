@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { libraryReferenceModeFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
-import { replaceMarkedBlockText } from "@deterministic-code/patch-merger";
 import { rewriteLibraryImports } from "./library-import.ts";
 import { setupSql } from "./sdk/lib/migrate-setup-sql.ts";
 import { PACK_TEMPLATES_DIR } from "./pack-root.ts";
@@ -11,15 +10,9 @@ import {
   dialectDriver,
 } from "./sdk/lib/migrate-scripts-plan.ts";
 import {
-  TEST_DB_RELATIVE_PATH,
-  renderDbDriverShims,
-  buildAppTsDbHookImportsBlock,
-  buildAppTsBeforeHookBlock,
-  buildAppTsAfterHookBlock,
-  buildTestAppDbConnBlock,
-  buildMigrateScripts,
-  buildPretestScript,
-} from "./generate-backend-app.ts";
+  makeChunkLoader,
+  applyTokens,
+} from "./sdk/codegen/lib/chunk-loader.ts";
 import {
   dbFilePatches,
   entrypointPatch,
@@ -48,6 +41,91 @@ const RUNNER_SCRIPTS = [
   "migrate-create.mjs",
 ];
 
+const { loadChunk } = makeChunkLoader(PACK_TEMPLATES_DIR);
+const TEST_DB_RELATIVE_PATH = ".test/prebuilt.sqlite";
+
+function npmOrBundled(
+  libraryReferenceMode: string,
+  bundled: string,
+  npm: string,
+): string {
+  return libraryReferenceMode === "bundled" ? bundled : npm;
+}
+
+async function buildAppTsDbHookImportsBlock(
+  libraryReferenceMode: string,
+): Promise<string> {
+  const chunk = await loadChunk("typescript", "app_ts_db_hook_imports");
+  return (
+    applyTokens(chunk, {
+      libImport: npmOrBundled(
+        libraryReferenceMode,
+        "./_deterministic/app.js",
+        "@deterministic-code/deterministic/app",
+      ),
+    }) + "\n"
+  );
+}
+
+async function buildAppTsBeforeHookBlock(): Promise<string> {
+  return (await loadChunk("typescript", "app_ts_before_hook")) + "\n";
+}
+
+async function buildTestAppDbConnBlock(
+  libraryReferenceMode: string,
+): Promise<string> {
+  const chunk = await loadChunk("typescript", "test_app_db_conn");
+  return applyTokens(chunk, {
+    libImport: npmOrBundled(
+      libraryReferenceMode,
+      "../_deterministic/app.js",
+      "@deterministic-code/deterministic/app",
+    ),
+  });
+}
+
+function buildMigrateScripts(
+  migrateDir: string,
+  dialects: string[],
+  layout: MigrateLayout,
+): Record<string, string> {
+  const list = dialects.length > 0 ? dialects : ["sqlite"];
+  const defaultDialect = list.includes("sqlite") ? "sqlite" : list[0];
+  const migrationsPath = (dialect: string) => layout.migrationsPath(dialect);
+  const cmds = (dialect: string) => ({
+    setup: `node --env-file-if-exists=.env ${migrateDir}/migrate-setup.mjs --provider ${dialect}`,
+    up: `node --env-file-if-exists=.env ${migrateDir}/migrate-up.mjs --provider ${dialect} --migrate-path ${migrationsPath(dialect)}`,
+    down: `node --env-file-if-exists=.env ${migrateDir}/migrate-down.mjs --provider ${dialect} --migrate-path ${migrationsPath(dialect)}`,
+  });
+  const out: Record<string, string> = {};
+  if (dialects.length > 0) {
+    for (const dialect of list) {
+      const c = cmds(dialect);
+      out[`migrate:${dialect}:setup`] = c.setup;
+      out[`migrate:${dialect}`] = c.up;
+      out[`migrate:${dialect}:down`] = c.down;
+    }
+  }
+  const def = cmds(defaultDialect);
+  out["migrate:setup"] = def.setup;
+  out.migrate = def.up;
+  out["migrate:down"] = def.down;
+  return out;
+}
+
+function buildPretestScript(
+  migrateDir: string,
+  libraryReferenceMode: string,
+  layout: MigrateLayout,
+): string {
+  const prefix =
+    libraryReferenceMode === "bundled"
+      ? "npm run build && cp -r _deterministic dist/_deterministic && "
+      : "";
+  const migratePath = `\${TEST_MIGRATIONS_DIR:-${layout.migrationsPath("sqlite")}}`;
+  return `${prefix}node ${migrateDir}/migrate-setup.mjs --provider sqlite --connection $npm_package_config_test_db --migrate-path ${migratePath} --and-up`;
+}
+
 /** A runner `.mjs` with its `@deterministic-code/deterministic` imports resolved for the file's spot in the scaffold — a no-op in npm mode, the vendored relative path in bundled mode. */
 async function runnerScript(
   name: string,
@@ -71,26 +149,48 @@ const ALL_MIGRATE_DIALECTS = [
   "oracle",
 ];
 
+const replaceMarkedBlockText = (
+  original: string,
+  startMarker: string,
+  endMarker: string,
+  block: string,
+): string => {
+  const start = original.indexOf(startMarker);
+  const end = original.indexOf(endMarker);
+  if (start === -1 || end < start) {
+    throw new Error(
+      `markers '${startMarker}' / '${endMarker}' absent or out of order`,
+    );
+  }
+  const indent = original.slice(original.lastIndexOf("\n", start) + 1, start);
+  const body = block.endsWith("\n") ? block.slice(0, -1) : block;
+  const indented = body
+    .split("\n")
+    .map((line) => (line ? `${indent}${line}` : ""))
+    .join("\n");
+  return `${original.slice(0, start + startMarker.length)}\n${indented ? `${indented}\n` : ""}${indent}${original.slice(end)}`;
+};
+
 /** migrate-setup.mjs with its bookkeeping-table DDL inlined — the generated runner carries its own `SETUP_DDL_BY_DIALECT` map (derived here from the canonical `setupSql`) rather than importing it at runtime, mirroring the self-contained rust/csharp setup binaries. All dialects are baked so the runner accepts any `--provider`, matching the prior library-import behavior. */
-async function migrateSetupScript(
+const migrateSetupScript = async (
   migrateDir: string,
   libraryReferenceMode: string,
-): Promise<string> {
+): Promise<string> => {
   const map = Object.fromEntries(
     ALL_MIGRATE_DIALECTS.map((d) => [d, setupSql(d)]),
   );
-  const filled = replaceMarkedBlockText({
-    original: await runnerTemplate("migrate-setup.mjs"),
-    startMarker: SETUP_DDL_START,
-    endMarker: SETUP_DDL_END,
-    block: `const SETUP_DDL_BY_DIALECT = ${JSON.stringify(map, null, 2)};`,
-  });
+  const filled = replaceMarkedBlockText(
+    await runnerTemplate("migrate-setup.mjs"),
+    SETUP_DDL_START,
+    SETUP_DDL_END,
+    `const SETUP_DDL_BY_DIALECT = ${JSON.stringify(map, null, 2)};`,
+  );
   return rewriteLibraryImports(
     filled,
     libraryReferenceMode,
     `${migrateDir}/migrate-setup.mjs`,
   );
-}
+};
 
 const content = (filename: string, contents: string): ContentEntry => ({
   kind: CONTENT,
@@ -109,23 +209,22 @@ const patch = (
 });
 
 /** DB-wiring marker-block PATCH entries into the sibling backend scaffold (app.ts / test-app / entrypoint). Empty blocks (already-empty template sections) are dropped — patch entries require non-empty content. */
-function appWiringPatches(
+async function appWiringPatches(
   migrateDir: string,
   libraryReferenceMode: string,
   layout: MigrateLayout,
-): PatchEntry[] {
+): Promise<PatchEntry[]> {
   return [
     patch(
       "app.ts",
       "APP_DB_IMPORTS",
-      buildAppTsDbHookImportsBlock(libraryReferenceMode),
+      await buildAppTsDbHookImportsBlock(libraryReferenceMode),
     ),
-    patch("app.ts", "APP_BEFORE_HOOK", buildAppTsBeforeHookBlock()),
-    patch("app.ts", "APP_AFTER_HOOK", buildAppTsAfterHookBlock()),
+    patch("app.ts", "APP_BEFORE_HOOK", await buildAppTsBeforeHookBlock()),
     patch(
       join("__tests__", "test-app.ts"),
       "TESTAPP_DB_CONN",
-      buildTestAppDbConnBlock(libraryReferenceMode),
+      await buildTestAppDbConnBlock(libraryReferenceMode),
     ),
     entrypointPatch("typescript", migrateDir, layout),
   ].filter((p) => p.content.length > 0);
@@ -157,13 +256,9 @@ async function tsEntries({
       await migrateSetupScript(migrateDir, libraryReferenceMode),
     ),
   );
-  const shims = renderDbDriverShims(dialects);
-  if (shims) {
-    entries.push(
-      content(join(layout.sharedDir(), "db-driver-shims.d.ts"), shims),
-    );
-  }
-  entries.push(...appWiringPatches(migrateDir, libraryReferenceMode, layout));
+  entries.push(
+    ...(await appWiringPatches(migrateDir, libraryReferenceMode, layout)),
+  );
   entries.push(
     packageJsonPatch(migrateDir, dialects, { libraryReferenceMode, layout }),
   );

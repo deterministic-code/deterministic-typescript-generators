@@ -1,6 +1,6 @@
 import { createBackendApp } from "./app.js";
 
-const port = Number(process.env.PORT ?? {{devPort}});
+const port = Number(process.env.PORT ?? 4001);
 
 createBackendApp().then((app) => {
   const server = app.listen(port, () => {

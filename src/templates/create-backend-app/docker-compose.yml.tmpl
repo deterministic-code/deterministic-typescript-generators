@@ -1,0 +1,18 @@
+app:
+  build:
+    context: .
+  ports:
+    - '${HOST_PORT:-4001}:4000'
+  environment:
+    - NODE_ENV=production
+    - PORT=4000
+    - DETERMINISTIC_TRACE=${DETERMINISTIC_TRACE:-}
+  healthcheck:
+    # Self-diagnosing: logs `HTTP <code>` on response, an error code (ECONNREFUSED/ENOTFOUND/…) on connect failure, or `timeout` on a hung socket — without this, a failed probe shows up as `(no output)` in the verify dialog.
+    test: ['CMD', 'node', '-e', "const r=require('http').get('http://localhost:4000/api/health',{timeout:2500},(res)=>{console.log('HTTP',res.statusCode);process.exit(res.statusCode===200?0:1)});r.on('error',(e)=>{console.error(e.code||e.message);process.exit(1)});r.on('timeout',()=>{console.error('timeout');r.destroy();process.exit(1)})"]
+    interval: 5s
+    timeout: 3s
+    retries: 6
+    start_period: 5s
+  labels:
+    - 'deterministic.language=typescript'

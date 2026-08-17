@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fillMarkedSections } from "./fill-marked-sections.ts";
 import { CONTENT, type GenerateEntry } from "./generate-result.ts";
 import { resolveDatasourceDialects } from "./deterministic-project.ts";
 import { makeGenerate, type GenerateContext } from "./make-generate.ts";
@@ -26,7 +25,7 @@ export function gitkeepEntries(
   );
 }
 
-/** Template helpers rooted at a language's `create-backend-app` templates dir (subpath segments below `scripts/templates/create-backend-app`). `read(name)` returns raw text; `composed(name, sections)` fills its `DIALECT_*` marked sections at generate time. */
+/** Template helpers rooted at a language's `create-backend-app` templates dir (subpath segments below `scripts/templates/create-backend-app`). `read(name)` returns raw text. */
 const DEFAULT_TEMPLATES_DIR = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -37,13 +36,7 @@ const DEFAULT_TEMPLATES_DIR = resolve(
 function runnerTemplatesAt(templatesDir: string, ...subpath: string[]) {
   const dir = resolve(templatesDir, "create-backend-app", ...subpath);
   const read = (name: string) => readFile(resolve(dir, name), "utf8");
-  return {
-    read,
-    composed: async (
-      name: string,
-      sections: Parameters<typeof fillMarkedSections>[1],
-    ) => fillMarkedSections(await read(name), sections),
-  };
+  return { read };
 }
 
 export function runnerTemplates(...subpath: string[]) {
