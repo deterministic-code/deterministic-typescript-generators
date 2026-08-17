@@ -4,6 +4,10 @@
   "description": "TypeScript generator pack for the deterministic toolchain: the emit-*-typescript lane modules + frontend/client/zod helpers.",
   "type": "module",
   "exports": {
+    "./field-converter": {
+      "types": "./dist/field-converter.d.ts",
+      "import": "./dist/field-converter.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"
@@ -15,14 +19,19 @@
     "src"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/ && cp src/sdk/default-settings.yaml dist/sdk/ && cp -R src/sdk/field-types dist/sdk/ && cp -R src/sdk/templates dist/sdk/",
+    "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@deterministic-code/generator-sdk": "github:deterministic-code/generators-common",
-    "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger"
+    "@deterministic-code/deterministic-specifications": "github:deterministic-code/deterministic-specifications",
+    "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger",
+    "js-yaml": "^4.1.0",
+    "pluralize": "^8.0.0",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",
     "@types/pluralize": "^0.0.33",
     "typescript": "^5.8.0"
