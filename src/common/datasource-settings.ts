@@ -10,6 +10,14 @@ const ID_TO: Record<string, string> = {
   string: toNative("string"),
 };
 
+/** `datasource.id_type` → Zod expression for `id` and uuid-id foreign keys. */
+const ID_ZOD: Record<string, string> = {
+  integer: "z.number().int().nonnegative()",
+  biginteger: "z.bigint()",
+  uuid: "z.string().uuid()",
+  string: "z.string()",
+};
+
 /** `datasource.id_type` → spec field shape a type-less `references: X.id` inherits. */
 const REFERENCE_SHAPE: Record<
   string,
@@ -26,6 +34,7 @@ export type DatasourceSettings = {
   datetimeRepr: string;
   withUuidColumn: boolean;
   tsIdType: string;
+  zodIdType: string;
   datetimeType: string;
 };
 
@@ -39,6 +48,7 @@ export const datasourceSettings = (
     datetimeRepr,
     withUuidColumn: idType !== "uuid",
     tsIdType: ID_TO[idType] ?? toNative("number"),
+    zodIdType: ID_ZOD[idType] ?? ID_ZOD.integer,
     datetimeType:
       datetimeRepr === "string" ? toNative("string") : toNative("datetime"),
   };
@@ -54,9 +64,9 @@ export const referenceIsUuid = (
 
 export const nativeFieldType = (
   ds: DatasourceSettings,
-  field: { type: string; references?: string },
+  field: { name?: string; type: string; references?: string },
 ): string =>
-  referenceIsUuid(ds, field.references)
+  field.name === "id" || referenceIsUuid(ds, field.references)
     ? ds.tsIdType
     : toNative(
         field.type === "datetime" && ds.datetimeRepr === "string"
@@ -68,3 +78,37 @@ export const referenceFieldShape = (
   idType: string,
 ): { type: string; size: number | undefined } =>
   REFERENCE_SHAPE[idType] ?? REFERENCE_SHAPE.integer;
+
+export type SystemColumn = {
+  name: string;
+  type: string;
+  isNullable: boolean;
+};
+
+/** Inherited StandardDataSource columns — spec types from {@link referenceFieldShape} / the type converter. */
+export const systemColumns = (ds: DatasourceSettings): SystemColumn[] => [
+  { name: "id", type: referenceFieldShape(ds.idType).type, isNullable: false },
+  ...(ds.withUuidColumn
+    ? [{ name: "uuid", type: "uuid", isNullable: false }]
+    : []),
+  { name: "created", type: "datetime", isNullable: false },
+  { name: "updated", type: "datetime", isNullable: false },
+];
+
+export const declaredFields = <T extends { name: string }>(
+  fields: T[],
+  ds: DatasourceSettings,
+): T[] =>
+  ds.withUuidColumn ? fields : fields.filter((f) => f.name !== "uuid");
+
+export const tableFields = <T extends { name: string }>(
+  fields: T[],
+  ds: DatasourceSettings,
+): Array<T | SystemColumn> => {
+  const injected = systemColumns(ds);
+  const seen = new Set(injected.map((f) => f.name));
+  return [
+    ...injected,
+    ...declaredFields(fields, ds).filter((f) => !seen.has(f.name)),
+  ];
+};

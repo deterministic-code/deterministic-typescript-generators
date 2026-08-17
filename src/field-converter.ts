@@ -76,6 +76,30 @@ export const fieldConverter = {
     email: `"sample@example.com"`,
     binary: JSON.stringify(SAMPLE_BINARY_BASE64),
   },
+  jsonNext: {
+    string: `"sample-next"`,
+    character: `"sample-next"`,
+    uuid: dq("00000000-0000-0000-0000-000000000001"),
+    number: "2",
+    integer: "2",
+    smallinteger: "2",
+    biginteger: "2",
+    unsignedinteger: "2",
+    unsignedsmallinteger: "2",
+    unsignedbiginteger: "2",
+    reference: "2",
+    float: "2.0",
+    decimal: `"1"`,
+    boolean: "true",
+    datetime: `"2024-01-02T00:00:00.000Z"`,
+    date: `"2024-01-02"`,
+    email: `"next@example.com"`,
+    binary: JSON.stringify("AQIDBAUGBwgJCgsMDQ4PEA=="),
+  },
+  numericLiteral: {
+    number: (value) => String(value),
+    bigint: (value) => `${value}n`,
+  },
 } satisfies ConverterModule;
 
 export default fieldConverter;
@@ -152,16 +176,55 @@ export class FieldConverter {
 
   /** The JSON body value a POST e2e test sends for a field of this type — the target's wire representation. */
   jsonSample(field: ConverterField): string {
-    const map = this.#mod.jsonSample;
+    return this.#mappedLiteral("jsonSample", field);
+  }
+
+  /** A second JSON literal distinct from {@link jsonSample} — the setter target in get/set tests. */
+  jsonNext(field: ConverterField): string {
+    return this.#mappedLiteral("jsonNext", field);
+  }
+
+  /**
+   * Language literals for a field accessor test: `sample` matches `nativeType`, `next` differs
+   * so `value.f = next` is not a no-op. `Date` wraps the datetime JSON samples; `bigint` uses
+   * {@link numericLiteralForNative}.
+   */
+  samples(
+    field: ConverterField,
+    nativeType: string = this.nativeType(field),
+  ): { sample: string; next: string } {
+    if (nativeType === "bigint") {
+      const sample = this.numericLiteralForNative(nativeType, 1);
+      const next = this.numericLiteralForNative(nativeType, 2);
+      if (sample === null || next === null) {
+        throw new Error(
+          `no bigint numericLiteral for ${this.#mod.targetKind} "${this.#mod.target}"`,
+        );
+      }
+      return { sample, next };
+    }
+    const sample = this.jsonSample(field);
+    const next = this.jsonNext(field);
+    if (nativeType === "Date") {
+      return { sample: `new Date(${sample})`, next: `new Date(${next})` };
+    }
+    return { sample, next };
+  }
+
+  #mappedLiteral(
+    table: "jsonSample" | "jsonNext",
+    field: ConverterField,
+  ): string {
+    const map = this.#mod[table];
     if (!map) {
       throw new Error(
-        `no jsonSample map registered for ${this.#mod.targetKind} "${this.#mod.target}"`,
+        `no ${table} map registered for ${this.#mod.targetKind} "${this.#mod.target}"`,
       );
     }
     const sample = map[field.type];
     if (sample === undefined) {
       throw new Error(
-        `no jsonSample for field type "${field.type}" (${this.#mod.target})`,
+        `no ${table} for field type "${field.type}" (${this.#mod.target})`,
       );
     }
     return sample;

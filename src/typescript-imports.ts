@@ -1,6 +1,30 @@
-import { renderGroupedImports } from "./sdk/generator-shared.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+
+type GroupedImportEntry = {
+  fromPath: string;
+  original: string;
+  alias?: string;
+};
+
+const renderGroupedImports = (
+  entries: GroupedImportEntry[],
+  { typeOnly = false }: { typeOnly?: boolean } = {},
+): string => {
+  const byPath = new Map<string, string[]>();
+  for (const e of entries) {
+    if (!byPath.has(e.fromPath)) byPath.set(e.fromPath, []);
+    const token = e.alias ? `${e.original} as ${e.alias}` : e.original;
+    byPath.get(e.fromPath)!.push(token);
+  }
+  const keyword = typeOnly ? "import type" : "import";
+  const lines: string[] = [];
+  for (const [path, tokens] of byPath) {
+    const names = [...new Set(tokens)].sort().join(", ");
+    lines.push(`${keyword} { ${names} } from "${path}";`);
+  }
+  return lines.sort().join("\n");
+};
 
 interface ArtifactRef {
   entity: string;
@@ -39,7 +63,7 @@ export class TypescriptImports {
 
   /** Render import intents `{ original, alias, fromPath }` into deduped, sorted import lines. */
   render(
-    entries: Parameters<typeof renderGroupedImports>[0],
+    entries: GroupedImportEntry[],
     { typeOnly = true }: { typeOnly?: boolean } = {},
   ): string {
     return renderGroupedImports(entries, { typeOnly });

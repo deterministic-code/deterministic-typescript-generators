@@ -1,0 +1,5 @@
+{{#types}}export { {{schemaName}} } from "./{{fileBase}}";
+{{#withTypeAnnotation}}
+export type { {{className}}Validated } from "./{{fileBase}}";
+{{/withTypeAnnotation}}
+{{/types}}

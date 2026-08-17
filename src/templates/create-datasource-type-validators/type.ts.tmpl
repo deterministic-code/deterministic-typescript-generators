@@ -1,0 +1,12 @@
+// schema-version: {{schemaVersion}}
+import { z } from "zod";
+
+export const {{schemaName}} = z.object({
+{{#fields}}
+  {{ident}}: {{&zodExpr}},
+{{/fields}}
+});
+{{#withTypeAnnotation}}
+
+export type {{className}}Validated = z.infer<typeof {{schemaName}}>;
+{{/withTypeAnnotation}}

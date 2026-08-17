@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import { libraryReferenceModeFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
 import { rewriteLibraryImports } from "./library-import.ts";
 import { setupSql } from "./sdk/lib/migrate-setup-sql.ts";
@@ -9,10 +8,7 @@ import {
   apkClientsContent,
   dialectDriver,
 } from "./sdk/lib/migrate-scripts-plan.ts";
-import {
-  makeChunkLoader,
-  applyTokens,
-} from "./sdk/codegen/lib/chunk-loader.ts";
+import { fill } from "./common/fill.ts";
 import {
   dbFilePatches,
   entrypointPatch,
@@ -31,7 +27,6 @@ import type {
   MigrateRenderOptions,
 } from "./sdk/codegen/lib/migrate-scripts-generate-types.ts";
 
-const currentDir = dirname(fileURLToPath(import.meta.url));
 const templatesDir = PACK_TEMPLATES_DIR;
 const runnerTemplate = (name: string): Promise<string> =>
   readFile(resolve(templatesDir, "create-backend-app", name), "utf8");
@@ -41,8 +36,18 @@ const RUNNER_SCRIPTS = [
   "migrate-create.mjs",
 ];
 
-const { loadChunk } = makeChunkLoader(PACK_TEMPLATES_DIR);
 const TEST_DB_RELATIVE_PATH = ".test/prebuilt.sqlite";
+
+const loadTsChunk = async (file: string): Promise<string> =>
+  (
+    await readFile(
+      new URL(
+        `./templates/create-backend-app/typescript/chunks/${file}`,
+        import.meta.url,
+      ),
+      "utf8",
+    )
+  ).trimEnd();
 
 function npmOrBundled(
   libraryReferenceMode: string,
@@ -55,9 +60,9 @@ function npmOrBundled(
 async function buildAppTsDbHookImportsBlock(
   libraryReferenceMode: string,
 ): Promise<string> {
-  const chunk = await loadChunk("typescript", "app_ts_db_hook_imports");
+  const chunk = await loadTsChunk("app_ts_db_hook_imports.ts");
   return (
-    applyTokens(chunk, {
+    fill(chunk, {
       libImport: npmOrBundled(
         libraryReferenceMode,
         "./_deterministic/app.js",
@@ -68,14 +73,14 @@ async function buildAppTsDbHookImportsBlock(
 }
 
 async function buildAppTsBeforeHookBlock(): Promise<string> {
-  return (await loadChunk("typescript", "app_ts_before_hook")) + "\n";
+  return (await loadTsChunk("app_ts_before_hook.ts")) + "\n";
 }
 
 async function buildTestAppDbConnBlock(
   libraryReferenceMode: string,
 ): Promise<string> {
-  const chunk = await loadChunk("typescript", "test_app_db_conn");
-  return applyTokens(chunk, {
+  const chunk = await loadTsChunk("test_app_db_conn.ts");
+  return fill(chunk, {
     libImport: npmOrBundled(
       libraryReferenceMode,
       "../_deterministic/app.js",
