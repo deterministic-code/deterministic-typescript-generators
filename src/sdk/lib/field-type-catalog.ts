@@ -29,7 +29,7 @@ interface FieldTypeValidator {
   description: string | null;
 }
 
-/** One `field_type_mapping` seed row — a per-language or per-dialect target type (plus its optional runtime/rust converter) for a field type. */
+/** One `field_type_mapping` seed row — a per-language or per-dialect target type (plus its optional runtime converter) for a field type. */
 interface FieldTypeMapping {
   field_type_id: number;
   target_kind: "language" | "dialect";
@@ -37,7 +37,6 @@ interface FieldTypeMapping {
   target_type: string;
   constraints: string | null;
   converter: string | null;
-  rust_converter: string | null;
 }
 
 /** One `field_type_converter` seed row — a registered generate-time converter module for a target. */

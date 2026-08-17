@@ -1,11 +1,15 @@
-import { EMPTY_UUID, hexToBytes } from "./sdk/lib/default-token.ts";
+import {
+  EMPTY_UUID,
+  hexToBytes,
+  parseDefaultToken,
+} from "./sdk/lib/default-token.ts";
 import {
   nativeTypeFor,
   renderSqlDefault,
-  defaultLiteralFor,
   type ConverterField,
   type ConverterModule,
 } from "./field-converters/base.ts";
+import { to, toNative } from "./common/type-converter.ts";
 
 export type { ConverterField, ConverterModule };
 
@@ -33,24 +37,7 @@ export const fieldConverter = {
   targetKind: "language" as const,
   datetimeStringType: "string",
   datetimeStringDefault: "new Date().toISOString()",
-  conversions: [
-    { type: "string", native: "string" },
-    { type: "character", native: "string" },
-    { type: "number", native: "number" },
-    { type: "integer", native: "number" },
-    { type: "smallinteger", native: "number" },
-    { type: "biginteger", native: "number" },
-    { type: "unsignedinteger", native: "number" },
-    { type: "unsignedsmallinteger", native: "number" },
-    { type: "unsignedbiginteger", native: "number" },
-    { type: "float", native: "number" },
-    { type: "decimal", native: "string" },
-    { type: "boolean", native: "boolean" },
-    { type: "datetime", native: "Date" },
-    { type: "binary", native: "string" },
-    { type: "uuid", native: "string" },
-    { type: "reference", native: "number" },
-  ],
+  conversions: Object.entries(to).map(([type, native]) => ({ type, native })),
   defaults: {
     Now: () => "new Date()",
     UtcNow: () => "new Date()",
@@ -93,6 +80,30 @@ export const fieldConverter = {
 
 export default fieldConverter;
 
+/** The language literal/expression for a spec field's `{ type, value }` default — `null` when absent. Datetime honors the string representation so a `z.string()` field gets an ISO string, not a native date. */
+const defaultLiteralFor = (
+  mod: ConverterModule,
+  field: { type: string; value: string | boolean | number | null | undefined },
+  datetimeRepr: string,
+): string | null => {
+  const { token, arg } = parseDefaultToken(field.type, field.value);
+  if (token === "None") return null;
+  if (field.type === "datetime" && datetimeRepr === "string") {
+    if (token === "Now" || token === "UtcNow") {
+      return mod.datetimeStringDefault ?? mod.defaults[token]();
+    }
+    return dq(arg);
+  }
+  if (field.type === "decimal") return mod.defaults.String(arg);
+  const render = mod.defaults[token];
+  if (!render) {
+    throw new Error(
+      `${mod.target} converter cannot render default token "${token}"`,
+    );
+  }
+  return render(arg);
+};
+
 interface ConverterRegistration {
   kind: string;
   target_kind: "language" | "dialect";
@@ -105,15 +116,21 @@ interface ConverterCatalog {
 
 export class FieldConverter {
   #mod: ConverterModule;
-  #datetimeRepr?: string;
+  #datetimeRepr: string;
 
-  constructor(mod: ConverterModule = fieldConverter, datetimeRepr?: string) {
+  constructor(mod: ConverterModule = fieldConverter, datetimeRepr = "native") {
     this.#mod = mod;
     this.#datetimeRepr = datetimeRepr;
   }
 
   nativeType(field: ConverterField): string {
-    return nativeTypeFor(this.#mod, field, this.#datetimeRepr);
+    return this.#mod.targetKind === "language"
+      ? toNative(
+          field.type === "datetime" && this.#datetimeRepr === "string"
+            ? "string"
+            : field.type,
+        )
+      : nativeTypeFor(this.#mod, field);
   }
 
   defaultExpression(field: ConverterField): string | null {

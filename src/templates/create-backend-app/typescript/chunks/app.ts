@@ -1,8 +1,8 @@
-import { createBackendApp as createDeterministicApp } from "{{libImport}}";
+import { createBackendApp as createDeterministicApp } from "@deterministic-code/deterministic/app";
 import type { Express } from "express";
 import { resolve } from "node:path";
 import { access } from "node:fs/promises";
-import { composeRouter } from "{{composeRouterImport}}";
+import { composeRouter } from "./routes/generated/app-wiring.js";
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -24,17 +24,17 @@ async function resolveDeterministicRoot(): Promise<string> {
   return resolve(process.cwd(), "deterministic");
 }
 
-{{APP_DB_IMPORTS_START}}
-{{APP_DB_IMPORTS_END}}
+// === BEGIN APP_DB_IMPORTS — see PATCH_PLAN in create-migrate-scripts.mjs ===
+// === END APP_DB_IMPORTS ===
 
 export async function createBackendApp(): Promise<Express> {
   return createDeterministicApp({
     deterministicRoot: await resolveDeterministicRoot(),
     srcRoot: process.env.SRC_ROOT ?? process.cwd(),
-    routeComposer: composeRouter,{{APP_CUSTOM_MODULE_PATHS}}
-    {{APP_BEFORE_HOOK_START}}
-    {{APP_BEFORE_HOOK_END}}
-    {{APP_AFTER_HOOK_START}}
-    {{APP_AFTER_HOOK_END}}
+    routeComposer: composeRouter,
+    // === BEGIN APP_BEFORE_HOOK — see PATCH_PLAN in create-migrate-scripts.mjs ===
+    // === END APP_BEFORE_HOOK ===
+    // === BEGIN APP_AFTER_HOOK — see PATCH_PLAN in create-migrate-scripts.mjs ===
+    // === END APP_AFTER_HOOK ===
   });
 }

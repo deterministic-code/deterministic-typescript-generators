@@ -21,17 +21,21 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/ && cp src/sdk/default-settings.yaml dist/sdk/ && cp -R src/sdk/field-types dist/sdk/ && cp -R src/sdk/templates dist/sdk/",
     "prepare": "npm run build",
+    "test": "node --experimental-strip-types --test src/generate-backend-app.integration.test.ts src/generate-datasource-types.integration.test.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
     "@deterministic-code/deterministic-specifications": "github:deterministic-code/deterministic-specifications",
     "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger",
+    "change-case": "^5.4.4",
     "js-yaml": "^4.1.0",
+    "mustache": "^4.2.0",
     "pluralize": "^8.0.0",
     "yaml": "^2.6.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
+    "@types/mustache": "^4.2.6",
     "@types/node": "^22.10.0",
     "@types/pluralize": "^0.0.33",
     "typescript": "^5.8.0"

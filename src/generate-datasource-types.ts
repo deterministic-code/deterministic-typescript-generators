@@ -1,126 +1,128 @@
-import { DEFAULT_COMMENT_STYLE } from "./sdk/generate-doc-comment.ts";
-import { datasourceTypesGenerator } from "./sdk/codegen-context.ts";
-import { datasourceTypesModule } from "./sdk/codegen/lib/generate-settings-options.ts";
-import { normalizeDatasourceTable } from "./sdk/codegen/lib/datasource-normalize.ts";
-import { TypescriptImports } from "./typescript-imports.ts";
-import { createTypeMapper } from "./sdk/codegen/lib/type-mapper.ts";
-import { datasourceSettingsFor } from "./sdk/codegen/lib/ts-datasource-settings.ts";
-import { datasourceTypeDoc } from "./sdk/codegen/lib/datasource-types-generate-types.ts";
-import type {
-  DatasourceField,
-  GenerateCtx,
-  GeneratedFile,
-  NormalizedTable,
-} from "./sdk/codegen/lib/datasource-types-generate-types.ts";
+import { resolve } from "node:path";
+import {
+  datasourceSettings,
+  nativeFieldType,
+  type DatasourceSettings,
+} from "./common/datasource-settings.ts";
+import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
+import { fill } from "./common/fill.ts";
+import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
+import { pathExists } from "./common/path-exists.ts";
+import {
+  loadDatasourceTables,
+  type DatasourceTable,
+} from "./common/parse-datasource-types.ts";
+import { settingsBool, settingsStr } from "./common/settings.ts";
+import { indexTmpl, typeTmpl } from "./datasource-types/resources.ts";
+import { libraryImportSpecifier } from "./library-import.ts";
 
-interface TsGenerateOptions {
-  baseClass: string;
-  language: string;
+export type { GenerateEntry };
+
+type EmitOptions = {
+  ds: DatasourceSettings;
+  naming: ArtifactNaming;
   schemaVersion: string;
-  style: unknown;
-  idType?: string;
-  datetime?: string;
-  withUuidColumn?: boolean;
-  libraryReferenceMode?: string;
-}
-
-type TsCtx = GenerateCtx<TsGenerateOptions, TypescriptImports>;
-
-export const DEFAULT_GENERATE_OPTIONS: TsGenerateOptions = {
-  baseClass: "StandardDataSource",
-  language: "typescript",
-  schemaVersion: "1.0",
-  style: DEFAULT_COMMENT_STYLE,
+  style: CommentStyle;
+  libraryMode: string | undefined;
+  createIndex: boolean;
 };
 
-const mapAbstractType = createTypeMapper("typescript");
+const emitOptions = (settings: SettingsDict): EmitOptions => {
+  const ds = datasourceSettings(settings);
+  const naming = typescriptNaming(settings);
+  return {
+    ds,
+    naming,
+    schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
+    style: commentStyle(settingsStr(settings, "comments")),
+    libraryMode: settingsStr(
+      settings,
+      "languages.typescript.library_reference_mode",
+    ),
+    createIndex:
+      settingsBool(settings, "codegen.create_index") && !naming.byFeature,
+  };
+};
 
-function normalizeTable(entry: unknown): NormalizedTable {
-  return normalizeDatasourceTable(entry);
-}
-
-function mapType(type: string, datetime: string | undefined): string {
-  return mapAbstractType(type, { datetime });
-}
-
-function generateField(field: DatasourceField, ctx: TsCtx): string {
-  const ds = datasourceSettingsFor(ctx.opts);
-  const tsType = ds.referenceIsUuid(field.references)
-    ? ds.tsIdType()
-    : mapType(field.type, ctx.opts.datetime);
-  const nullable = field.isNullable ? " | null" : "";
-  return `  ${ctx.fields.ident(field.name)}: ${tsType}${nullable};`;
-}
-
-export function resolveBaseClass({
-  idType,
-  withUuidColumn,
-  datetime,
-}: {
-  idType?: string;
-  withUuidColumn?: boolean;
-  datetime?: string;
-}): { baseClass: string; imports: string[]; typeArgs: string[] } {
-  const baseClass = withUuidColumn
-    ? "StandardDataSourceWithUuid"
-    : "StandardDataSource";
-  const idT = datasourceSettingsFor({ idType }).tsIdType();
-  const dtT = datetime === "string" ? "string" : "Date";
-  const typeArgs = withUuidColumn ? [idT, "string", dtT] : [idT, dtT];
-  return { baseClass, imports: [baseClass], typeArgs };
-}
-
-function renderTable(table: NormalizedTable, ctx: TsCtx): GeneratedFile {
-  const { names, opts, layout, imports: importer } = ctx;
-  const className = names.className(table.name);
-
-  const withUuidColumn =
-    datasourceSettingsFor(opts).withUuidColumn && opts.withUuidColumn;
-  const { baseClass, imports, typeArgs } = resolveBaseClass({
-    idType: opts.idType,
-    withUuidColumn,
-    datetime: opts.datetime,
-  });
-
-  const bodyFields = withUuidColumn
+const renderTable = (
+  table: DatasourceTable,
+  opts: EmitOptions,
+): GenerateEntry => {
+  const { ds, naming, schemaVersion, style, libraryMode } = opts;
+  const className = naming.className(table.name);
+  const fields = ds.withUuidColumn
     ? table.fields
     : table.fields.filter((f) => f.name !== "uuid");
-  const body = bodyFields.map((f) => generateField(f, ctx)).join("\n");
+  return content(
+    naming.filePath(table.name),
+    fill(typeTmpl, {
+      schemaVersion,
+      libraryImport: libraryImportSpecifier(
+        "types",
+        libraryMode,
+        naming.projectRelPath(table.name),
+      ),
+      withUuid: ds.withUuidColumn,
+      simpleDoc: style === "simple",
+      descriptionDoc: style === "description",
+      className,
+      datasourceType: table.datasourceType ?? "standard",
+      fieldCount: String(fields.length),
+      idType: ds.tsIdType,
+      datetimeType: ds.datetimeType,
+      fields: fields.map((f) => ({
+        ident: naming.fieldIdent(f.name),
+        tsType: nativeFieldType(ds, f),
+        nullable: f.isNullable,
+      })),
+    }),
+  );
+};
 
-  const doc = datasourceTypeDoc({
-    className,
-    datasourceType: table.datasourceType,
-    fieldCount: bodyFields.length,
-    style: opts.style,
+const renderIndex = (
+  tables: DatasourceTable[],
+  naming: ArtifactNaming,
+): GenerateEntry =>
+  content(
+    "index.ts",
+    fill(indexTmpl, {
+      tables: tables.map((t) => ({
+        className: naming.className(t.name),
+        fileBase: naming.fileBase(t.name),
+      })),
+    }),
+  );
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const input = ctx.inputs.dir;
+  if (!input) {
+    throw new Error("create-datasource-types (typescript): --input is required");
+  }
+  const inputDir = resolve(input);
+  if (!(await pathExists(inputDir))) {
+    throw new Error(
+      `create-datasource-types (typescript): input directory does not exist: ${inputDir}`,
+    );
+  }
+  const opts = emitOptions(ctx.settings);
+  const tables = await loadDatasourceTables({
+    inputDir,
+    idType: opts.ds.idType,
   });
+  const entries = tables.map((table) => renderTable(table, opts));
+  if (opts.createIndex) entries.push(renderIndex(tables, opts.naming));
+  return entries;
+};
 
-  const generatePath = layout.filePath(table.name, "datasource-type");
-  const typesImport = importer.library("types", opts.libraryReferenceMode, {
-    entity: table.name,
-    artifact: "datasource-type",
+export const generateDatasourceTypes = async (args: {
+  input: string;
+  settings: GenerateContext["settings"];
+}): Promise<GenerateEntry[]> =>
+  generate({
+    inputs: { dir: args.input },
+    settings: args.settings,
   });
-  const content = `// schema-version: ${opts.schemaVersion}
-import type { ${imports.join(", ")} } from "${typesImport}";
-
-${doc}export interface ${className} extends ${baseClass}<${typeArgs.join(", ")}> {
-${body}
-}
-`;
-  return { path: generatePath, content };
-}
-
-function indexLine(table: NormalizedTable, ctx: TsCtx): string {
-  return `export { ${ctx.names.className(table.name)} } from "./${ctx.names.fileBase(table.name, "datasource-type")}";`;
-}
-
-const baseGenerate = datasourceTypesGenerator(
-  normalizeTable,
-  renderTable,
-  indexLine,
-)(TypescriptImports);
-
-export const { render, createGenerator, generate } = datasourceTypesModule({
-  baseGenerate,
-  defaultGenerateOptions: DEFAULT_GENERATE_OPTIONS,
-  language: "typescript",
-});
