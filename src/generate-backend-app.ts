@@ -1,8 +1,7 @@
-import { resolve } from "node:path";
+import type { IDeterministicReader } from "./common/deterministic-reader.ts";
 import { fill } from "./common/fill.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { content, patch, type GenerateEntry } from "./common/generate-entry.ts";
-import { pathExists } from "./common/path-exists.ts";
 import {
   appBootTestTs,
   appTs,
@@ -25,16 +24,6 @@ const DEFAULT_APP_NAME = "generated-app";
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
-  const input = ctx.inputs.dir;
-  if (!input) {
-    throw new Error("create-backend-app (typescript): --input is required");
-  }
-  const inputDir = resolve(input);
-  if (!(await pathExists(inputDir))) {
-    throw new Error(
-      `create-backend-app (typescript): input directory does not exist: ${inputDir}`,
-    );
-  }
   const appName = ctx.settings.application_name || DEFAULT_APP_NAME;
   const named = { appName };
   return [
@@ -56,11 +45,11 @@ export const generate = async (
 };
 
 export const generateBackendApp = async (args: {
-  input: string;
+  reader: IDeterministicReader;
   settings: GenerateContext["settings"];
 }): Promise<GenerateEntry[]> =>
   generate({
-    inputs: { dir: args.input },
+    reader: args.reader,
     settings: args.settings,
   });
 

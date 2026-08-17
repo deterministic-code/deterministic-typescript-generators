@@ -46,15 +46,15 @@ export const datasourceSettings = (
 
 export const referenceIsUuid = (
   ds: DatasourceSettings,
-  references: unknown,
+  references: string | undefined,
 ): boolean =>
   ds.idType === "uuid" &&
-  typeof references === "string" &&
+  references !== undefined &&
   references.split(".")[1] === "id";
 
 export const nativeFieldType = (
   ds: DatasourceSettings,
-  field: { type: string; references?: unknown },
+  field: { type: string; references?: string },
 ): string =>
   referenceIsUuid(ds, field.references)
     ? ds.tsIdType
