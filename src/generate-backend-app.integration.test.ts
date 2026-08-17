@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, before, describe, it } from "node:test";
+import { before, describe, it } from "node:test";
+import { memoryReader } from "./common/deterministic-reader.ts";
 import {
   generate,
   type GenerateEntry,
@@ -35,77 +33,15 @@ function requireEntry(
   return entry;
 }
 
-async function writeFixture(dir: string): Promise<void> {
-  await writeFile(
-    join(dir, "settings.yaml"),
-    `settings:
-  application_name: catalog-api
-  backend:
-    languages:
-      - typescript
-      - rust
-    datasources:
-      - sqlite
-  other:
-    organize_by_feature: true
-  languages:
-    typescript:
-      library_reference_mode: npm
-`,
-  );
-  await writeFile(
-    join(dir, "routes.yaml"),
-    `routes:
-  - health:
-      path: /api/health
-      method: get
-      service: HealthCheckService
-      service_method: check
-`,
-  );
-  await writeFile(join(dir, "datasource_types.yaml"), "types: []\n");
-  await writeFile(join(dir, "view_types.yaml"), "types: []\n");
-  await writeFile(join(dir, "services.yaml"), "services: []\n");
-}
-
 describe("generateBackendApp", () => {
-  let inputDir = "";
-  let entries: GenerateEntry[] = [];
   let byName = new Map<string, GenerateEntry>();
 
   before(async () => {
-    inputDir = await mkdtemp(join(tmpdir(), "generate-backend-app-"));
-    await writeFixture(inputDir);
-    entries = await generate({
-      inputs: { dir: inputDir },
-      settings: { application_name: "catalog-api" },
-    });
-    byName = indexEntries(entries);
-  });
-
-  after(async () => {
-    if (inputDir) await rm(inputDir, { recursive: true, force: true });
-  });
-
-  it("requires --input", async () => {
-    await assert.rejects(
-      () =>
-        generate({
-          inputs: { dir: "" },
-          settings: {},
-        }),
-      /--input is required/,
-    );
-  });
-
-  it("rejects a missing input directory", async () => {
-    await assert.rejects(
-      () =>
-        generate({
-          inputs: { dir: join(inputDir, "does-not-exist") },
-          settings: { application_name: "catalog-api" },
-        }),
-      /input directory does not exist/,
+    byName = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: { application_name: "catalog-api" },
+      }),
     );
   });
 
