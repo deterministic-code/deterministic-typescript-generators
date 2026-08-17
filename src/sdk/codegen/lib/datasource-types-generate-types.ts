@@ -10,7 +10,7 @@ export interface GeneratedFile {
   content: string;
 }
 
-/** The render context the SDK `datasourceTypesGenerator` injects into every dialect's `renderTable`: the per-language `opts`, the SDK naming/layout owners, and (for dialects that generate import/using lines) the language `imports` helper. `TImports` defaults to `undefined` for dialects like rust that render no import lines. */
+/** The render context `EntityGenerator` injects into every dialect's `renderTable`: the per-language `opts`, the SDK naming/layout owners, and (for dialects that generate import/using lines) the language `imports` helper. `TImports` defaults to `undefined` for dialects like rust that render no import lines. */
 export interface GenerateCtx<TOpts, TImports = undefined> {
   opts: TOpts;
   names: CodegenNames;

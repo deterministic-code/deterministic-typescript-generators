@@ -121,3 +121,13 @@ export const parseDatasourceTypes = (args: {
     })),
   }));
 };
+
+export const loadDatasourceTypes = async (
+  reader: { read: (name: string) => Promise<string> },
+  idType: string,
+): Promise<DatasourceType[]> =>
+  parseDatasourceTypes({
+    yaml: await reader.read(DATASOURCE_TYPES_YAML),
+    idType,
+  });
+

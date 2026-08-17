@@ -3,18 +3,18 @@ import {
   nativeFieldType,
   type DatasourceSettings,
 } from "./common/datasource-settings.ts";
-import type { IDeterministicReader } from "./common/deterministic-reader.ts";
 import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
-import type { DatasourceType } from "./common/parse-datasource-types.ts";
+import {
+  loadDatasourceTypes,
+  type DatasourceType,
+} from "./common/parse-datasource-types.ts";
 import { settingsBool, settingsStr } from "./common/settings.ts";
 import { indexTmpl, typeTmpl } from "./datasource-types/resources.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
-
-export type { GenerateEntry };
 
 type EmitOptions = {
   ds: DatasourceSettings;
@@ -95,17 +95,8 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const types = await ctx.reader.loadDatasourceTypes(opts.ds.idType);
+  const types = await loadDatasourceTypes(ctx.reader, opts.ds.idType);
   const entries = types.map((dsType) => renderType(dsType, opts));
   if (opts.createIndex) entries.push(renderIndex(types, opts.naming));
   return entries;
 };
-
-export const generateDatasourceTypes = async (args: {
-  reader: IDeterministicReader;
-  settings: GenerateContext["settings"];
-}): Promise<GenerateEntry[]> =>
-  generate({
-    reader: args.reader,
-    settings: args.settings,
-  });
