@@ -25,7 +25,6 @@ interface CatalogRow {
   target_type: string;
   constraints: string | null;
   converter: string | null;
-  rust_converter: string | null;
 }
 
 interface FieldType {
@@ -41,7 +40,6 @@ interface MappingRow {
   target_type: string;
   constraints: string | null;
   converter: string | null;
-  rust_converter: string | null;
 }
 
 /** The order `field_type_mapping` seed rows are generated in per field type — TypeScript, then the five SQL dialects. */
@@ -83,7 +81,6 @@ export function fieldTypeMappingRows(types: FieldType[]): MappingRow[] {
         target_type: r.target_type,
         constraints: r.constraints,
         converter: r.converter,
-        rust_converter: r.rust_converter,
       });
     }
   }
@@ -106,7 +103,6 @@ export function fieldTypeMappingSeedsYaml(types: FieldType[]): string {
       `            target_type: ${yamlScalar(r.target_type)}`,
       `            constraints: ${yamlScalar(r.constraints)}`,
       `            converter: ${yamlScalar(r.converter)}`,
-      `            rust_converter: ${yamlScalar(r.rust_converter)}`,
     );
   }
   return lines.join("\n") + "\n";

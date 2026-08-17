@@ -55,7 +55,6 @@ export default {
       native: "TINYINT(1)",
       constraints: "0|1 on the wire",
       converter: "mysqlBooleanFieldConverter",
-      rustConverter: "MysqlBooleanConverter",
     },
     {
       type: "datetime",
@@ -63,7 +62,6 @@ export default {
       display: "DATETIME",
       constraints: "driver returns Date",
       converter: "mysqlDateTimeFieldConverter",
-      rustConverter: "MysqlDateTimeConverter",
     },
     {
       type: "binary",
@@ -71,14 +69,12 @@ export default {
       display: "VARBINARY(n) / LONGBLOB",
       constraints: "VARBINARY(n) for n <= 65535, else LONGBLOB",
       converter: "mysqlBinaryFieldConverter",
-      rustConverter: "MysqlBinaryConverter",
     },
     {
       type: "uuid",
       native: "CHAR(36)",
       constraints: "RFC-4122",
       converter: "mysqlUuidFieldConverter",
-      rustConverter: "MysqlUuidConverter",
     },
     { type: "reference", native: "INT" },
   ],

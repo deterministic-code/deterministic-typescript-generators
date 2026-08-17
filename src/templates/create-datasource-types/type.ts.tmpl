@@ -1,0 +1,15 @@
+// schema-version: {{schemaVersion}}
+import type { {{#withUuid}}StandardDataSourceWithUuid{{/withUuid}}{{^withUuid}}StandardDataSource{{/withUuid}} } from "{{libraryImport}}";
+
+{{#simpleDoc}}/** Type {{className}}. */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Type {{className}}.
+ * Datasource type: {{datasourceType}}.
+ * Target: StandardCrud.
+ * Fields: {{fieldCount}}.
+ */
+{{/descriptionDoc}}export interface {{className}} extends {{#withUuid}}StandardDataSourceWithUuid<{{idType}}, string, {{datetimeType}}>{{/withUuid}}{{^withUuid}}StandardDataSource<{{idType}}, {{datetimeType}}>{{/withUuid}} {
+{{#fields}}
+  {{ident}}: {{tsType}}{{#nullable}} | null{{/nullable}};
+{{/fields}}
+}

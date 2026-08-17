@@ -1,6 +1,4 @@
-import { parseDefaultToken, EMPTY_UUID, hexToBytes } from "../sdk/lib/default-token.ts";
-
-export { hexToBytes };
+import { parseDefaultToken, EMPTY_UUID } from "../sdk/lib/default-token.ts";
 
 /** The `size` a field carries: a scalar length, a `[precision, scale]` tuple, the `"unlimited"` sentinel, or absent. */
 export type FieldSize = number | number[] | "unlimited" | null;
@@ -25,7 +23,6 @@ export interface Conversion {
   display?: string;
   constraints?: string;
   converter?: string;
-  rustConverter?: string;
 }
 
 /** The parsed-default argument a renderer receives — a string literal or a boolean, or absent for the argument-free generator tokens. */
@@ -56,12 +53,6 @@ export interface ConverterModule {
   numericLiteral?: NumericLiteralTable;
 }
 
-/** JSON-quote a value as a double-quoted string literal for language default expressions. */
-export function dq(value: string | boolean | undefined): string {
-  return JSON.stringify(String(value));
-}
-
-/** Single-quote a value as a SQL string literal, doubling embedded quotes. */
 export function sqlStringLiteral(
   value: string | number | boolean | null | undefined,
 ): string {
@@ -88,7 +79,7 @@ export function decimalPrecisionScale(
 }
 
 /** True when a sized field (`string`/`binary`) carries no explicit size and defaults to the dialect's unbounded column type. */
-export function isUnlimited(size?: FieldSize): boolean {
+function isUnlimited(size?: FieldSize): boolean {
   return size === "unlimited" || size === undefined || size === null;
 }
 
@@ -136,24 +127,43 @@ export function requirePrecisionScale(
   return ps;
 }
 
-function conversionFor(mod: ConverterModule, type: string): Conversion {
-  const entry = mod.conversions.find((c) => c.type === type);
-  if (!entry) {
-    throw new Error(
-      mod.targetKind === "dialect"
-        ? `Unknown field type "${type}" for dialect "${mod.target}"`
-        : `no ${mod.target} native type for field type "${type}"`,
-    );
-  }
-  return entry;
+/** One projected `field_type_mapping` display row for a target — the shape `catalogRowsFor` yields. */
+export interface CatalogProjectionRow {
+  target_kind: "language" | "dialect";
+  target: string;
+  type: string;
+  target_type: string;
+  constraints: string | null;
+  converter: string | null;
 }
 
-/** The native (language or dialect) type for a field, resolving reference recursion (dialects) and the datetime string representation (languages). */
-export function nativeTypeFor(
+/** The catalog `field_type_mapping` display row for each of a target's conversions — the projection the mappings catalog is seeded from. */
+export const catalogRowsFor = (
+  mod: ConverterModule,
+): CatalogProjectionRow[] =>
+  mod.conversions.map((c) => {
+    const target_type =
+      c.display ?? (typeof c.native === "string" ? c.native : undefined);
+    if (target_type === undefined) {
+      throw new Error(
+        `${mod.target} conversion "${c.type}" needs an explicit display type`,
+      );
+    }
+    return {
+      target_kind: mod.targetKind,
+      target: mod.target,
+      type: c.type,
+      target_type,
+      constraints: c.constraints ?? null,
+      converter: c.converter ?? null,
+    };
+  });
+
+/** The native column/language type for a field, resolving dialect `reference` recursion. */
+export const nativeTypeFor = (
   mod: ConverterModule,
   field: ConverterField,
-  datetimeRepr?: string,
-): string {
+): string => {
   if (
     field.type === "reference" &&
     mod.targetKind === "dialect" &&
@@ -164,48 +174,17 @@ export function nativeTypeFor(
       size: field.referencesSize,
     });
   }
-  if (
-    field.type === "datetime" &&
-    mod.targetKind === "language" &&
-    datetimeRepr === "string"
-  ) {
-    return mod.datetimeStringType!;
+  const entry = mod.conversions.find((c) => c.type === field.type);
+  if (!entry) {
+    throw new Error(
+      mod.targetKind === "dialect"
+        ? `Unknown field type "${field.type}" for dialect "${mod.target}"`
+        : `no ${mod.target} native type for field type "${field.type}"`,
+    );
   }
-  const { native } = conversionFor(mod, field.type);
+  const { native } = entry;
   return typeof native === "function" ? native(field) : native;
-}
-
-/** One projected `field_type_mapping` display row for a target — the shape `catalogRowsFor` yields. */
-export interface CatalogProjectionRow {
-  target_kind: "language" | "dialect";
-  target: string;
-  type: string;
-  target_type: string;
-  constraints: string | null;
-  converter: string | null;
-  rust_converter: string | null;
-}
-
-/** The catalog `field_type_mapping` display row for each of a target's conversions — the projection the mappings catalog is seeded from. */
-export function catalogRowsFor(mod: ConverterModule): CatalogProjectionRow[] {
-  return mod.conversions.map((c) => ({
-    target_kind: mod.targetKind,
-    target: mod.target,
-    type: c.type,
-    target_type:
-      c.display ??
-      (typeof c.native === "string"
-        ? c.native
-        : (() => {
-            throw new Error(
-              `${mod.target} conversion "${c.type}" needs an explicit display type`,
-            );
-          })()),
-    constraints: c.constraints ?? null,
-    converter: c.converter ?? null,
-    rust_converter: c.rustConverter ?? null,
-  }));
-}
+};
 
 /** The SQL `DEFAULT` expression for a field, translating each symbolic default token to this dialect's form — the dialect-invariant cases live here, the varying ones in the dialect module's `defaults` table. */
 export function renderSqlDefault(
@@ -233,29 +212,4 @@ export function renderSqlDefault(
     default:
       return sqlStringLiteral(arg);
   }
-}
-
-/** The language literal/expression for a field's `{ type, value }` default — `null` when absent. Datetime honors the string representation so a `z.string()` field gets an ISO string, not a native date. */
-export function defaultLiteralFor(
-  mod: ConverterModule,
-  field: { type: string; value: string | boolean | number | null | undefined },
-  datetimeRepr?: string,
-): string | null {
-  const { token, arg } = parseDefaultToken(field.type, field.value);
-  if (token === "None") return null;
-  if (field.type === "datetime" && datetimeRepr === "string") {
-    if (token === "Now" || token === "UtcNow") {
-      return mod.datetimeStringDefault ?? mod.defaults[token]();
-    }
-    return dq(arg);
-  }
-  // decimal is an exact string in every generated language (see decimalFieldConverter), so its default renders through the String path — quoted in TS/C#, `.to_string()` in Rust — not as the bare numeric literal SQL uses.
-  if (field.type === "decimal") return mod.defaults.String(arg);
-  const render = mod.defaults[token];
-  if (!render) {
-    throw new Error(
-      `${mod.target} converter cannot render default token "${token}"`,
-    );
-  }
-  return render(arg);
 }
