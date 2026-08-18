@@ -20,11 +20,6 @@ export {
   classifyBucket,
 } from "./openapi/codegen/lib/openapi-doc-helpers.ts";
 
-export {
-  camelToSnake,
-  snakeToCamel,
-} from "./openapi/case.ts";
-
 interface SeedDep {
   field: string;
   parentBucket: Bucket;

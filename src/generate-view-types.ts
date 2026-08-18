@@ -1,5 +1,4 @@
 import { datasourceSettings } from "./common/datasource-settings.ts";
-import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
@@ -8,19 +7,28 @@ import {
   type ViewArtifactNaming,
 } from "./common/naming.ts";
 import {
-  loadViewTypes,
+  SpecificationParser,
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "./common/parse-view-types.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { toNative } from "./common/type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/view-types.ts";
 
+const docTokens = (settings: SettingsDict) => {
+  const comments = settingsStr(settings, "comments");
+  return {
+    simpleDoc: comments !== "none" && comments !== "description",
+    descriptionDoc: comments === "description",
+  };
+};
+
 type EmitOptions = {
   naming: ViewArtifactNaming;
   schemaVersion: string;
-  style: CommentStyle;
+  simpleDoc: boolean;
+  descriptionDoc: boolean;
   datetimeType: string;
   createIndex: boolean;
 };
@@ -31,7 +39,7 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
   return {
     naming,
     schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
-    style: commentStyle(settingsStr(settings, "comments")),
+    ...docTokens(settings),
     datetimeType: datasourceSettings(settings).datetimeType,
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
@@ -124,7 +132,7 @@ const extendsType = (
 };
 
 const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
-  const { naming, schemaVersion, style } = opts;
+  const { naming, schemaVersion, simpleDoc, descriptionDoc } = opts;
   const className = naming.className(view.name);
   const { imports, aliasByClass } = collectImports(view, opts);
   const isUnion = view.kind === "union";
@@ -135,8 +143,8 @@ const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
       schemaVersion,
       imports,
       hasImports: imports.length > 0,
-      simpleDoc: style === "simple",
-      descriptionDoc: style === "description",
+      simpleDoc,
+      descriptionDoc,
       className,
       datasourceType: isUnion ? "standard" : (view.inherits ?? "standard"),
       target: isUnion ? "UnionView" : "ShapedView",
@@ -164,7 +172,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const views = await loadViewTypes(ctx.reader);
+  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const entries = views.map((v) => renderView(v, opts));
   if (opts.createIndex) {
     entries.push(

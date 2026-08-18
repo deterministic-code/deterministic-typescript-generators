@@ -4,17 +4,69 @@ import {
   pluralize,
   type CaseFormat,
 } from "./case.ts";
-import { requireLanguageCasing, type CasingBlock } from "./read-settings.ts";
+import type { SettingsDict } from "./generate-context.ts";
+import { settingsBool, settingsList } from "./settings.ts";
+
+export type { CaseFormat };
+
+export type CasingBlock = {
+  fileNames: CaseFormat | undefined;
+  types: CaseFormat | undefined;
+  fields: CaseFormat | undefined;
+  directories: CaseFormat | undefined;
+};
+
+const PARSE_CANONICAL_CASE: Record<string, CaseFormat> = {
+  camel: "Camel",
+  pascal: "Pascal",
+  snake: "Snake",
+  kebab: "Kebab",
+  auto: "Auto",
+};
+
+const canonicalCase = (value: unknown): CaseFormat | undefined => {
+  if (typeof value !== "string") return undefined;
+  return PARSE_CANONICAL_CASE[value.toLowerCase()];
+};
+
+const casingFromDict = (
+  settings: SettingsDict,
+  language: string,
+): CasingBlock => {
+  const prefix = `languages.${language}.casing.`;
+  return {
+    fileNames: canonicalCase(settings[`${prefix}file_names`]),
+    types: canonicalCase(settings[`${prefix}types`]),
+    fields: canonicalCase(settings[`${prefix}fields`]),
+    directories: canonicalCase(settings[`${prefix}directories`]),
+  };
+};
+
+const requireLanguageCasing = (
+  settings:
+    | { languages?: Record<string, { casing: CasingBlock }> }
+    | null
+    | undefined,
+  language: string,
+): CasingBlock => {
+  const casing = settings?.languages?.[language]?.casing;
+  if (!casing) {
+    throw new Error(
+      `invariant: settings.languages.${language}.casing is required but missing — default-settings.yaml supplies it for every supported language, so absence means a malformed settings object`,
+    );
+  }
+  return casing;
+};
 
 const VARIANT_PREFIXES = ["update_", "create_"];
 
 const DOTTED_LANGS = new Set(["typescript", "javascript"]);
 
-function snakePluralStem(entity: string): string {
+const snakePluralStem = (entity: string): string => {
   const parts = entity.split(/[_-]/);
   parts[parts.length - 1] = pluralize(parts[parts.length - 1]);
   return parts.join("_");
-}
+};
 
 const LANG_EXT: Record<string, string> = {
   typescript: ".ts",
@@ -93,29 +145,30 @@ const RULES: Record<string, ArtifactRule> = {
 
 const DEFAULT_RULE: ArtifactRule = { role: null, roleInFlat: false };
 
-function ruleFor(artifact: string): ArtifactRule {
-  return RULES[artifact] ?? DEFAULT_RULE;
-}
+const ruleFor = (artifact: string): ArtifactRule =>
+  RULES[artifact] ?? DEFAULT_RULE;
 
-function variantPrefixOf(entity: string, rule: ArtifactRule): string | null {
+const variantPrefixOf = (
+  entity: string,
+  rule: ArtifactRule,
+): string | null => {
   if (!rule.variant) return null;
   return VARIANT_PREFIXES.find((p) => entity.startsWith(p)) ?? null;
-}
+};
 
-function isVariant(entity: string, rule: ArtifactRule): boolean {
-  return variantPrefixOf(entity, rule) !== null;
-}
+const isVariant = (entity: string, rule: ArtifactRule): boolean =>
+  variantPrefixOf(entity, rule) !== null;
 
-function featureBaseOf(entity: string, rule: ArtifactRule): string {
+const featureBaseOf = (entity: string, rule: ArtifactRule): string => {
   const prefix = variantPrefixOf(entity, rule);
   return prefix ? entity.slice(prefix.length) : entity;
-}
+};
 
-function stemOf(
+const stemOf = (
   entity: string,
   rule: ArtifactRule,
   { byFeature, language }: { byFeature: boolean; language: string },
-): string {
+): string => {
   let base;
   if (rule.stem) base = rule.stem(entity);
   else if (isVariant(entity, rule)) base = entity;
@@ -126,7 +179,8 @@ function stemOf(
     base = `${base}_${rule.bfMarker}`;
   }
   return base;
-}
+};
+
 
 interface CodegenNamesSettings {
   other?: { organizeByFeature?: boolean };
@@ -225,3 +279,54 @@ export class CodegenNames {
     return featureBaseOf(entity, ruleFor(artifact));
   }
 }
+
+type NamesSettings = ConstructorParameters<typeof CodegenNames>[0];
+
+const namesSettingsFromDict = (
+  settings: SettingsDict,
+  language: string,
+): NamesSettings => ({
+  languages: { [language]: { casing: casingFromDict(settings, language) } },
+  other: {
+    organizeByFeature: settingsBool(settings, "other.organize_by_feature"),
+  },
+  backend: { languages: settingsList(settings, "backend.languages") },
+});
+
+export type NamesForOptions = {
+  language?: string;
+  fileFormat?: CaseFormat;
+  classFormat?: CaseFormat;
+  fieldFormat?: CaseFormat;
+  dirFormat?: CaseFormat;
+  organizeByFeature?: boolean;
+};
+
+/** CodegenNames from a partial generate-options object (tests / direct calls). */
+export const namesFor = (opts: NamesForOptions): CodegenNames => {
+  const language = opts.language ?? "typescript";
+  return new CodegenNames(
+    {
+      languages: {
+        [language]: {
+          casing: {
+            fileNames: opts.fileFormat ?? "Auto",
+            types: opts.classFormat ?? "Auto",
+            fields: opts.fieldFormat ?? "Auto",
+            directories: opts.dirFormat ?? "Auto",
+          },
+        },
+      },
+      other: { organizeByFeature: opts.organizeByFeature === true },
+    },
+    language,
+  );
+};
+
+/** CodegenNames from the loader-resolved flat settings dict. */
+export const namesForSettings = (
+  settings: SettingsDict,
+  language: string,
+): CodegenNames =>
+  new CodegenNames(namesSettingsFromDict(settings, language), language);
+

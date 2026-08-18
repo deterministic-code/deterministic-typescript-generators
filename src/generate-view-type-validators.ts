@@ -12,11 +12,11 @@ import {
   type ViewValidatorNaming,
 } from "./common/naming.ts";
 import {
-  loadViewTypes,
+  SpecificationParser,
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "./common/parse-view-types.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { toZod } from "./common/type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/view-type-validators.ts";
@@ -183,7 +183,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const views = await loadViewTypes(ctx.reader);
+  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const entries = views.map((view) =>
     content(
       opts.naming.filePath(view.name),

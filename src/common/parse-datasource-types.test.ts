@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  parseDatasourceTypes,
+  SpecificationParser,
   primaryKeyFor,
-} from "./parse-datasource-types.ts";
+} from "./specification-parser.ts";
 
 describe("parseDatasourceTypes", () => {
   it("reads types: and inherits a type-less references: parent.id", () => {
-    const types = parseDatasourceTypes({
+    const types = new SpecificationParser().parseDatasourceTypes({
       idType: "integer",
       yaml: `types:
   - user:
@@ -36,7 +36,7 @@ describe("parseDatasourceTypes", () => {
   });
 
   it("uses an explicit primary_key type when the reference targets that column", () => {
-    const types = parseDatasourceTypes({
+    const types = new SpecificationParser().parseDatasourceTypes({
       idType: "integer",
       yaml: `types:
   - child:
@@ -56,7 +56,7 @@ describe("parseDatasourceTypes", () => {
   it("throws when a type-less reference cannot be resolved", () => {
     assert.throws(
       () =>
-        parseDatasourceTypes({
+        new SpecificationParser().parseDatasourceTypes({
           idType: "integer",
           yaml: `types:
   - user:
@@ -72,7 +72,7 @@ describe("parseDatasourceTypes", () => {
 
 describe("primaryKeyFor", () => {
   it("defaults to id and the project idType", () => {
-    const types = parseDatasourceTypes({
+    const types = new SpecificationParser().parseDatasourceTypes({
       idType: "uuid",
       yaml: `types:
   - user:
@@ -88,7 +88,7 @@ describe("primaryKeyFor", () => {
   });
 
   it("uses a custom non-id primary_key field", () => {
-    const types = parseDatasourceTypes({
+    const types = new SpecificationParser().parseDatasourceTypes({
       idType: "integer",
       yaml: `types:
   - parent:

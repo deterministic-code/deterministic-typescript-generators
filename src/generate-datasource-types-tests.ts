@@ -9,11 +9,11 @@ import type { GenerateContext, SettingsDict } from "./common/generate-context.ts
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
 import {
+  SpecificationParser,
   DATASOURCE_TYPES_YAML,
-  parseDatasourceTypes,
   type DatasourceField,
   type DatasourceType,
-} from "./common/parse-datasource-types.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { typeTestTmpl } from "./resources/datasource-types-tests.ts";
 import { FieldConverter, fieldConverter } from "./field-converter.ts";
@@ -85,7 +85,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const types = parseDatasourceTypes({
+  const types = new SpecificationParser().parseDatasourceTypes({
     yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
     idType: opts.ds.idType,
   });

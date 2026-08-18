@@ -7,8 +7,10 @@ import {
   fileReader,
   memoryReader,
 } from "./common/deterministic-reader.ts";
-import { DATASOURCE_TYPES_YAML } from "./common/parse-datasource-types.ts";
-import { VIEW_TYPES_YAML } from "./common/parse-view-types.ts";
+import {
+  DATASOURCE_TYPES_YAML,
+  VIEW_TYPES_YAML,
+} from "./common/specification-parser.ts";
 import type { GenerateEntry } from "./common/generate-entry.ts";
 import { generate } from "./generate-view-types.ts";
 

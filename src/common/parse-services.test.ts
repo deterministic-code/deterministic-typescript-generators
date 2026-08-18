@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseDatasourceTypes } from "./parse-datasource-types.ts";
-import { parseViewTypes } from "./parse-view-types.ts";
-import { parseServices } from "./parse-services.ts";
+import { SpecificationParser } from "./specification-parser.ts";
 import { pascalCase } from "change-case";
 
 const serviceClassName = (entity: string) => pascalCase(`${entity}_service`);
@@ -53,9 +51,9 @@ const ROUTES_YAML = `routes:
 
 describe("parseServices", () => {
   it("seeds HealthCheckService, builds generics, and wires custom methods", () => {
-    const datasources = parseDatasourceTypes({ yaml: DS_YAML, idType: "integer" });
-    const views = parseViewTypes({ viewYaml: VIEW_YAML, datasourceYaml: DS_YAML });
-    const parsed = parseServices({
+    const datasources = new SpecificationParser().parseDatasourceTypes({ yaml: DS_YAML, idType: "integer" });
+    const views = new SpecificationParser().parseViewTypes({ viewYaml: VIEW_YAML, datasourceYaml: DS_YAML });
+    const parsed = new SpecificationParser().parseServices({
       servicesYaml: SERVICES_YAML,
       views,
       datasources,
@@ -85,9 +83,9 @@ describe("parseServices", () => {
   });
 
   it("suppresses a generic when a custom stub uses the same class name", () => {
-    const datasources = parseDatasourceTypes({ yaml: DS_YAML, idType: "integer" });
-    const views = parseViewTypes({ viewYaml: VIEW_YAML, datasourceYaml: DS_YAML });
-    const parsed = parseServices({
+    const datasources = new SpecificationParser().parseDatasourceTypes({ yaml: DS_YAML, idType: "integer" });
+    const views = new SpecificationParser().parseViewTypes({ viewYaml: VIEW_YAML, datasourceYaml: DS_YAML });
+    const parsed = new SpecificationParser().parseServices({
       servicesYaml: `includes:
   - view_type_services:
       filter: 'type == "user"'

@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseDatasourceTypes } from "./parse-datasource-types.ts";
-import { parseViewTypes } from "./parse-view-types.ts";
 import {
+  SpecificationParser,
   entityUsesOptimisticConcurrency,
-  parseRoutes,
-} from "./parse-routes.ts";
+} from "./specification-parser.ts";
 
 const DS_YAML = `types:
   - user:
@@ -66,9 +64,9 @@ types:
 `;
 
 const parseFixture = (routesYaml: string) => {
-  const datasources = parseDatasourceTypes({ yaml: DS_YAML, idType: "integer" });
-  const views = parseViewTypes({ viewYaml: VIEW_YAML, datasourceYaml: DS_YAML });
-  return parseRoutes({ routesYaml, views, datasources });
+  const datasources = new SpecificationParser().parseDatasourceTypes({ yaml: DS_YAML, idType: "integer" });
+  const views = new SpecificationParser().parseViewTypes({ viewYaml: VIEW_YAML, datasourceYaml: DS_YAML });
+  return new SpecificationParser().parseRoutes({ routesYaml, views, datasources });
 };
 
 describe("parseRoutes", () => {
@@ -223,9 +221,9 @@ routes: []`);
   - datasource_types:
       include: "*"
 types: []`;
-    const datasources = parseDatasourceTypes({ yaml: m2mDs, idType: "integer" });
-    const views = parseViewTypes({ viewYaml: m2mView, datasourceYaml: m2mDs });
-    const parsed = parseRoutes({
+    const datasources = new SpecificationParser().parseDatasourceTypes({ yaml: m2mDs, idType: "integer" });
+    const views = new SpecificationParser().parseViewTypes({ viewYaml: m2mView, datasourceYaml: m2mDs });
+    const parsed = new SpecificationParser().parseRoutes({
       routesYaml: `includes:
   - view_type_routes:
       filter: 'type inherits datasource_types'
@@ -290,7 +288,7 @@ describe("entityUsesOptimisticConcurrency", () => {
 
 describe("parseDatasourceTypes target and optimisticConcurrency", () => {
   it("parses target and use_optimistic_concurrency onto DatasourceType", () => {
-    const types = parseDatasourceTypes({
+    const types = new SpecificationParser().parseDatasourceTypes({
       idType: "integer",
       yaml: `types:
   - sink:

@@ -1,10 +1,8 @@
 import { camelCase, kebabCase } from "change-case";
-import { parse } from "yaml";
 import {
   datasourceSettings,
   type DatasourceSettings,
 } from "./common/datasource-settings.ts";
-import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
@@ -14,15 +12,16 @@ import {
   type RouteNaming,
 } from "./common/naming.ts";
 import {
+  SpecificationParser,
   entityUsesOptimisticConcurrency,
-  loadRoutes,
   SERVICES_YAML,
   type CustomRouteEntry,
   type RouteByField,
   type RouteCandidate,
-} from "./common/parse-routes.ts";
-import { isRecord } from "./common/yaml-entry.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
+import { isRecord } from "./common/yaml-entry.ts";
+import { YamlNode } from "./common/yaml-node.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   appWiringTmpl,
@@ -33,19 +32,23 @@ import {
   readonlyPlainTmpl,
 } from "./resources/routes.ts";
 
+const docTokens = (settings: SettingsDict) => {
+  const comments = settingsStr(settings, "comments");
+  return {
+    simpleDoc: comments !== "none" && comments !== "description",
+    descriptionDoc: comments === "description",
+  };
+};
+
 type EmitOptions = {
   ds: DatasourceSettings;
   naming: RouteNaming;
-  style: CommentStyle;
+  simpleDoc: boolean;
+  descriptionDoc: boolean;
   libraryReferenceMode: string | undefined;
   createIndex: boolean;
   customServiceEntities: Set<string>;
 };
-
-const docFlags = (style: CommentStyle) => ({
-  simpleDoc: style === "simple",
-  descriptionDoc: style === "description",
-});
 
 const emitOptions = async (
   settings: SettingsDict,
@@ -55,18 +58,18 @@ const emitOptions = async (
   const createIndex = settingsStr(settings, "codegen.create_index");
   const customServiceEntities = new Set<string>();
   if (await reader.exists(SERVICES_YAML)) {
-    const doc = parse(await reader.read(SERVICES_YAML));
-    const services = isRecord(doc) && Array.isArray(doc.services) ? doc.services : [];
-    for (const entry of services) {
-      if (!isRecord(entry) || typeof entry.name !== "string") continue;
-      const derived = featureEntityFromClass(entry.name);
+    const root = YamlNode.fromYaml(await reader.read(SERVICES_YAML));
+    for (const entry of root.child("services").items()) {
+      const name = entry.str("name");
+      if (name === undefined) continue;
+      const derived = featureEntityFromClass(name);
       if (derived) customServiceEntities.add(derived);
     }
   }
   return {
     ds: datasourceSettings(settings),
     naming,
-    style: commentStyle(settingsStr(settings, "comments")),
+    ...docTokens(settings),
     libraryReferenceMode: settingsStr(
       settings,
       "languages.typescript.library_reference_mode",
@@ -271,7 +274,7 @@ const renderEntityRouter = (
   candidate: RouteCandidate,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, style, ds } = opts;
+  const { naming, simpleDoc, descriptionDoc, ds } = opts;
   const entity = naming.className(candidate.name);
   const fnName = naming.routerFnName(candidate.name);
   const libs = libImports(opts, candidate.name);
@@ -292,7 +295,8 @@ const renderEntityRouter = (
       }))
     : candidate.byFields;
   const tokens = {
-    ...docFlags(style),
+    simpleDoc,
+    descriptionDoc,
     ...libs,
     entity,
     fnName,
@@ -364,13 +368,14 @@ const renderCustom = (
   entry: CustomRouteEntry,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, style } = opts;
+  const { naming, simpleDoc, descriptionDoc } = opts;
   const className = `${naming.className(entry.name)}Route`;
   const interfaceName = `I${className}`;
   return content(
     resolveCustomRoutePath(entry, naming, naming.byFeature),
     fill(customStubTmpl, {
-      ...docFlags(style),
+      simpleDoc,
+      descriptionDoc,
       interfaceName,
       className,
     }),
@@ -483,7 +488,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = await emitOptions(ctx.settings, ctx.reader);
-  const parsed = await loadRoutes(ctx.reader, { idType: opts.ds.idType });
+  const parsed = await new SpecificationParser(ctx.reader).loadRoutes({ idType: opts.ds.idType });
   const entries: GenerateEntry[] = [
     ...parsed.candidates.map((c) => renderEntityRouter(c, opts)),
     ...parsed.customs.map((c) => renderCustom(c, opts)),

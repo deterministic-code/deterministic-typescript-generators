@@ -90,3 +90,12 @@ export const preludeSource = (data: IFakeTestData): string => {
   const lines = data.prelude();
   return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 };
+
+/** `datetime()` is a Date expression; string mode appends `.toISOString()` so the same impl covers native and wire shapes. */
+export const datetimeLiteral = (
+  data: IFakeTestData,
+  datetime: string,
+): string =>
+  datetime === "native"
+    ? data.datetime()
+    : `${data.datetime()}.toISOString()`;

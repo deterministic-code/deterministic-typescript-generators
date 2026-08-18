@@ -1,7 +1,12 @@
 import { posix } from "node:path";
 import { toCase, apiPathSegment } from "./case.ts";
 import { backendLaneDir } from "./backend-lane.ts";
-import type { CodegenNames } from "./codegen-naming.ts";
+import {
+  namesFor,
+  namesForSettings,
+  type CodegenNames,
+  type NamesForOptions,
+} from "./codegen-naming.ts";
 
 const FLAT_SRC_DIR: Record<string, Record<string, string>> = {
   typescript: {
@@ -253,3 +258,15 @@ export class CodegenLayout {
     return fromDir === toDir ? `./${seg}` : `../${toDir}/${seg}`;
   }
 }
+
+/** CodegenLayout from a partial generate-options object. */
+export const layoutFor = (opts: NamesForOptions): CodegenLayout =>
+  new CodegenLayout(namesFor(opts));
+
+/** CodegenLayout from the loader-resolved flat settings dict. */
+export const layoutForSettings = (
+  settings: Parameters<typeof namesForSettings>[0],
+  language: string,
+): CodegenLayout =>
+  new CodegenLayout(namesForSettings(settings, language));
+
