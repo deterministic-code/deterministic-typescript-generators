@@ -1,0 +1,35 @@
+import { Router } from "express";
+import { addNestedManyToManyRoutes } from "{{routesImport}}";
+import { {{parentServiceIface}} } from "{{parentServiceImport}}";
+import { {{junctionServiceIface}} } from "{{junctionServiceImport}}";
+import { {{targetServiceIface}} } from "{{targetServiceImport}}";
+
+{{#simpleDoc}}/** Route {{fnName}}. Mount at "{{mountPath}}". */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Route {{fnName}}. Mount at "{{mountPath}}".
+ * Datasource type: nested-m2m.
+ * Target: NestedManyToManyRouter.
+ * Fields: 0.
+ */
+{{/descriptionDoc}}export function {{fnName}}(
+  parentService: {{parentServiceIface}},
+  junctionService: {{junctionServiceIface}},
+  targetService: {{targetServiceIface}},
+): Router {
+  const router = Router({ mergeParams: true });
+  addNestedManyToManyRoutes(router, {
+    parentService,
+    junctionService,
+    childService: targetService,
+    parentParamName: "{{parentParam}}",
+    parentEntityName: "{{parentPascal}}",
+    childParamName: "{{targetParam}}",
+    childEntityName: "{{targetPascal}}",
+    nestedPath: "{{segmentTail}}",
+    parentFkField: "{{parentFkField}}",
+    childFkField: "{{childFkField}}",
+    bodyFields: ["{{childFkField}}"],
+    linkVerb: "POST",
+  });
+  return router;
+}

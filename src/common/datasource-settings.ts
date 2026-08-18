@@ -1,22 +1,10 @@
 import type { SettingsDict } from "./generate-context.ts";
-import { settingsStr } from "./settings.ts";
-import { toNative } from "./type-converter.ts";
-
-/** `datasource.id_type` → TypeScript type for `id` and uuid-id foreign keys. */
-const ID_TO: Record<string, string> = {
-  integer: toNative("number"),
-  biginteger: "bigint",
-  uuid: toNative("uuid"),
-  string: toNative("string"),
-};
-
-/** `datasource.id_type` → Zod expression for `id` and uuid-id foreign keys. */
-const ID_ZOD: Record<string, string> = {
-  integer: "z.number().int().nonnegative()",
-  biginteger: "z.bigint()",
-  uuid: "z.string().uuid()",
-  string: "z.string()",
-};
+import { settingsBool, settingsStr } from "./settings.ts";
+import {
+  idTypeToNative,
+  idTypeToZod,
+  toNative,
+} from "./type-converter.ts";
 
 /** `datasource.id_type` → spec field shape a type-less `references: X.id` inherits. */
 const REFERENCE_SHAPE: Record<
@@ -36,6 +24,7 @@ export type DatasourceSettings = {
   tsIdType: string;
   zodIdType: string;
   datetimeType: string;
+  useOptimisticConcurrency: boolean;
 };
 
 export const datasourceSettings = (
@@ -47,8 +36,12 @@ export const datasourceSettings = (
     idType,
     datetimeRepr,
     withUuidColumn: idType !== "uuid",
-    tsIdType: ID_TO[idType] ?? toNative("number"),
-    zodIdType: ID_ZOD[idType] ?? ID_ZOD.integer,
+    tsIdType: idTypeToNative(idType),
+    zodIdType: idTypeToZod(idType),
+    useOptimisticConcurrency: settingsBool(
+      settings,
+      "datasource.use_optimistic_concurrency",
+    ),
     datetimeType:
       datetimeRepr === "string" ? toNative("string") : toNative("datetime"),
   };

@@ -1,0 +1,12 @@
+// schema-version: {{schemaVersion}}
+import { describe, it, expect } from "vitest";
+import { {{schemaName}} } from "{{schemaImport}}";
+
+describe("{{schemaName}} (datasource_types.{{tableName}})", () => {
+{{#cases}}
+  it("{{name}}", () => {
+    const value = {{&fixture}};
+    expect(() => {{schemaName}}.parse(value)).{{assertion}}();
+  });
+{{/cases}}
+});

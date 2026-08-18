@@ -44,44 +44,22 @@ export type UnionView = {
 export type ViewType = ShapedView | UnionView;
 
 const PRIMITIVES = new Set([
-  "string",
-  "character",
-  "number",
-  "integer",
-  "smallinteger",
-  "biginteger",
-  "float",
-  "decimal",
-  "boolean",
-  "datetime",
-  "binary",
-  "uuid",
-  "reference",
+  "string", "character", "number", "integer", "smallinteger", "biginteger",
+  "float", "decimal", "boolean", "datetime", "binary", "uuid", "reference",
 ]);
-
 const DS_PREFIX = "datasource_types.";
-
 const NON_DERIVABLE = [
-  "_eager_body",
-  "_eager_create_body",
-  "_eager_patch_body",
-  "_eager_row",
-  "_eager_create_row",
+  "_eager_body", "_eager_create_body", "_eager_patch_body",
+  "_eager_row", "_eager_create_row",
 ] as const;
 
-const rec = (value: unknown): Record<string, unknown> =>
-  isRecord(value) ? value : {};
-
-const str = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
-
-const int = (value: unknown): number | undefined =>
-  typeof value === "number" && isFiniteInt(value) ? value : undefined;
-
-const strings = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
+const rec = (v: unknown): Record<string, unknown> => (isRecord(v) ? v : {});
+const str = (v: unknown): string | undefined =>
+  typeof v === "string" ? v : undefined;
+const int = (v: unknown): number | undefined =>
+  typeof v === "number" && isFiniteInt(v) ? v : undefined;
+const strings = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 
 export const parseFieldType = (
   raw: string,
@@ -103,33 +81,44 @@ type DsField = {
   isPrimaryKey: boolean;
   references: string | undefined;
 };
-
 type DsType = {
   name: string;
   datasourceType: string | null;
   fields: DsField[];
 };
-
+type RawField = {
+  name: string;
+  type: string;
+  isNullable: boolean;
+  size: number | undefined;
+  minSize: number | undefined;
+};
 type RawView = {
   name: string;
   inherits: string | undefined;
   oneOf: string[] | undefined;
   omit: string[];
-  fields: Array<{
-    name: string;
-    type: string;
-    isNullable: boolean;
-    size: number | undefined;
-    minSize: number | undefined;
-  }>;
+  fields: RawField[];
   enrichments: ViewEnrichment[];
 };
-
 type DsDirective = {
   include: string | undefined;
   filter: string | undefined;
   autoEnrich: boolean;
 };
+
+const emptyShaped = (
+  name: string,
+  inherits: string,
+  omit: string[],
+): RawView => ({
+  name,
+  inherits,
+  oneOf: undefined,
+  omit,
+  fields: [],
+  enrichments: [],
+});
 
 const parseDsTypes = (yaml: string): DsType[] =>
   namedEntries(rec(parse(yaml)).types).map(([name, body]) => {
@@ -186,22 +175,18 @@ const datasourceDirective = (viewYaml: string): DsDirective | undefined => {
   return undefined;
 };
 
-const includeMatches = (include: string | undefined, name: string): boolean => {
-  if (include === undefined || include === "*") return true;
-  return include
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .includes(name);
-};
+const includeMatches = (include: string | undefined, name: string): boolean =>
+  include === undefined ||
+  include === "*" ||
+  include.split(",").map((s) => s.trim()).filter(Boolean).includes(name);
 
 const compileFilter = (
   filterExpr: string | undefined,
-): ((typeObj: { name: string; datasource_type: string | null }) => boolean) => {
+): ((t: { name: string; datasource_type: string | null }) => boolean) => {
   if (filterExpr === undefined) return () => true;
   try {
     const fn = new Function("type", `return (${filterExpr});`);
-    return (typeObj) => Boolean(fn(typeObj));
+    return (t) => Boolean(fn(t));
   } catch (e) {
     throw new Error(
       `datasource_types.filter is not a valid expression: ${(e as Error).message}`,
@@ -212,24 +197,21 @@ const compileFilter = (
 const inheritedTable = (inherits: string | undefined): string | undefined =>
   inherits?.startsWith(DS_PREFIX) ? inherits.slice(DS_PREFIX.length) : undefined;
 
-const parseFk = (field: DsField): { table: string } | undefined => {
+const parseFk = (field: DsField): string | undefined => {
   if (field.type !== "number" || field.references === undefined) return undefined;
-  const dot = field.references.indexOf(".");
-  const table = field.references.slice(0, dot);
-  const column = field.references.slice(dot + 1);
-  if (column !== "id") return undefined;
-  return { table };
+  const [table, column] = field.references.split(".");
+  return column === "id" ? table : undefined;
 };
 
 const targetIsEnrichable = (target: DsType | undefined): target is DsType => {
   if (target === undefined) return false;
   if (target.datasourceType === "readonly-lookup") return true;
-  const nameField = target.fields.find((f) => f.name === "name");
-  if (nameField === undefined) return false;
+  const name = target.fields.find((f) => f.name === "name");
   return (
-    nameField.type === "string" &&
-    nameField.isUnique &&
-    !nameField.isNullable
+    name !== undefined &&
+    name.type === "string" &&
+    name.isUnique &&
+    !name.isNullable
   );
 };
 
@@ -239,24 +221,24 @@ const enrichmentsFor = (
 ): ViewEnrichment[] => {
   const inherited = byName.get(tableName);
   if (inherited === undefined) return [];
-  const enrichments: ViewEnrichment[] = [];
-  for (const field of inherited.fields) {
-    if (!field.name.endsWith("_id")) continue;
-    const ref = parseFk(field);
-    if (ref === undefined) continue;
-    const target = byName.get(ref.table);
-    if (!targetIsEnrichable(target)) continue;
+  return inherited.fields.flatMap((field) => {
+    if (!field.name.endsWith("_id")) return [];
+    const table = parseFk(field);
+    if (table === undefined) return [];
+    const target = byName.get(table);
+    if (!targetIsEnrichable(target)) return [];
     const prefix = field.name.slice(0, -"_id".length);
-    enrichments.push({
-      fkColumn: field.name,
-      prefix,
-      targetTable: ref.table,
-      newField: `${prefix}_name`,
-      targetIsReadonlyLookup: target.datasourceType === "readonly-lookup",
-      isNullable: field.isNullable,
-    });
-  }
-  return enrichments;
+    return [
+      {
+        fkColumn: field.name,
+        prefix,
+        targetTable: table,
+        newField: `${prefix}_name`,
+        targetIsReadonlyLookup: target.datasourceType === "readonly-lookup",
+        isNullable: field.isNullable,
+      },
+    ];
+  });
 };
 
 const applyAutoEnrich = (
@@ -277,15 +259,15 @@ const applyAutoEnrich = (
           name: e.newField,
           type: "string",
           isNullable: e.isNullable,
-          size: undefined,
-          minSize: undefined,
+          size: undefined as number | undefined,
+          minSize: undefined as number | undefined,
         })),
       ],
     };
   });
 
 const isNonDerivable = (name: string): boolean =>
-  NON_DERIVABLE.some((suffix) => name.endsWith(suffix)) ||
+  NON_DERIVABLE.some((s) => name.endsWith(s)) ||
   name.startsWith("create_") ||
   name.startsWith("update_");
 
@@ -310,77 +292,38 @@ const auditOmits = (
 const updateVariantsFor = (
   view: RawView,
   byName: Map<string, DsType>,
-  explicitNames: Set<string>,
+  explicit: Set<string>,
 ): RawView[] => {
   const table = inheritedTable(view.inherits);
   if (table === undefined) return [];
   const ds = byName.get(table);
   if (ds === undefined || ds.datasourceType === "readonly-lookup") return [];
-  if (isNonDerivable(view.name)) return [];
-  const updateName = `update_${view.name}`;
-  if (explicitNames.has(updateName)) return [];
+  if (isNonDerivable(view.name) || explicit.has(`update_${view.name}`)) {
+    return [];
+  }
   const omits = auditOmits(ds.fields);
   const inherits = `${DS_PREFIX}${table}`;
-  const variants: RawView[] = [
-    {
-      name: updateName,
-      inherits,
-      oneOf: undefined,
-      omit: omits.updateBodyOmits,
-      fields: [],
-      enrichments: [],
-    },
-  ];
-  if (omits.hasCustomPk) {
-    const createName = `create_${view.name}`;
-    if (!explicitNames.has(createName)) {
-      variants.push({
-        name: createName,
-        inherits,
-        oneOf: undefined,
-        omit: omits.auditOmits,
-        fields: [],
-        enrichments: [],
-      });
-    }
+  const out = [emptyShaped(`update_${view.name}`, inherits, omits.updateBodyOmits)];
+  if (omits.hasCustomPk && !explicit.has(`create_${view.name}`)) {
+    out.push(emptyShaped(`create_${view.name}`, inherits, omits.auditOmits));
   }
-  return variants;
-};
-
-const deriveUpdateVariants = (
-  views: RawView[],
-  byName: Map<string, DsType>,
-): RawView[] => {
-  const explicitNames = new Set(views.map((v) => v.name));
-  return views.flatMap((view) => [
-    view,
-    ...updateVariantsFor(view, byName, explicitNames),
-  ]);
+  return out;
 };
 
 const passThroughs = (
   dsTypes: DsType[],
   directive: DsDirective,
-  explicitNames: Set<string>,
+  explicit: Set<string>,
 ): RawView[] => {
   const predicate = compileFilter(directive.filter);
-  return dsTypes.flatMap((ds) => {
-    if (explicitNames.has(ds.name)) return [];
-    if (!includeMatches(directive.include, ds.name)) return [];
-    if (!predicate({ name: ds.name, datasource_type: ds.datasourceType })) {
-      return [];
-    }
-    return [
-      {
-        name: ds.name,
-        inherits: `${DS_PREFIX}${ds.name}`,
-        oneOf: undefined,
-        omit: [],
-        fields: [],
-        enrichments: [],
-      },
-    ];
-  });
+  return dsTypes
+    .filter(
+      (ds) =>
+        !explicit.has(ds.name) &&
+        includeMatches(directive.include, ds.name) &&
+        predicate({ name: ds.name, datasource_type: ds.datasourceType }),
+    )
+    .map((ds) => emptyShaped(ds.name, `${DS_PREFIX}${ds.name}`, []));
 };
 
 const normalize = (view: RawView): ViewType => {
@@ -417,28 +360,25 @@ export const parseViewTypes = (args: {
   const explicit = parseRawViews(args.viewYaml);
   const dsTypes = args.datasourceYaml ? parseDsTypes(args.datasourceYaml) : [];
   const byName = new Map(dsTypes.map((t) => [t.name, t]));
-  let views = explicit;
-  if (directive !== undefined) {
-    views = [
-      ...passThroughs(
-        dsTypes,
-        directive,
-        new Set(explicit.map((v) => v.name)),
-      ),
-      ...explicit,
-    ];
+  const names = new Set(explicit.map((v) => v.name));
+  let views = directive
+    ? [...passThroughs(dsTypes, directive, names), ...explicit]
+    : explicit;
+  if (byName.size > 0) {
+    const explicitNames = new Set(views.map((v) => v.name));
+    views = views.flatMap((v) => [
+      v,
+      ...updateVariantsFor(v, byName, explicitNames),
+    ]);
   }
-  if (byName.size > 0) views = deriveUpdateVariants(views, byName);
   if (directive?.autoEnrich) views = applyAutoEnrich(views, byName);
   return views.map(normalize);
 };
 
-export const loadViewTypes = async (
-  reader: {
-    read: (name: string) => Promise<string>;
-    exists: (name: string) => Promise<boolean>;
-  },
-): Promise<ViewType[]> => {
+export const loadViewTypes = async (reader: {
+  read: (name: string) => Promise<string>;
+  exists: (name: string) => Promise<boolean>;
+}): Promise<ViewType[]> => {
   const viewYaml = await reader.read(VIEW_TYPES_YAML);
   const datasourceYaml = (await reader.exists(DATASOURCE_TYPES_YAML))
     ? await reader.read(DATASOURCE_TYPES_YAML)

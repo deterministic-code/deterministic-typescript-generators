@@ -219,7 +219,7 @@ types: []
     );
     assert.match(card, /\/\*\* View CardPayment\. \*\//);
     assert.match(card, /export interface CardPayment \{/);
-    assert.match(card, /amount: decimal;/);
+    assert.match(card, /amount: string;/);
     assert.match(card, /paid_at: Date;/);
     assert.match(card, /tags: Tag\[\];/);
     assert.match(card, /owner: UserSummary;/);

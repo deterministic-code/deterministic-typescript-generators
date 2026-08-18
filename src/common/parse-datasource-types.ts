@@ -8,6 +8,7 @@ export type DatasourceField = {
   isNullable: boolean;
   references?: string;
   isPrimaryKey?: boolean;
+  isUnique?: boolean;
   minSize?: number;
   size?: number;
   /** Present when the YAML author set `default_value` (including `null`). */
@@ -19,6 +20,10 @@ export type DatasourceType = {
   name: string;
   datasourceType: string;
   fields: DatasourceField[];
+  /** Single-column unique index field names (from `indexes:`). */
+  uniqueIndexFields: string[];
+  target?: string | null;
+  optimisticConcurrency?: boolean;
 };
 
 export const DATASOURCE_TYPES_YAML = "datasource_types.yaml";
@@ -29,6 +34,7 @@ type YamlField = {
   isNullable: boolean;
   references?: string;
   isPrimaryKey: boolean;
+  isUnique: boolean;
   minSize?: number;
   size?: number;
   hasDefault: boolean;
@@ -38,7 +44,19 @@ type YamlField = {
 type YamlType = {
   name: string;
   datasourceType?: string;
+  target?: string | null;
+  optimisticConcurrency?: boolean;
   fields: YamlField[];
+  uniqueIndexFields: string[];
+};
+
+const singleColumnUniqueIndexField = (body: unknown): string | undefined => {
+  const raw = rec(body);
+  if (raw.is_unique !== true) return undefined;
+  const fields = raw.fields;
+  if (!Array.isArray(fields) || fields.length !== 1) return undefined;
+  const only = fields[0];
+  return typeof only === "string" && only.length > 0 ? only : undefined;
 };
 
 const rec = (value: unknown): Record<string, unknown> =>
@@ -98,9 +116,28 @@ export const parseDatasourceTypes = (args: {
   const types: YamlType[] = namedEntries(rec(parse(args.yaml)).types).map(
     ([name, body]) => {
       const raw = rec(body);
+      const uniqueIndexFields: string[] = [];
+      for (const [, indexBody] of namedEntries(raw.indexes)) {
+        const field = singleColumnUniqueIndexField(indexBody);
+        if (field !== undefined && !uniqueIndexFields.includes(field)) {
+          uniqueIndexFields.push(field);
+        }
+      }
+      const hasOcc = Object.prototype.hasOwnProperty.call(
+        raw,
+        "use_optimistic_concurrency",
+      );
       return {
         name,
         datasourceType: str(raw.datasource_type),
+        target:
+          raw.target === null
+            ? null
+            : str(raw.target),
+        optimisticConcurrency: hasOcc
+          ? raw.use_optimistic_concurrency === true
+          : undefined,
+        uniqueIndexFields,
         fields: namedEntries(raw.fields).map(([fname, fbody]) => {
           const f = rec(fbody);
           const hasDefault = Object.prototype.hasOwnProperty.call(
@@ -113,6 +150,7 @@ export const parseDatasourceTypes = (args: {
             isNullable: f.is_nullable === true,
             references: str(f.references),
             isPrimaryKey: f.primary_key === true,
+            isUnique: f.is_unique === true,
             minSize:
               typeof f.min_size === "number" && Number.isFinite(f.min_size)
                 ? f.min_size
@@ -132,12 +170,18 @@ export const parseDatasourceTypes = (args: {
   return types.map((t) => ({
     name: t.name,
     datasourceType: t.datasourceType ?? "standard",
+    uniqueIndexFields: t.uniqueIndexFields,
+    ...(t.target !== undefined ? { target: t.target } : {}),
+    ...(t.optimisticConcurrency !== undefined
+      ? { optimisticConcurrency: t.optimisticConcurrency }
+      : {}),
     fields: t.fields.map((field) => ({
       name: field.name,
       type: fieldType(field, byName, args.idType),
       isNullable: field.isNullable,
       references: field.references,
       ...(field.isPrimaryKey ? { isPrimaryKey: true } : {}),
+      ...(field.isUnique ? { isUnique: true } : {}),
       ...(field.minSize !== undefined ? { minSize: field.minSize } : {}),
       ...(field.size !== undefined ? { size: field.size } : {}),
       ...(field.hasDefault
@@ -145,4 +189,25 @@ export const parseDatasourceTypes = (args: {
         : {}),
     })),
   }));
+};
+
+/** Unique lookup columns: `is_unique` fields plus single-column unique indexes. */
+export const uniqueLookupFields = (
+  type: DatasourceType,
+): Array<{ field: string; type: string; size?: number }> => {
+  const out: Array<{ field: string; type: string; size?: number }> = [];
+  const add = (name: string) => {
+    if (out.some((e) => e.field === name)) return;
+    const f = type.fields.find((x) => x.name === name);
+    out.push({
+      field: name,
+      type: f?.type ?? "string",
+      ...(f?.size !== undefined ? { size: f.size } : {}),
+    });
+  };
+  for (const f of type.fields) {
+    if (f.isUnique) add(f.name);
+  }
+  for (const name of type.uniqueIndexFields) add(name);
+  return out;
 };

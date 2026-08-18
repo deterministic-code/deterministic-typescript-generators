@@ -15,6 +15,7 @@ import {
   type DatasourceType,
 } from "./common/parse-datasource-types.ts";
 import { settingsStr } from "./common/settings.ts";
+import { toZod } from "./common/type-converter.ts";
 import { indexTmpl, typeTmpl } from "./datasource-type-validators/resources.ts";
 import { FieldConverter, fieldConverter } from "./field-converter.ts";
 
@@ -48,21 +49,6 @@ const STANDARD_COLUMNS: ReadonlyArray<FieldShape> = [
   { name: "updated", type: "datetime", isNullable: false },
 ];
 
-const BASE_ZOD: Record<string, string> = {
-  string: "z.string()",
-  character: "z.string()",
-  decimal: "z.string()",
-  number: "z.number()",
-  integer: "z.number()",
-  smallinteger: "z.number()",
-  float: "z.number()",
-  reference: "z.number()",
-  biginteger: "z.number()",
-  boolean: "z.boolean()",
-  binary: "z.string().base64()",
-  uuid: "z.string().uuid()",
-};
-
 const emitOptions = (settings: SettingsDict): EmitOptions => {
   const ds = datasourceSettings(settings);
   const naming = typescriptNaming(settings);
@@ -84,15 +70,6 @@ const schemaName = (entity: string): string => `${camelCase(entity)}Schema`;
 const validatorPath = (entity: string, naming: ArtifactNaming): string => {
   if (!naming.byFeature) return `${naming.fileBase(entity)}.ts`;
   return naming.filePath(entity).replace(/\.ts$/, ".validator.ts");
-};
-
-const baseZodFor = (type: string, datetimeRepr: string): string => {
-  if (type === "datetime") {
-    return datetimeRepr === "native" ? "z.date()" : "z.string()";
-  }
-  const expr = BASE_ZOD[type];
-  if (!expr) throw new Error(`Unknown datasource field type: ${type}`);
-  return expr;
 };
 
 const tightenString = (base: string, field: FieldShape): string => {
@@ -122,7 +99,7 @@ const tightenExpr = (
   field: FieldShape,
   datetimeRepr: string,
 ): string => {
-  const base = baseZodFor(field.type, datetimeRepr);
+  const base = toZod(field.type, datetimeRepr);
   const isFk =
     typeof field.references === "string" && field.references.length > 0;
   const isIdLike = field.name === "id" || field.name.endsWith("_id");

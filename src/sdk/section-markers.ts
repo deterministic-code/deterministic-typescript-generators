@@ -63,11 +63,6 @@ export const SECTION_MARKERS = {
     start: tsBegin("APP_AFTER_HOOK"),
     end: tsEnd("APP_AFTER_HOOK"),
   },
-  TESTAPP_DB_CONN: {
-    style: "ts",
-    start: tsBegin("TESTAPP_DB_CONN"),
-    end: tsEnd("TESTAPP_DB_CONN"),
-  },
   MIGRATE_HOOK: {
     style: "sh",
     start: shBegin("MIGRATE_HOOK"),
