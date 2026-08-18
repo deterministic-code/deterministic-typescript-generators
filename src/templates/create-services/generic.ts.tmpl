@@ -1,0 +1,27 @@
+{{#typeImport}}import { {{typeName}} } from "{{typeImportPath}}";
+{{/typeImport}}import { BaseService, type IStandardCrudService } from "{{servicesImport}}";
+
+{{#simpleDoc}}/** Service {{interfaceName}}. */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Service {{interfaceName}}.
+ * Datasource type: {{datasourceType}}.
+ * Target: StandardCrud.
+ * Fields: 0.
+ */
+{{/descriptionDoc}}export type {{interfaceName}} = IStandardCrudService<{{typeName}}>;
+
+{{#simpleDoc}}/** Service {{className}}. */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Service {{className}}.
+ * Datasource type: {{datasourceType}}.
+ * Target: StandardCrud.
+ * Fields: 0.
+ */
+{{/descriptionDoc}}export class {{className}} extends BaseService<{{typeName}}> {
+{{#finders}}
+  async {{method}}({{param}}: {{paramType}}): Promise<{{typeName}} | null> {
+    const rows = await this.findBy([{ name: "{{field}}", value: {{param}} }]);
+    return rows[0] ?? null;
+  }
+{{/finders}}
+}

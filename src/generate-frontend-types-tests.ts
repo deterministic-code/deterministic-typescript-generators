@@ -11,7 +11,6 @@ import {
   scalarSetFields,
   nullableFieldNames,
 } from "./component-fixture.ts";
-import { escapeForTestName } from "./zod-test-cases.ts";
 import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
 import type { GenerateArgs } from "./frontend-generate-types.ts";
@@ -35,6 +34,8 @@ interface TestModel {
   opts: TestOpts;
   layout: CodegenLayout;
 }
+
+const escapeForTestName = (s: string): string => s.replace(/"/g, '\\"');
 
 function constructsCase(className: string, fixtureLiteral: string): string {
   return [

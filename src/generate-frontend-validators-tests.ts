@@ -8,13 +8,10 @@ import {
   nullableFieldNames,
   enumerateComponentMutations,
 } from "./component-fixture.ts";
-import {
-  cloneFixture,
-  renderMutationCase,
-  renderNullableVariantCase,
-  renderValidCase,
-} from "./zod-test-cases.ts";
+import { serializeSampleValue as serializeValue } from "./sdk/codegen/lib/ts-sample-literal.ts";
+import { fill } from "./common/fill.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
+import { validatorsTestTmpl } from "./frontend-validators-tests/resources.ts";
 import type { GenerateEntry } from "./sdk/codegen/lib/generate-result.ts";
 import type { GenerateArgs } from "./frontend-generate-types.ts";
 import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
@@ -24,7 +21,25 @@ import type { CodegenLayout } from "./sdk/codegen-layout.ts";
 /** The validators fixtures feed zod at runtime: an ISO date-time string parses under both z.string() (string mode) and z.coerce.date() (native mode), so the tests stay settings-agnostic. */
 const FIXTURE_DATETIME = "string";
 
+const escapeForTestName = (s: string): string => s.replace(/"/g, '\\"');
+
+const cloneFixture = (
+  fx: Record<string, unknown>,
+): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fx)) {
+    out[k] = v instanceof Uint8Array ? new Uint8Array(v) : v;
+  }
+  return out;
+};
+
 type Components = Record<string, unknown>;
+
+type CaseTok = {
+  name: string;
+  fixture: string;
+  assertion: string;
+};
 
 interface SchemaCtx {
   names: CodegenNames;
@@ -33,56 +48,65 @@ interface SchemaCtx {
 
 type TestFileCtx = SchemaCtx & { validatorsImport: string };
 
-function closureNames(closure: Set<string>, names: CodegenNames): string[] {
-  return [...closure].sort((a, b) =>
+const closureNames = (closure: Set<string>, names: CodegenNames): string[] =>
+  [...closure].sort((a, b) =>
     schemaSymbol(a, names).localeCompare(schemaSymbol(b, names)),
   );
-}
 
-function schemaCases(
+const schemaCases = (
   name: string,
   components: Components,
   { names, ident }: SchemaCtx,
-): string {
-  const symbol = schemaSymbol(name, names);
+): CaseTok[] => {
   const opts = { datetime: FIXTURE_DATETIME, ident };
   const valid = sampleForComponent(name, components, opts);
-  const cases = [renderValidCase(symbol, valid)];
+  const cases: CaseTok[] = [
+    {
+      name: "parses a valid payload",
+      fixture: serializeValue(valid),
+      assertion: "not.toThrow",
+    },
+  ];
   if (nullableFieldNames(name, components, { ident }).length > 0) {
-    cases.push(
-      renderNullableVariantCase(
-        symbol,
+    cases.push({
+      name: "accepts null for nullable fields",
+      fixture: serializeValue(
         nullableVariantForComponent(name, components, opts),
       ),
-    );
+      assertion: "not.toThrow",
+    });
   }
   for (const m of enumerateComponentMutations(name, components, { ident })) {
-    cases.push(
-      renderMutationCase(symbol, m.description, m.mutate(cloneFixture(valid))),
-    );
+    cases.push({
+      name: `rejects when ${escapeForTestName(m.description)}`,
+      fixture: serializeValue(m.mutate(cloneFixture(valid))),
+      assertion: "toThrow",
+    });
   }
-  return `describe("${symbol} (frontend validators)", () => {\n${cases.join("\n\n")}\n});\n`;
-}
+  return cases;
+};
 
-function testFileContents(
+const testFileContents = (
   closure: Set<string>,
   components: Components,
   ctx: TestFileCtx,
-): string {
+): string => {
   const ordered = closureNames(closure, ctx.names);
-  const symbols = ordered
-    .map((name) => schemaSymbol(name, ctx.names))
-    .join(", ");
-  const header = [
-    `import { describe, it, expect } from "vitest";`,
-    `import { ${symbols} } from "${ctx.validatorsImport}";`,
-  ].join("\n");
-  const bodies = ordered.map((name) => schemaCases(name, components, ctx));
-  return `${header}\n\n${bodies.join("\n")}`;
-}
+  return fill(validatorsTestTmpl, {
+    symbols: ordered.map((name) => schemaSymbol(name, ctx.names)).join(", "),
+    validatorsImport: ctx.validatorsImport,
+    schemas: ordered.map((name) => ({
+      schemaName: schemaSymbol(name, ctx.names),
+      cases: schemaCases(name, components, ctx),
+    })),
+  });
+};
 
 /** Generate a `validators.test.ts` next to every object's `validators.ts` — one describe per zod schema that file exports, driven by the same route projection + reachable-component closure the validators generator uses, so the tests cover exactly the schemas that were generated. Each schema gets a valid-payload case, a nullable-fields case when it has any, and a rejecting case per invalid mutation (missing/null required, wrong scalar type). Adds the vitest + zod harness to frontend/package.json. */
-async function planFrontendValidatorsTests({ inputs, settings }: GenerateArgs) {
+const planFrontendValidatorsTests = async ({
+  inputs,
+  settings,
+}: GenerateArgs) => {
   const names = namesForSettings(settings, "typescript");
   const fields = new CodegenFieldNames({ fieldFormat: names.fieldFormat });
   const ident = (key: string) => fields.ident(key);
@@ -111,7 +135,7 @@ async function planFrontendValidatorsTests({ inputs, settings }: GenerateArgs) {
     entries.push(frontendTestHarnessPatch({ needsZod: true }));
   }
   return entries;
-}
+};
 
 export const generate = makeGenerate(planFrontendValidatorsTests);
 

@@ -1,0 +1,30 @@
+import { Router } from "express";
+import { createNestedCrudRouter } from "{{routesImport}}";
+import { PrimaryKey } from "{{repositoriesImport}}";
+import { {{childServiceIface}} } from "{{childServiceImport}}";
+import { {{createSchema}}, {{updateSchema}} } from "{{validatorImport}}";
+
+{{#simpleDoc}}/** Route {{fnName}}. Mount at "{{mountPath}}". */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Route {{fnName}}. Mount at "{{mountPath}}".
+ * Datasource type: nested-direct-fk.
+ * Target: NestedCrudRouter.
+ * Fields: 0.
+ */
+{{/descriptionDoc}}export function {{fnName}}(service: {{childServiceIface}}): Router {
+  const router = Router({ mergeParams: true });
+  router.use(
+    "/:{{parentParam}}{{segment}}",
+    createNestedCrudRouter({
+      service,
+      createSchema: {{createSchema}},
+      updateSchema: {{updateSchema}},
+      parentParamName: "{{parentParam}}",
+      parentFkField: "{{fkColumn}}",
+      parentEntityName: "{{parentPascal}}",
+      entityName: "{{childPascal}}",
+      parentPrimaryKey: new PrimaryKey({{pkColumnJson}}, {{pkIdTypeJson}}),
+    }),
+  );
+  return router;
+}

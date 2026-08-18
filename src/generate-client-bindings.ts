@@ -28,6 +28,7 @@ import {
   CONTENT,
   PATCH,
 } from "./sdk/codegen/lib/generate-result.ts";
+import { toNative } from "./common/type-converter.ts";
 import {
   BODY_METHODS,
   cap,
@@ -128,12 +129,6 @@ const CLIENT_DEPS: Record<string, Record<string, string>> = {
   axios: { axios: "^1.7.9" },
   tanstack: { "@tanstack/react-query": "^5.66.0" },
 };
-const SCALAR_TS: Record<string, string> = {
-  integer: "number",
-  number: "number",
-  boolean: "boolean",
-  string: "string",
-};
 
 /** A `$ref` to a type frontend_types generates (a read entity/view) becomes that className and is added to `ctx.imports`; a `$ref` to a write-body DTO — which frontend_types does NOT generate — is inlined structurally instead of importing a symbol that wouldn't exist. The `seen` set guards against a self-referential DTO looping forever. */
 function refType(ref: string, ctx: FileCtx, seen: Set<string>): string {
@@ -167,8 +162,12 @@ function tsTypeFor(
   if (schema.type === "string" && schema.format === "date-time") {
     return ctx.datetime === "native" ? "Date" : "string";
   }
-  const scalar = schema.type ? SCALAR_TS[schema.type] : undefined;
-  return scalar ?? "unknown";
+  if (!schema.type) return "unknown";
+  try {
+    return toNative(schema.type);
+  } catch {
+    return "unknown";
+  }
 }
 
 /** The zod schema for a `$ref` (or array-of-`$ref`) body and the validated type it infers, or null for an inline/scalar body that has no named schema. `parse` is the runtime schema expression; `type` is the `z.infer` alias a validated response is typed as, so the client speaks the exact shape the schema guarantees instead of casting. */

@@ -1,0 +1,30 @@
+{{#simpleDoc}}/** Service {{interfaceName}}. */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Service {{interfaceName}}.
+ * Datasource type: standard.
+ * Target: Custom.
+ * Fields: 0.
+ */
+{{/descriptionDoc}}{{#hasMethods}}export interface {{interfaceName}} {
+{{#methods}}
+  {{name}}(..._args: unknown[]): Promise<unknown>;
+{{/methods}}
+}
+{{/hasMethods}}{{^hasMethods}}export interface {{interfaceName}} {}
+{{/hasMethods}}
+
+{{#simpleDoc}}/** Service {{className}}. */
+{{/simpleDoc}}{{#descriptionDoc}}/**
+ * Service {{className}}.
+ * Datasource type: standard.
+ * Target: Custom.
+ * Fields: 0.
+ */
+{{/descriptionDoc}}export class {{className}} implements {{interfaceName}} {
+  static readonly dependencies = [] as const;
+{{#methods}}
+  async {{name}}(..._args: unknown[]): Promise<unknown> {
+    return {};
+  }
+{{/methods}}
+}

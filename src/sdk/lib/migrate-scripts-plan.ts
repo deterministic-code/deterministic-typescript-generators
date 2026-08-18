@@ -174,11 +174,6 @@ export const PATCH_PLAN_TYPESCRIPT: PatchPlanEntry[] = [
     ],
   },
   {
-    path: "__tests__/test-app.ts",
-    kind: "marked",
-    sections: [{ id: "TESTAPP_DB_CONN" }],
-  },
-  {
     path: "Dockerfile",
     kind: "marked",
     sections: [{ id: "APK_CLIENTS" }, { id: "MIGRATE_COPY" }],

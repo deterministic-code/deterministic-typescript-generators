@@ -10,11 +10,11 @@ import {
 import {
   loadViewTypes,
   type ShapedView,
-  type UnionView,
   type ViewField,
   type ViewType,
 } from "./common/parse-view-types.ts";
 import { settingsStr } from "./common/settings.ts";
+import { toNative } from "./common/type-converter.ts";
 import { indexTmpl, typeTmpl } from "./view-types/resources.ts";
 
 type EmitOptions = {
@@ -27,51 +27,28 @@ type EmitOptions = {
 
 const emitOptions = (settings: SettingsDict): EmitOptions => {
   const naming = typescriptViewNaming(settings);
-  const createIndexSetting = settingsStr(settings, "codegen.create_index");
+  const createIndex = settingsStr(settings, "codegen.create_index");
   return {
     naming,
     schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
     style: commentStyle(settingsStr(settings, "comments")),
     datetimeType: datasourceSettings(settings).datetimeType,
     createIndex:
-      !naming.byFeature &&
-      (createIndexSetting === undefined || createIndexSetting === "true"),
+      !naming.byFeature && (createIndex === undefined || createIndex === "true"),
   };
 };
 
-const PRIMITIVE_TS: Record<string, string> = {
-  uuid: "string",
-  integer: "number",
-  smallinteger: "number",
-  biginteger: "number",
-  float: "number",
-  reference: "number",
-  binary: "string",
-};
-
-const primitiveTs = (base: string, datetimeType: string): string => {
-  if (base === "datetime") return datetimeType;
-  return PRIMITIVE_TS[base] ?? base;
-};
-
-type ImportEntry = {
-  original: string;
-  alias: string | undefined;
-  fromPath: string;
-};
+const primitiveTs = (base: string, datetimeType: string): string =>
+  base === "datetime" ? datetimeType : toNative(base);
 
 const groupImports = (
-  entries: ImportEntry[],
+  entries: Array<{ original: string; alias?: string; fromPath: string }>,
 ): Array<{ names: string; fromPath: string }> => {
   const byPath = new Map<string, string[]>();
-  for (const entry of entries) {
-    const tokens = byPath.get(entry.fromPath) ?? [];
-    tokens.push(
-      entry.alias === undefined
-        ? entry.original
-        : `${entry.original} as ${entry.alias}`,
-    );
-    byPath.set(entry.fromPath, tokens);
+  for (const e of entries) {
+    const tokens = byPath.get(e.fromPath) ?? [];
+    tokens.push(e.alias ? `${e.original} as ${e.alias}` : e.original);
+    byPath.set(e.fromPath, tokens);
   }
   return [...byPath.entries()]
     .map(([fromPath, tokens]) => ({
@@ -81,87 +58,38 @@ const groupImports = (
     .sort((a, b) => a.fromPath.localeCompare(b.fromPath));
 };
 
-type CollectedImports = {
-  imports: Array<{ names: string; fromPath: string }>;
-  aliasByClass: Map<string, string>;
-};
-
-const collectImports = (
-  view: ViewType,
-  opts: EmitOptions,
-): CollectedImports => {
+const collectImports = (view: ViewType, opts: EmitOptions) => {
   const { naming } = opts;
-  const selfClass = naming.className(view.name);
-  const entries: ImportEntry[] = [];
+  const self = naming.className(view.name);
+  const entries: Array<{ original: string; alias?: string; fromPath: string }> =
+    [];
   const seen = new Set<string>();
   const aliasByClass = new Map<string, string>();
-  const add = (
-    original: string,
-    alias: string | undefined,
-    fromPath: string,
-  ) => {
+  const add = (original: string, alias: string | undefined, fromPath: string) => {
     const key = `${fromPath}::${original}::${alias ?? ""}`;
     if (seen.has(key)) return;
     seen.add(key);
     entries.push({ original, alias, fromPath });
   };
-  const aliasIfCollides = (cls: string): string | undefined => {
-    if (cls !== selfClass) return undefined;
-    const aliased = `${cls}Base`;
-    aliasByClass.set(cls, aliased);
-    return aliased;
-  };
+  const refs: Array<{ entity: string; kind: "view" | "datasource" }> = [];
   if (view.kind === "shaped") {
     if (view.inherits !== null) {
-      const cls = naming.className(view.inherits);
-      add(
-        cls,
-        aliasIfCollides(cls),
-        naming.importSpecifier(view.name, {
-          entity: view.inherits,
-          kind: "datasource",
-        }),
-      );
+      refs.push({ entity: view.inherits, kind: "datasource" });
     }
-    for (const field of view.fields) {
-      if (field.kind === "datasource") {
-        const cls = naming.className(field.base);
-        add(
-          cls,
-          aliasByClass.get(cls) ?? aliasIfCollides(cls),
-          naming.importSpecifier(view.name, {
-            entity: field.base,
-            kind: "datasource",
-          }),
-        );
-      } else if (field.kind === "view") {
-        const cls = naming.className(field.base);
-        if (cls !== selfClass) {
-          add(
-            cls,
-            undefined,
-            naming.importSpecifier(view.name, {
-              entity: field.base,
-              kind: "view",
-            }),
-          );
-        }
+    for (const f of view.fields) {
+      if (f.kind === "datasource" || f.kind === "view") {
+        refs.push({ entity: f.base, kind: f.kind });
       }
     }
   } else {
-    for (const member of view.members) {
-      const cls = naming.className(member);
-      if (cls !== selfClass) {
-        add(
-          cls,
-          undefined,
-          naming.importSpecifier(view.name, {
-            entity: member,
-            kind: "view",
-          }),
-        );
-      }
-    }
+    for (const m of view.members) refs.push({ entity: m, kind: "view" });
+  }
+  for (const { entity, kind } of refs) {
+    const cls = naming.className(entity);
+    if (kind === "view" && cls === self) continue;
+    const alias = kind === "datasource" && cls === self ? `${cls}Base` : undefined;
+    if (alias !== undefined) aliasByClass.set(cls, alias);
+    add(cls, alias, naming.importSpecifier(view.name, { entity, kind }));
   }
   return { imports: groupImports(entries), aliasByClass };
 };
@@ -171,13 +99,12 @@ const fieldTs = (
   opts: EmitOptions,
   aliasByClass: Map<string, string>,
 ): string => {
-  if (field.kind === "primitive") {
-    const ts = primitiveTs(field.base, opts.datetimeType);
-    return field.isArray ? `${ts}[]` : ts;
-  }
-  const cls = opts.naming.className(field.base);
-  const named = aliasByClass.get(cls) ?? cls;
-  return field.isArray ? `${named}[]` : named;
+  const base =
+    field.kind === "primitive"
+      ? primitiveTs(field.base, opts.datetimeType)
+      : (aliasByClass.get(opts.naming.className(field.base)) ??
+        opts.naming.className(field.base));
+  return field.isArray ? `${base}[]` : base;
 };
 
 const extendsType = (
@@ -193,20 +120,15 @@ const extendsType = (
     ...view.omit,
   ];
   if (omitKeys.length === 0) return parent;
-  const keys = omitKeys
-    .map((k) => JSON.stringify(opts.naming.fieldName(k)))
-    .join(" | ");
-  return `Omit<${parent}, ${keys}>`;
+  return `Omit<${parent}, ${omitKeys.map((k) => JSON.stringify(opts.naming.fieldName(k))).join(" | ")}>`;
 };
 
-const renderShaped = (
-  view: ShapedView,
-  opts: EmitOptions,
-): GenerateEntry => {
+const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   const { naming, schemaVersion, style } = opts;
   const className = naming.className(view.name);
   const { imports, aliasByClass } = collectImports(view, opts);
-  const parent = extendsType(view, opts, aliasByClass);
+  const isUnion = view.kind === "union";
+  const parent = isUnion ? undefined : extendsType(view, opts, aliasByClass);
   return content(
     naming.filePath(view.name),
     fill(typeTmpl, {
@@ -216,69 +138,46 @@ const renderShaped = (
       simpleDoc: style === "simple",
       descriptionDoc: style === "description",
       className,
-      datasourceType: view.inherits ?? "standard",
-      target: "ShapedView",
-      fieldCount: String(view.fields.length),
-      isUnion: false,
-      isShaped: true,
+      datasourceType: isUnion ? "standard" : (view.inherits ?? "standard"),
+      target: isUnion ? "UnionView" : "ShapedView",
+      fieldCount: String(isUnion ? view.members.length : view.fields.length),
+      isUnion,
+      isShaped: !isUnion,
       hasExtends: parent !== undefined,
       extendsType: parent ?? "",
-      hasFields: view.fields.length > 0,
-      fields: view.fields.map((f) => ({
-        ident: naming.fieldIdent(f.name),
-        tsType: fieldTs(f, opts, aliasByClass),
-        nullable: f.isNullable,
-      })),
+      hasFields: !isUnion && view.fields.length > 0,
+      fields: isUnion
+        ? []
+        : view.fields.map((f) => ({
+            ident: naming.fieldIdent(f.name),
+            tsType: fieldTs(f, opts, aliasByClass),
+            nullable: f.isNullable,
+          })),
+      unionMembers: isUnion
+        ? view.members.map((m) => naming.className(m)).join(" | ")
+        : "",
     }),
   );
 };
-
-const renderUnion = (view: UnionView, opts: EmitOptions): GenerateEntry => {
-  const { naming, schemaVersion, style } = opts;
-  const className = naming.className(view.name);
-  const { imports } = collectImports(view, opts);
-  return content(
-    naming.filePath(view.name),
-    fill(typeTmpl, {
-      schemaVersion,
-      imports,
-      hasImports: imports.length > 0,
-      simpleDoc: style === "simple",
-      descriptionDoc: style === "description",
-      className,
-      datasourceType: "standard",
-      target: "UnionView",
-      fieldCount: String(view.members.length),
-      isUnion: true,
-      isShaped: false,
-      unionMembers: view.members.map((m) => naming.className(m)).join(" | "),
-    }),
-  );
-};
-
-const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry =>
-  view.kind === "union" ? renderUnion(view, opts) : renderShaped(view, opts);
-
-const renderIndex = (
-  views: ViewType[],
-  naming: ViewArtifactNaming,
-): GenerateEntry =>
-  content(
-    "index.ts",
-    fill(indexTmpl, {
-      types: views.map((v) => ({
-        className: naming.className(v.name),
-        fileBase: naming.fileBase(v.name),
-      })),
-    }),
-  );
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
   const views = await loadViewTypes(ctx.reader);
-  const entries = views.map((view) => renderView(view, opts));
-  if (opts.createIndex) entries.push(renderIndex(views, opts.naming));
+  const entries = views.map((v) => renderView(v, opts));
+  if (opts.createIndex) {
+    entries.push(
+      content(
+        "index.ts",
+        fill(indexTmpl, {
+          types: views.map((v) => ({
+            className: opts.naming.className(v.name),
+            fileBase: opts.naming.fileBase(v.name),
+          })),
+        }),
+      ),
+    );
+  }
   return entries;
 };

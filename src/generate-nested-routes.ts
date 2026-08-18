@@ -1,298 +1,206 @@
-import npmPluralize from "pluralize";
-import { toCase } from "./sdk/case.ts";
-import type { CaseFormat } from "./sdk/case.ts";
+import { camelCase, kebabCase } from "change-case";
+import pluralize from "pluralize";
 import {
-  DEFAULT_COMMENT_STYLE,
-  renderDocComment,
-  type CommentStyle,
-} from "./sdk/generate-doc-comment.ts";
+  type DatasourceSettings,
+} from "./common/datasource-settings.ts";
+import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
+import { fill } from "./common/fill.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import {
+  type RouteNaming,
+} from "./common/naming.ts";
+import type { DatasourceType } from "./common/parse-datasource-types.ts";
+import {
+  type DirectFkDescriptor,
+  type M2mDescriptor,
+  type NestedRouteDescriptor,
+} from "./common/parse-routes.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
-import {
-  routeServiceImport,
-  routeValidatorImport,
-} from "./generate-routes.ts";
-import {
-  namesFor,
-  layoutFor,
-  type NamesForOptions,
-} from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { inferPkForCandidate } from "./sdk/codegen/lib/infer-pk-for-candidate.ts";
-import type { GeneratedFile } from "./sdk/codegen/lib/routes-generate-types.ts";
-import type {
-  NestedRouteDescriptor,
-  DirectFkDescriptor,
-  M2mDescriptor,
-} from "./nested-routes-generate-types.ts";
+import { directFkTmpl, m2mTmpl } from "./routes/nested-resources.ts";
 
-interface NestedRouteOptions extends NamesForOptions {
-  libraryReferenceMode?: string;
-  style?: CommentStyle;
-  datasourceData?: unknown;
-  datasourceSettings?: unknown;
-}
+type NestedEmitOptions = {
+  naming: RouteNaming;
+  style: CommentStyle;
+  libraryReferenceMode: string | undefined;
+  ds: DatasourceSettings;
+  datasources: DatasourceType[];
+  customServiceEntities: Set<string>;
+};
 
-interface InferredPk {
-  column: string;
-  idType: string;
-}
+const docFlags = (style: CommentStyle) => ({
+  simpleDoc: style === "simple",
+  descriptionDoc: style === "description",
+});
 
-interface ServiceImport {
-  iface: string;
-  import: string;
-}
+const segmentTailSnake = (descriptor: NestedRouteDescriptor): string =>
+  descriptor.segmentTail.replace(/-/g, "_");
 
-interface ValidatorImport {
-  create: string;
-  update: string;
-  import: string;
-}
+const nestedStem = (descriptor: NestedRouteDescriptor): string =>
+  `nested_${descriptor.parent}_${segmentTailSnake(descriptor)}`;
 
-const DEFAULT_FILE_FORMAT: CaseFormat = "Kebab";
-
-/** The parent entity's primary key, generated so `createNestedCrudRouter` can parse the `/:<parentParam>` segment (the child key is read from the injected `service.primaryKey`). Resolved from the parent's declared `primary_key` + project settings; a direct-generate test that omits settings gets the integer `id` fallback baked into `inferPkForCandidate`. */
-function parentPrimaryKeyExpr(
+export const nestedRouteEntity = (
   descriptor: NestedRouteDescriptor,
-  opts: NestedRouteOptions,
-): string {
-  const inferOptions = {
-    withIdType: true,
-    datasourceSettings: opts.datasourceSettings,
-  };
-  // inferPkForCandidate is an untyped JS module; its inferred options type drops datasourceSettings and its result widens to a nullable union.
-  const pk = inferPkForCandidate(
-    { name: descriptor.parent },
-    opts.datasourceData,
-    inferOptions as unknown as Parameters<typeof inferPkForCandidate>[2],
-  ) as unknown as InferredPk;
-  return `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`;
-}
-
-function segmentTailSnake(descriptor: NestedRouteDescriptor): string {
-  return descriptor.segmentTail.replace(/-/g, "_");
-}
-
-function stem(descriptor: NestedRouteDescriptor): string {
-  return `nested_${descriptor.parent}_${segmentTailSnake(descriptor)}`;
-}
-
-export function nestedRouteEntity(descriptor: NestedRouteDescriptor): string {
-  const parts = stem(descriptor).split("_");
-  parts[parts.length - 1] = npmPluralize.singular(parts[parts.length - 1]);
+): string => {
+  const parts = nestedStem(descriptor).split("_");
+  parts[parts.length - 1] = pluralize.singular(parts[parts.length - 1]!);
   return parts.join("_");
-}
+};
 
-export function descriptorFileFormat(options: NestedRouteOptions): CaseFormat {
-  return options.fileFormat ?? DEFAULT_FILE_FORMAT;
-}
-
-export function nestedMountPath(descriptor: NestedRouteDescriptor): string {
-  return descriptor.parentBasePath.replace(`/:${descriptor.parentParam}`, "");
-}
-
-function nestedGeneratePath(
+export const nestedRouterFnName = (
   descriptor: NestedRouteDescriptor,
-  options: NestedRouteOptions,
-  byFeature: boolean,
-): string {
-  const fileBase = nestedRouterFileBase(
-    descriptor,
-    descriptorFileFormat(options),
-  );
-  if (!byFeature) return `${fileBase}.ts`;
-  return layoutFor(options).featurePath(
-    nestedRouteEntity(descriptor),
-    "route",
-    `${fileBase}.ts`,
-  );
-}
+): string => camelCase(`${nestedStem(descriptor)}_router`);
 
-export function nestedRouterFileBase(
+/** Nested-router filename stem using file-name casing (default kebab). */
+export const nestedRouterFileBase = (
   descriptor: NestedRouteDescriptor,
-  fileFormat: CaseFormat = DEFAULT_FILE_FORMAT,
-): string {
-  // nested-router base `nested_<parent>_<tail>` has no CodegenNames artifact; fileFormat is the caller-resolved format.
-  return toCase(stem(descriptor), fileFormat); // lint-generator-casing-allow: toCase
-}
+  fileFormat: string = "Kebab",
+): string => {
+  const stem = nestedStem(descriptor);
+  const fmt = fileFormat.toLowerCase();
+  if (fmt === "camel") return camelCase(stem);
+  if (fmt === "pascal") return camelCase(stem).replace(/^[a-z]/, (c) => c.toUpperCase());
+  if (fmt === "snake") return stem;
+  return stem.replace(/_/g, "-");
+};
 
-export function nestedRouterFnName(descriptor: NestedRouteDescriptor): string {
-  // router FUNCTION symbol (mounted in app.ts, referenced by e2e tests) is camelCase regardless of classFormat.
-  return `${toCase(stem(descriptor), "Camel")}Router`; // lint-generator-casing-allow: toCase
-}
+export const descriptorFileFormat = (
+  options: { fileFormat?: string } = {},
+): string => options.fileFormat ?? "Kebab";
 
-function serviceImport(
-  typeName: string,
-  opts: NestedRouteOptions,
-  fromEntity: string,
-): ServiceImport {
-  const pascal = namesFor(opts).className(typeName);
-  const importPath = routeServiceImport(opts, fromEntity, typeName);
+export const nestedMountPath = (descriptor: NestedRouteDescriptor): string =>
+  descriptor.parentBasePath.replace(`/:${descriptor.parentParam}`, "");
+
+const parentPrimaryKey = (
+  parent: string,
+  opts: NestedEmitOptions,
+): { column: string; idType: string } => {
+  const ds = opts.datasources.find((d) => d.name === parent);
+  const pk = ds?.fields.find((f) => f.isPrimaryKey);
   return {
-    iface: `I${pascal}Service`,
-    import: `import { I${pascal}Service } from "${importPath}";`,
+    column: pk?.name ?? "id",
+    idType: pk?.type === "uuid" ? "uuid" : opts.ds.idType,
   };
-}
+};
 
-function validatorImport(
-  typeName: string,
-  opts: NestedRouteOptions,
-  fromEntity: string,
-): ValidatorImport {
-  const pascal = namesFor(opts).className(typeName);
-  const importPath = routeValidatorImport(opts, fromEntity, typeName);
-  return {
-    create: `create${pascal}Schema`,
-    update: `update${pascal}Schema`,
-    import: `import { create${pascal}Schema, update${pascal}Schema } from "${importPath}";`,
-  };
-}
+const serviceIface = (entity: string, naming: RouteNaming): string =>
+  `I${naming.className(entity)}Service`;
 
-function nestedRouterPreamble(
-  descriptor: NestedRouteDescriptor,
-  options: NestedRouteOptions,
-) {
-  const fileFormat = descriptorFileFormat(options);
-  const opts = { ...options, fileFormat };
-  const byFeature = options.organizeByFeature === true;
-  const fileBase = nestedRouterFileBase(descriptor, fileFormat);
-  const generatePath = nestedGeneratePath(descriptor, options, byFeature);
+const isCustomService = (
+  entity: string,
+  customServiceEntities: Set<string>,
+): boolean => customServiceEntities.has(kebabCase(entity));
+
+const renderDirectFk = (
+  descriptor: DirectFkDescriptor,
+  opts: NestedEmitOptions,
+): GenerateEntry => {
+  const { naming, style, libraryReferenceMode, customServiceEntities } = opts;
+  const fromEntity = nestedRouteEntity(descriptor);
+  const fileBase = naming.nestedFileBase(nestedStem(descriptor));
+  const filename = naming.nestedFilePath(fromEntity, fileBase);
+  const projectRel = naming.byFeature
+    ? filename
+    : `routes/generated/${fileBase}.ts`;
   const routesImport = libraryImportSpecifier(
     "routes",
-    options.libraryReferenceMode,
-    byFeature ? generatePath : `routes/generated/${fileBase}.ts`,
+    libraryReferenceMode,
+    projectRel,
   );
-  const fnName = nestedRouterFnName(descriptor);
-  const mountPath = nestedMountPath(descriptor);
-  const doc = (datasourceType: string, target: string) =>
-    renderDocComment({
-      style: options.style ?? DEFAULT_COMMENT_STYLE,
-      summary: `Route ${fnName}. Mount at "${mountPath}".`,
-      lines: [
-        `Datasource type: ${datasourceType}.`,
-        `Target: ${target}.`,
-        `Fields: 0.`,
-      ],
-    });
-  return {
-    opts,
-    fromEntity: nestedRouteEntity(descriptor),
-    fnName,
-    parentPascal: namesFor(opts).className(descriptor.parent),
-    routesImport,
-    doc,
-  };
-}
-
-function nestedDirectFkContent(
-  descriptor: DirectFkDescriptor,
-  options: NestedRouteOptions,
-): string {
-  const { opts, fromEntity, fnName, parentPascal, routesImport, doc } =
-    nestedRouterPreamble(descriptor, options);
-  const childPascal = namesFor(opts).className(descriptor.child.name);
-  const childSvc = serviceImport(descriptor.child.name, opts, fromEntity);
-  const validator = validatorImport(descriptor.child.name, opts, fromEntity);
   const repositoriesImport = libraryImportSpecifier(
     "repositories",
-    opts.libraryReferenceMode,
-    nestedGeneratePath(descriptor, options, options.organizeByFeature === true),
+    libraryReferenceMode,
+    projectRel,
   );
-  const docBlock = doc("nested-direct-fk", "NestedCrudRouter");
-  return `import { Router } from "express";
-import { createNestedCrudRouter } from "${routesImport}";
-import { PrimaryKey } from "${repositoriesImport}";
-${childSvc.import}
-${validator.import}
-
-${docBlock}export function ${fnName}(service: ${childSvc.iface}): Router {
-  const router = Router({ mergeParams: true });
-  router.use(
-    "/:${descriptor.parentParam}${descriptor.segment}",
-    createNestedCrudRouter({
-      service,
-      createSchema: ${validator.create},
-      updateSchema: ${validator.update},
-      parentParamName: "${descriptor.parentParam}",
-      parentFkField: "${descriptor.fkColumn}",
-      parentEntityName: "${parentPascal}",
-      entityName: "${childPascal}",
-      parentPrimaryKey: ${parentPrimaryKeyExpr(descriptor, opts)},
+  const child = descriptor.child.name;
+  const pk = parentPrimaryKey(descriptor.parent, opts);
+  const fnName = nestedRouterFnName(descriptor);
+  return content(
+    filename,
+    fill(directFkTmpl, {
+      ...docFlags(style),
+      fnName,
+      mountPath: nestedMountPath(descriptor),
+      routesImport,
+      repositoriesImport,
+      childServiceIface: serviceIface(child, naming),
+      childServiceImport: naming.serviceImport(
+        fromEntity,
+        child,
+        isCustomService(child, customServiceEntities),
+      ),
+      createSchema: `create${naming.className(child)}Schema`,
+      updateSchema: `update${naming.className(child)}Schema`,
+      validatorImport: naming.validatorImport(fromEntity, child),
+      parentParam: descriptor.parentParam,
+      segment: descriptor.segment,
+      fkColumn: descriptor.fkColumn,
+      parentPascal: naming.className(descriptor.parent),
+      childPascal: naming.className(child),
+      pkColumnJson: JSON.stringify(pk.column),
+      pkIdTypeJson: JSON.stringify(pk.idType),
     }),
   );
-  return router;
-}
-`;
-}
+};
 
-function nestedM2mContent(
+const renderM2m = (
   descriptor: M2mDescriptor,
-  options: NestedRouteOptions,
-): string {
-  const { opts, fromEntity, fnName, parentPascal, routesImport, doc } =
-    nestedRouterPreamble(descriptor, options);
-  const targetPascal = namesFor(opts).className(descriptor.target);
-  const parentSvc = serviceImport(descriptor.parent, opts, fromEntity);
-  const junctionSvc = serviceImport(descriptor.junction, opts, fromEntity);
-  const targetSvc = serviceImport(descriptor.target, opts, fromEntity);
-  const docBlock = doc("nested-m2m", "NestedManyToManyRouter");
-  return `import { Router } from "express";
-import { addNestedManyToManyRoutes } from "${routesImport}";
-${parentSvc.import}
-${junctionSvc.import}
-${targetSvc.import}
+  opts: NestedEmitOptions,
+): GenerateEntry => {
+  const { naming, style, libraryReferenceMode, customServiceEntities } = opts;
+  const fromEntity = nestedRouteEntity(descriptor);
+  const fileBase = naming.nestedFileBase(nestedStem(descriptor));
+  const filename = naming.nestedFilePath(fromEntity, fileBase);
+  const projectRel = naming.byFeature
+    ? filename
+    : `routes/generated/${fileBase}.ts`;
+  const routesImport = libraryImportSpecifier(
+    "routes",
+    libraryReferenceMode,
+    projectRel,
+  );
+  const fnName = nestedRouterFnName(descriptor);
+  const custom = (entity: string) =>
+    isCustomService(entity, customServiceEntities);
+  return content(
+    filename,
+    fill(m2mTmpl, {
+      ...docFlags(style),
+      fnName,
+      mountPath: nestedMountPath(descriptor),
+      routesImport,
+      parentServiceIface: serviceIface(descriptor.parent, naming),
+      parentServiceImport: naming.serviceImport(
+        fromEntity,
+        descriptor.parent,
+        custom(descriptor.parent),
+      ),
+      junctionServiceIface: serviceIface(descriptor.junction, naming),
+      junctionServiceImport: naming.serviceImport(
+        fromEntity,
+        descriptor.junction,
+        custom(descriptor.junction),
+      ),
+      targetServiceIface: serviceIface(descriptor.target, naming),
+      targetServiceImport: naming.serviceImport(
+        fromEntity,
+        descriptor.target,
+        custom(descriptor.target),
+      ),
+      parentParam: descriptor.parentParam,
+      parentPascal: naming.className(descriptor.parent),
+      targetParam: descriptor.targetParam,
+      targetPascal: naming.className(descriptor.target),
+      segmentTail: descriptor.segmentTail,
+      parentFkField: descriptor.parentFkField,
+      childFkField: descriptor.childFkField,
+    }),
+  );
+};
 
-${docBlock}export function ${fnName}(
-  parentService: ${parentSvc.iface},
-  junctionService: ${junctionSvc.iface},
-  targetService: ${targetSvc.iface},
-): Router {
-  const router = Router({ mergeParams: true });
-  addNestedManyToManyRoutes(router, {
-    parentService,
-    junctionService,
-    childService: targetService,
-    parentParamName: "${descriptor.parentParam}",
-    parentEntityName: "${parentPascal}",
-    childParamName: "${descriptor.targetParam}",
-    childEntityName: "${targetPascal}",
-    nestedPath: "${descriptor.segmentTail}",
-    parentFkField: "${descriptor.parentFkField}",
-    childFkField: "${descriptor.childFkField}",
-    bodyFields: ["${descriptor.childFkField}"],
-    linkVerb: "POST",
-  });
-  return router;
-}
-`;
-}
-
-export function generateNestedDirectFkRouter(
-  descriptor: NestedRouteDescriptor,
-  options: NestedRouteOptions = {},
-): GeneratedFile {
-  if (descriptor.kind !== "direct-fk") {
-    throw new Error(
-      `generateNestedDirectFkRouter: expected direct-fk descriptor, got ${descriptor.kind}`,
-    );
-  }
-  const byFeature = options.organizeByFeature === true;
-  return {
-    path: nestedGeneratePath(descriptor, options, byFeature),
-    content: nestedDirectFkContent(descriptor, options),
-  };
-}
-
-export function generateNestedM2mRouter(
-  descriptor: NestedRouteDescriptor,
-  options: NestedRouteOptions = {},
-): GeneratedFile {
-  if (descriptor.kind !== "m2m") {
-    throw new Error(
-      `generateNestedM2mRouter: expected m2m descriptor, got ${descriptor.kind}`,
-    );
-  }
-  const byFeature = options.organizeByFeature === true;
-  return {
-    path: nestedGeneratePath(descriptor, options, byFeature),
-    content: nestedM2mContent(descriptor, options),
-  };
-}
+export const renderNestedRoutes = (
+  nested: NestedRouteDescriptor[],
+  opts: NestedEmitOptions,
+): GenerateEntry[] =>
+  nested.map((d) =>
+    d.kind === "direct-fk" ? renderDirectFk(d, opts) : renderM2m(d, opts),
+  );

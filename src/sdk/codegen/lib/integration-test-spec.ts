@@ -3,14 +3,10 @@ import { resolveFkSeedPlan } from "./datasource-fk-deps.ts";
 import { namesFor } from "./ts-codegen-naming.ts";
 import type { NamesForOptions } from "./ts-codegen-naming.ts";
 import { effectiveTableName } from "../../lib/effective-table-name.ts";
-import { buildComponents } from "../../lib/schema-build.ts";
-import { sampleFromSchema } from "./schema-sample.ts";
 import { generateCreateTable, normalizeTable } from "../../lib/generate-sql.ts";
 import type { SqlDialect, SeedValue, RawIndexDef } from "../../lib/generate-sql.ts";
 import { computeEnrichmentsForDatasourceType } from "../../view-expand.ts";
 import type { Enrichment } from "../../view-expand.ts";
-import type { RawTypesDoc } from "../../deterministic-shapes.ts";
-import type { JsonValue } from "../../read-settings.ts";
 export { RawTsExpr, tsLiteral } from "./ts-sample-literal.ts";
 import type { RuntimeValue } from "./ts-sample-literal.ts";
 
@@ -262,104 +258,4 @@ export function resolveServiceIntegrationTestSpec(
     updatedValue,
     fkSeedPlan,
   };
-}
-
-interface RouteDef {
-  routeClass?: string;
-  service?: string;
-  serviceMethod?: string;
-  response?: string;
-}
-
-type RouteEntry = Record<string, RouteDef>;
-
-interface RoutesDoc {
-  routes?: RouteEntry[];
-}
-
-interface MethodInfo {
-  serviceMethod: string;
-  responseName: string | null;
-}
-
-export interface TestAppArgs {
-  datasourceData?: RawTypesDoc;
-  routesData?: RoutesDoc;
-  viewTypesData?: RawTypesDoc;
-}
-
-function collectCustomServiceRoutes(
-  routesData: RoutesDoc,
-): Map<string, MethodInfo[]> {
-  const byService = new Map<string, MethodInfo[]>();
-  for (const entry of routesData.routes ?? []) {
-    if (!entry || typeof entry !== "object") continue;
-    const def = Object.values(entry)[0];
-    if (!def || typeof def !== "object") continue;
-    if (typeof def.routeClass === "string") continue;
-    if (typeof def.service !== "string" || def.service.length === 0) continue;
-    if (typeof def.serviceMethod !== "string" || def.serviceMethod.length === 0)
-      continue;
-    let methods = byService.get(def.service);
-    if (!methods) {
-      methods = [];
-      byService.set(def.service, methods);
-    }
-    if (!methods.some((m) => m.serviceMethod === def.serviceMethod)) {
-      methods.push({
-        serviceMethod: def.serviceMethod,
-        responseName: typeof def.response === "string" ? def.response : null,
-      });
-    }
-  }
-  return byService;
-}
-
-function stubClassNameFor(serviceName: string): string {
-  return `${serviceName}Stub`;
-}
-
-export function buildTestAppSpec({
-  datasourceData,
-  routesData,
-  viewTypesData,
-}: TestAppArgs = {}) {
-  if (!datasourceData || typeof datasourceData !== "object") {
-    throw new Error("buildTestAppSpec: datasourceData is required");
-  }
-  if (!routesData || typeof routesData !== "object") {
-    throw new Error("buildTestAppSpec: routesData is required");
-  }
-  if (!viewTypesData || typeof viewTypesData !== "object") {
-    throw new Error("buildTestAppSpec: viewTypesData is required");
-  }
-
-  const components = buildComponents(viewTypesData, datasourceData);
-  const schemasDoc = { components: { schemas: components } };
-
-  const serviceMethodsByService = collectCustomServiceRoutes(routesData);
-  const customServices = [...serviceMethodsByService.entries()].map(
-    ([serviceName, methods]) => ({
-      serviceName,
-      stubClassName: stubClassNameFor(serviceName),
-      methods: methods.map((m, idx) => {
-        // why default `{}`: routes with no declared `response:` (e.g. HealthCheckService.check) get the open `{type:"object"}` schema from openapi-spec-build; stubbing `null` would land in the conformance test as res.body===null and fail ajv "must be object" — an empty object satisfies the schema and matches the runtime sendItem(returnedObject) shape
-        let sampleResponse: JsonValue = {};
-        if (m.responseName && schemasDoc.components.schemas[m.responseName]) {
-          sampleResponse = sampleFromSchema(
-            schemasDoc.components.schemas[m.responseName],
-            schemasDoc,
-            idx,
-          ) as JsonValue;
-        }
-        return {
-          serviceMethod: m.serviceMethod,
-          responseName: m.responseName,
-          sampleResponse,
-        };
-      }),
-    }),
-  );
-
-  return { customServices };
 }
