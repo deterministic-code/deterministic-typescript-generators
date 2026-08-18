@@ -22,17 +22,17 @@ import type {
   OpenApiOperation,
   OpenApiPathItem,
   OpenApiSchema,
-} from "./sdk/codegen/lib/openapi-types.ts";
+} from "./openapi/codegen/lib/openapi-types.ts";
 import { sampleForSchema } from "./component-fixture.ts";
 import {
   RawTsExpr,
+  RuntimeValue,
   serializeSampleValue,
-} from "./sdk/codegen/lib/ts-sample-literal.ts";
-import type { RuntimeValue } from "./sdk/codegen/lib/ts-sample-literal.ts";
+} from "./sample-literal.ts";
 import { fnNameOf, pathParamsOf } from "./client-op-model.ts";
 import { entityOf } from "./frontend-bindings-routes.ts";
 import type { resolveSelfDoc } from "./frontend-bindings-routes.ts";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
 
 const SEED_DEPTH_LIMIT = 5;
 const SEED_INDENT = "    ";

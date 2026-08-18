@@ -1,17 +1,17 @@
-import { isWriteDtoViewName } from "./sdk/lib/schema-build.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { isWriteDtoViewName } from "./schema-helpers.ts";
 import { buildFrontendComponents } from "./frontend-type-components.ts";
-import { layoutForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
+import { layoutForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
 import {
   readBindings,
   bindingDatasource,
   refName,
 } from "./frontend-bindings-routes.ts";
-import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
-import type { GenerateArgs, SchemaProp } from "./frontend-generate-types.ts";
-import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
-import type { CodegenNames } from "./sdk/codegen-naming.ts";
-import type { CodegenFieldNames } from "./sdk/field-names.ts";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+import type { SchemaProp } from "./frontend-generate-types.ts";
+import type { CodegenNames } from "./openapi/codegen-naming.ts";
+import type { CodegenFieldNames } from "./openapi/field-names.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -139,12 +139,11 @@ function barrelBody(sorted: ReadTypeModel["sorted"], ctx: TypeCtx): string {
 }
 
 /** The read-type surface shared by every datasource: the entity/view components (write-body DTOs filtered out), sorted by class name, plus the rendering `opts` and the `CodegenLayout`. Built once from the OpenAPI oracle so per-datasource placement is the only thing that varies. Exposed for unit tests that assert the rendered bodies without touching disk. */
-export async function buildReadTypeModel({
-  inputs,
-  settings,
-}: GenerateArgs): Promise<ReadTypeModel> {
+export async function buildReadTypeModel(
+  ctx: GenerateContext,
+): Promise<ReadTypeModel> {
   const { components, names, fields, datetime } = await buildFrontendComponents(
-    { inputs, settings },
+    ctx,
   );
   const readNames = Object.keys(components).filter(
     (name) => !isWriteDtoViewName(name),
@@ -162,7 +161,7 @@ export async function buildReadTypeModel({
     components: components as Record<string, SchemaProp>,
     opts,
     sorted,
-    layout: layoutForSettings(settings, "typescript"),
+    layout: layoutForSettings(ctx.settings, "typescript"),
   };
 }
 
@@ -172,35 +171,29 @@ export function datasourceTypeEntries(
   { components, opts, sorted, layout }: ReadTypeModel,
 ) {
   const ctx: TypeCtx = { ...opts, layout, datasource };
-  const typeEntries = sorted.map(({ name }) => ({
-    kind: CONTENT,
-    filename: typeFilePath(ctx, name),
-    contents: typeFileBody(name, components[name], ctx),
-  }));
+  const typeEntries = sorted.map(({ name }) =>
+    content(typeFilePath(ctx, name), typeFileBody(name, components[name], ctx)),
+  );
   return [
     ...typeEntries,
-    {
-      kind: CONTENT,
-      filename: layout.frontendTypesFile(datasource, "index.ts"),
-      contents: barrelBody(sorted, ctx),
-    },
+    content(
+      layout.frontendTypesFile(datasource, "index.ts"),
+      barrelBody(sorted, ctx),
+    ),
   ];
 }
 
 /** Generate the entity/view read types under `frontend/src/bindings/<datasource>/types/` — one file per type plus a barrel `index.ts` — for every datasource in `frontend_bindings.yaml`. The datasource is the type-sharing boundary, so each datasource folder is self-contained (a view type spanning entities still belongs to one datasource). No bindings → no frontend types, matching `client_bindings`/`frontend_validators`. Each type's flattened shape matches the OpenAPI `components/schemas` via `buildComponents` (the oracle), so frontend types can't drift from the backend contract; write-body DTOs (create/update/eager) are filtered out; casing flows through `CodegenNames`/`CodegenFieldNames`/`CodegenLayout` from settings. */
-async function planFrontendTypes({ inputs, settings }: GenerateArgs) {
-  const { datasources } = await readBindings(inputs);
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const { datasources } = await readBindings(ctx.reader);
   if (datasources.length === 0) return [];
-  const model = await buildReadTypeModel({ inputs, settings });
+  const model = await buildReadTypeModel(ctx);
   const entries = [];
   for (const entry of datasources) {
     const ds = bindingDatasource(entry);
     entries.push(...datasourceTypeEntries(ds.name, model));
   }
   return entries;
-}
-
-export const generate = async (ctx: Parameters<typeof planFrontendTypes>[0]) =>
-  finalizePlan(await planFrontendTypes(ctx));
-
-export const assembleAfterStep = true;
+};

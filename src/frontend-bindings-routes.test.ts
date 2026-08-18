@@ -1,23 +1,27 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { resolvesToSelf } from "./frontend-bindings-routes.ts";
 
 describe("resolvesToSelf", () => {
   it("resolves the legacy self sentinel", () => {
-    expect(resolvesToSelf("self")).toBe(true);
+    assert.equal(resolvesToSelf("self"), true);
   });
 
   it("resolves an id: reference to this project's own backend", () => {
-    expect(resolvesToSelf("id:kitchen-sink")).toBe(true);
-    expect(resolvesToSelf("id:contacts-backend")).toBe(true);
+    assert.equal(resolvesToSelf("id:kitchen-sink"), true);
+    assert.equal(resolvesToSelf("id:contacts-backend"), true);
   });
 
   it("does not resolve external file: or https: documents", () => {
-    expect(resolvesToSelf("file:./openapi.json")).toBe(false);
-    expect(resolvesToSelf("https://api.example.com/openapi.json")).toBe(false);
+    assert.equal(resolvesToSelf("file:./openapi.json"), false);
+    assert.equal(
+      resolvesToSelf("https://api.example.com/openapi.json"),
+      false,
+    );
   });
 
   it("does not resolve a non-string or empty schema", () => {
-    expect(resolvesToSelf(undefined)).toBe(false);
-    expect(resolvesToSelf("")).toBe(false);
+    assert.equal(resolvesToSelf(undefined), false);
+    assert.equal(resolvesToSelf(""), false);
   });
 });

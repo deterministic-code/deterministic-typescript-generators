@@ -1,21 +1,17 @@
-import {
-  settingsBool,
-  type SettingsDict,
-} from "./sdk/settings-dict.ts";
-import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
-import type { RawTypesDoc } from "./sdk/deterministic-shapes.ts";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { parseDatasourceTypes } from "./sdk/codegen/lib/parse-datasource-types.ts";
-import {
-  buildComponents,
-  isWriteDtoViewName,
-} from "./sdk/lib/schema-build.ts";
+import { datasourceSettings } from "./common/datasource-settings.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { content, patch, type GenerateEntry } from "./common/generate-entry.ts";
+import { settingsBool } from "./common/settings.ts";
+import type { RawTypesDoc } from "./openapi/deterministic-shapes.ts";
+import { parseDatasourceTypes } from "./openapi/codegen/lib/parse-datasource-types.ts";
+import { buildComponents } from "./openapi/lib/schema-build.ts";
+import { isWriteDtoViewName } from "./schema-helpers.ts";
 import {
   namesForSettings,
   layoutForSettings,
-} from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { datetimeOptionFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
+} from "./openapi/codegen/lib/ts-codegen-naming.ts";
 import {
   refName,
   readBindings,
@@ -23,10 +19,6 @@ import {
   resolveSelfDoc,
   groupRowsByEntity,
 } from "./frontend-bindings-routes.ts";
-import {
-  CONTENT,
-  PATCH,
-} from "./sdk/codegen/lib/generate-result.ts";
 import { toNative } from "./common/type-converter.ts";
 import {
   BODY_METHODS,
@@ -35,8 +27,9 @@ import {
   pathParamsOf,
   templatePath,
 } from "./client-op-model.ts";
-import type { CodegenNames } from "./sdk/codegen-naming.ts";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+import type { CodegenNames } from "./openapi/codegen-naming.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
+import type { SettingsDict } from "./common/generate-context.ts";
 
 type ResolvedSettings = SettingsDict;
 
@@ -103,19 +96,12 @@ interface ClientRenderer {
   prelude: (rows: RouteRow[]) => string;
 }
 
-interface GenerateInputs {
-  all: () => Promise<{
-    viewYamlText: string;
-    datasourceYamlText: string | null;
-  }>;
-}
-
 interface GenerateBase {
   names: CodegenNames;
   layout: CodegenLayout;
   importable: Set<string>;
   validate: boolean;
-  inputs: GenerateInputs;
+  reader: GenerateContext["reader"];
   settings: ResolvedSettings;
   datetime: string;
 }
@@ -421,17 +407,18 @@ function clientFileEntries(
         entity,
         `${client}.ts`,
       );
-      entries.push({
-        kind: CONTENT,
-        filename: clientFile,
-        contents: renderClientFile(client, entityRows, {
-          ...fileCtx,
-          validatorsImport: ctx.layout.frontendRelImport(
-            clientFile,
-            validatorFile,
-          ),
-        }),
-      });
+      entries.push(
+        content(
+          clientFile,
+          renderClientFile(client, entityRows, {
+            ...fileCtx,
+            validatorsImport: ctx.layout.frontendRelImport(
+              clientFile,
+              validatorFile,
+            ),
+          }),
+        ),
+      );
     }
   }
   return entries;
@@ -443,11 +430,10 @@ function dependencyPatch(clients: Iterable<string>) {
   for (const client of clients)
     Object.assign(dependencies, CLIENT_DEPS[client]);
   if (Object.keys(dependencies).length === 0) return null;
-  return {
-    kind: PATCH,
-    filename: join("frontend", "package.json"),
-    content: JSON.stringify({ dependencies }),
-  };
+  return patch(
+    join("frontend", "package.json"),
+    JSON.stringify({ dependencies }),
+  );
 }
 
 /** One datasource's client files: resolve its OpenAPI doc, render every (object, client) file, and record which client libraries it used (for the dependency patch). Skips a datasource with no requested clients. */
@@ -457,7 +443,7 @@ async function datasourceEntries(entry: unknown, base: GenerateBase) {
   if (clients.length === 0) return { entries: [], clients: [] };
   const { rows, components } = await resolveSelfDoc({
     schema: ds.schema,
-    inputs: base.inputs,
+    reader: base.reader,
     settings: base.settings,
   });
   const ctx: BaseCtx = {
@@ -475,41 +461,37 @@ async function datasourceEntries(entry: unknown, base: GenerateBase) {
 }
 
 /** The read-only ctx every datasource's client files share: resolved names/layout/validate/datetime plus the set of type names frontend_types actually generates (so a `$ref` to one imports rather than inlines). */
-async function buildBaseCtx(
-  inputs: GenerateInputs,
-  settings: ResolvedSettings,
-): Promise<GenerateBase> {
-  const names = namesForSettings(settings, "typescript");
-  const { viewYamlText, datasourceYamlText } = await inputs.all();
+async function buildBaseCtx(ctx: GenerateContext): Promise<GenerateBase> {
+  const names = namesForSettings(ctx.settings, "typescript");
+  const viewYamlText = await ctx.reader.read("view_types.yaml");
+  const datasourceYamlText = (await ctx.reader.exists("datasource_types.yaml"))
+    ? await ctx.reader.read("datasource_types.yaml")
+    : "";
   const importable = importableTypeNames(
     parse(viewYamlText),
     datasourceYamlText
-      ? parseDatasourceTypes(datasourceYamlText, settings)
+      ? parseDatasourceTypes(datasourceYamlText, ctx.settings)
       : { types: [] },
     names,
   );
   return {
     names,
-    layout: layoutForSettings(settings, "typescript"),
+    layout: layoutForSettings(ctx.settings, "typescript"),
     importable,
-    validate: resolveValidate(settings),
-    inputs,
-    settings,
-    datetime: datetimeOptionFromSettings(settings).datetime,
+    validate: resolveValidate(ctx.settings),
+    reader: ctx.reader,
+    settings: ctx.settings,
+    datetime: datasourceSettings(ctx.settings).datetimeRepr,
   };
 }
 
 /** Generate typed client libraries for each datasource in frontend_bindings.yaml that declares a `clients` array. For `schema: self`, the datasource's OpenAPI doc is built in-process from this project's own routes/view/datasource (identical to the openapi_docs step), then projected to route rows grouped by object; each requested library (`fetch`/`axios`/`tanstack`) renders one file per object, placed by layout mode via `CodegenLayout.frontendClientFile` and importing the entity/view read types through the layout's resolved specifier. A `package.json` patch adds the npm dependency each selected client needs. `id:`/`url:`/`file:` schemas are not resolved yet and throw. */
-async function planClientBindings({
-  inputs,
-  settings,
-}: {
-  inputs: GenerateInputs;
-  settings: ResolvedSettings;
-}) {
-  const { datasources } = await readBindings(inputs);
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const { datasources } = await readBindings(ctx.reader);
   if (datasources.length === 0) return [];
-  const base = await buildBaseCtx(inputs, settings);
+  const base = await buildBaseCtx(ctx);
   const entries = [];
   const clientsUsed = new Set<string>();
   for (const entry of datasources) {
@@ -517,12 +499,7 @@ async function planClientBindings({
     entries.push(...built.entries);
     for (const client of built.clients) clientsUsed.add(client);
   }
-  const patch = dependencyPatch(clientsUsed);
-  if (patch) entries.push(patch);
+  const dep = dependencyPatch(clientsUsed);
+  if (dep) entries.push(dep);
   return entries;
-}
-
-export const generate = async (ctx: Parameters<typeof planClientBindings>[0]) =>
-  finalizePlan(await planClientBindings(ctx));
-
-export const assembleAfterStep = true;
+};

@@ -1,14 +1,10 @@
-import type { SettingsDict } from "./sdk/settings-dict.ts";
-import { access, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { parse } from "yaml";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
-import { buildOpenApiDocFromInputs } from "./sdk/codegen/lib/generate-openapi-docs-shared.ts";
-import { layoutForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import {
-  CONTENT,
-  type GenerateEntry,
-} from "./sdk/codegen/lib/generate-result.ts";
+import type { IDeterministicReader } from "./common/deterministic-reader.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
+import { buildOpenApiDocFromReader } from "./openapi/codegen/lib/generate-openapi-docs-shared.ts";
+import { layoutForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -62,12 +58,8 @@ interface BindingObject {
   components: Record<string, SchemaObject>;
 }
 
-interface BindingContext {
-  inputs: unknown;
-  settings: SettingsDict;
-}
+type BindingContext = GenerateContext;
 
-type DocOptions = Parameters<typeof buildOpenApiDocFromInputs>[0];
 type LayoutSettings = Parameters<typeof layoutForSettings>[0];
 
 export function refName(ref: string): string {
@@ -168,17 +160,14 @@ export function groupRowsByEntity<T>(rows: T[]): Map<string, T[]> {
   return groups;
 }
 
+const BINDINGS_YAML = "frontend_bindings.yaml";
+
 /** Read `frontend_bindings.yaml`'s `datasources` array (empty when the file is absent — a bare scaffold generates nothing). */
 export async function readBindings(
-  inputs: unknown,
+  reader: IDeterministicReader,
 ): Promise<{ datasources: unknown[] }> {
-  const path = join((inputs as { dir: string }).dir, "frontend_bindings.yaml");
-  const present = await access(path).then(
-    () => true,
-    () => false,
-  );
-  if (!present) return { datasources: [] };
-  const doc = parse(await readFile(path, "utf8"));
+  if (!(await reader.exists(BINDINGS_YAML))) return { datasources: [] };
+  const doc = parse(await reader.read(BINDINGS_YAML));
   return {
     datasources: Array.isArray(doc?.datasources) ? doc.datasources : [],
   };
@@ -201,16 +190,16 @@ export function bindingDatasource(entry: unknown): BindingDatasource {
 
 /** The per-object work-list the frontend datasource generators share (via `clientBindingTestEntries` / `validatorObjectEntries`): for each binding datasource, resolve its OpenAPI doc once and yield `{ ds, entity, entityRows, components }` per object (route-group). Generators derive placement from `ds.name`/`entity` through `CodegenLayout`, so the layout owns paths one way. */
 async function bindingObjects({
-  inputs,
+  reader,
   settings,
 }: BindingContext): Promise<BindingObject[]> {
-  const { datasources } = await readBindings(inputs);
+  const { datasources } = await readBindings(reader);
   const objects: BindingObject[] = [];
   for (const entry of datasources) {
     const ds = bindingDatasource(entry);
     const { rows, components } = await resolveSelfDoc({
       schema: ds.schema,
-      inputs,
+      reader,
       settings,
     });
     for (const [entity, entityRows] of groupRowsByEntity(rows)) {
@@ -228,23 +217,23 @@ type ValidatorRender = (
 
 /** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test generator (`validators.test.ts`) share. `test` picks the validators file vs its test via `CodegenLayout.frontendValidatorFile`, so placement stays mode-aware. `render(closure, components, { ds, entity, layout })` produces the body; objects whose routes touch no component are skipped. */
 export async function validatorObjectEntries(
-  { inputs, settings }: BindingContext,
+  ctx: BindingContext,
   { test = false }: { test?: boolean },
   render: ValidatorRender,
 ): Promise<GenerateEntry[]> {
-  const layout = layoutForSettings(settings as LayoutSettings, "typescript");
+  const layout = layoutForSettings(ctx.settings as LayoutSettings, "typescript");
   const entries: GenerateEntry[] = [];
-  for (const { ds, entity, entityRows, components } of await bindingObjects({
-    inputs,
-    settings,
-  })) {
+  for (const { ds, entity, entityRows, components } of await bindingObjects(
+    ctx,
+  )) {
     const closure = reachableComponents(entityRows, components);
     if (closure.size === 0) continue;
-    entries.push({
-      kind: CONTENT,
-      filename: layout.frontendValidatorFile(ds.name, entity, { test }),
-      contents: render(closure, components, { ds: ds.name, entity, layout }),
-    });
+    entries.push(
+      content(
+        layout.frontendValidatorFile(ds.name, entity, { test }),
+        render(closure, components, { ds: ds.name, entity, layout }),
+      ),
+    );
   }
   return entries;
 }
@@ -261,7 +250,7 @@ interface ClientBindingTestArgs extends BindingContext {
 
 /** The per-(object, client) test-generator loop shared by the mocked and live client-binding test generators: yield `entryFor(object, clients, layout)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was generated. Keeps the two generators' bodies to just their client set, per-entity renderer, and harness. */
 export async function clientBindingTestEntries({
-  inputs,
+  reader,
   settings,
   clientLibs,
   entryFor,
@@ -269,7 +258,7 @@ export async function clientBindingTestEntries({
 }: ClientBindingTestArgs): Promise<{ entries: GenerateEntry[] }> {
   const layout = layoutForSettings(settings as LayoutSettings, "typescript");
   const entries: GenerateEntry[] = [];
-  for (const object of await bindingObjects({ inputs, settings })) {
+  for (const object of await bindingObjects({ reader, settings })) {
     const clients = object.ds.clients.filter((c) => clientLibs.includes(c));
     if (clients.length === 0) continue;
     entries.push(...entryFor(object, clients, layout));
@@ -286,7 +275,7 @@ export function resolvesToSelf(schema: unknown): boolean {
 /** Build the project's own OpenAPI doc in-process and project it to `{ rows, components }`. Only `schema: self` and `id:` self-references resolve today; `file:`/`https:` throw. */
 export async function resolveSelfDoc({
   schema,
-  inputs,
+  reader,
   settings,
 }: BindingContext & { schema: unknown }): Promise<{
   doc: OpenApiDoc;
@@ -298,10 +287,10 @@ export async function resolveSelfDoc({
       `frontend bindings: schema "${schema}" not yet supported — only \`self\` or an \`id:\` reference to this project's own backend resolves today`,
     );
   }
-  const doc = (await buildOpenApiDocFromInputs({
-    inputs,
+  const doc = (await buildOpenApiDocFromReader({
+    reader,
     settings,
-  } as DocOptions)) as unknown as OpenApiDoc;
+  })) as unknown as OpenApiDoc;
   return {
     doc,
     rows: operationRows(doc),

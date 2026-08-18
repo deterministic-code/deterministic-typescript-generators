@@ -1,0 +1,22 @@
+
+  it("GET {{mountPath}}/{{kebab}}/:value returns the row when unique findBy matches", async () => {
+    service.findBy.mockResolvedValueOnce([{ id: 1, {{byField}}: "x" }]);
+    const res = await request(app).get("{{mountPath}}/{{kebab}}/x");
+    expect(res.status).toBe(200);
+    expect(service.findBy).toHaveBeenCalledWith([{ name: "{{byField}}", value: "x" }]);
+  });
+
+  it("GET {{mountPath}}/{{kebab}}/:value returns 404 when no row matches", async () => {
+    service.findBy.mockResolvedValueOnce([]);
+    const res = await request(app).get("{{mountPath}}/{{kebab}}/missing");
+    expect(res.status).toBe(404);
+  });
+
+  it("GET {{mountPath}}/{{kebab}}/:value returns 409 when multiple rows match a unique-byField route", async () => {
+    service.findBy.mockResolvedValueOnce([
+      { id: 1, {{byField}}: "x" },
+      { id: 2, {{byField}}: "x" },
+    ]);
+    const res = await request(app).get("{{mountPath}}/{{kebab}}/x");
+    expect(res.status).toBe(409);
+  });

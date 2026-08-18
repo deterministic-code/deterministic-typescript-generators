@@ -1,5 +1,5 @@
-import { RuntimeValue } from "./sdk/codegen/lib/ts-sample-literal.ts";
-import { converterTypeForSchema } from "./sdk/lib/schema-build.ts";
+import { RuntimeValue } from "./sample-literal.ts";
+import { converterTypeForSchema } from "./schema-helpers.ts";
 import { NUMERIC_TYPES } from "./field-converter.ts";
 
 interface SchemaNode {

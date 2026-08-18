@@ -1,32 +1,28 @@
 import { parse } from "yaml";
-import { parseDatasourceTypes } from "./sdk/codegen/lib/parse-datasource-types.ts";
-import { CodegenFieldNames } from "./sdk/field-names.ts";
-import { buildComponents } from "./sdk/lib/schema-build.ts";
-import { namesForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { datetimeOptionFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
-import type { RawTypesDoc } from "./sdk/deterministic-shapes.ts";
-import type { GenerateArgs } from "./frontend-generate-types.ts";
+import { datasourceSettings } from "./common/datasource-settings.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { DATASOURCE_TYPES_YAML } from "./common/parse-datasource-types.ts";
+import { VIEW_TYPES_YAML } from "./common/parse-view-types.ts";
+import { CodegenFieldNames } from "./openapi/field-names.ts";
+import { parseDatasourceTypes } from "./openapi/codegen/lib/parse-datasource-types.ts";
+import { namesForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
+import type { RawTypesDoc } from "./openapi/deterministic-shapes.ts";
+import { buildComponents } from "./openapi/lib/schema-build.ts";
 
-interface FrontendComponentsInputs {
-  all(): Promise<{ viewYamlText: string; datasourceYamlText: string }>;
-}
-
-/** The shared setup frontend_types and its test generator both start from: parse the view + datasource YAML, build the OpenAPI component oracle, and resolve the settings-driven name/field casing + datetime representation. Returns `{ components, names, fields, datetime }` so both derive the read-type surface one way and can't drift. */
-export async function buildFrontendComponents({ inputs, settings }: GenerateArgs) {
-  const { viewYamlText, datasourceYamlText } = await (
-    inputs as FrontendComponentsInputs
-  ).all();
+export const buildFrontendComponents = async (ctx: GenerateContext) => {
+  const viewYamlText = await ctx.reader.read(VIEW_TYPES_YAML);
+  const datasourceYamlText = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
+    ? await ctx.reader.read(DATASOURCE_TYPES_YAML)
+    : "";
   const viewData: RawTypesDoc = parse(viewYamlText);
   const datasourceData: RawTypesDoc = datasourceYamlText
-    ? (parseDatasourceTypes(datasourceYamlText, settings) as RawTypesDoc)
+    ? (parseDatasourceTypes(datasourceYamlText, ctx.settings) as RawTypesDoc)
     : { types: [] };
-  const components = buildComponents(viewData, datasourceData);
-  const names = namesForSettings(settings, "typescript");
-  const fields = new CodegenFieldNames({ fieldFormat: names.fieldFormat });
+  const names = namesForSettings(ctx.settings, "typescript");
   return {
-    components,
+    components: buildComponents(viewData, datasourceData),
     names,
-    fields,
-    datetime: datetimeOptionFromSettings(settings).datetime,
+    fields: new CodegenFieldNames({ fieldFormat: names.fieldFormat }),
+    datetime: datasourceSettings(ctx.settings).datetimeRepr,
   };
-}
+};

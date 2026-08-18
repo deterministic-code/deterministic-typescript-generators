@@ -2,7 +2,7 @@ import {
   EMPTY_UUID,
   hexToBytes,
   parseDefaultToken,
-} from "./sdk/lib/default-token.ts";
+} from "./common/default-token.ts";
 import {
   nativeTypeFor,
   renderSqlDefault,
