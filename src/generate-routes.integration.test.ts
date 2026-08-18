@@ -129,4 +129,36 @@ routes: []
     assert.ok(paths.includes("features/app-wiring.ts"));
     assert.ok(!paths.includes("index.ts"));
   });
+
+  it("omits index when codegen.create_index is false", async () => {
+    const entries = await generate({
+      reader: memoryReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "routes.yaml": `includes:
+  - view_type_routes:
+      filter: 'type == "user"'
+routes: []
+`,
+      }),
+      settings: { "codegen.create_index": "false" },
+    });
+    const paths = entries.map((e) => e.filename);
+    assert.ok(paths.includes("users.ts"));
+    assert.ok(!paths.includes("index.ts"));
+  });
+
+  it("rejects missing routes.yaml", async () => {
+    await assert.rejects(
+      () =>
+        generate({
+          reader: memoryReader({
+            "datasource_types.yaml": DS_YAML,
+            "view_types.yaml": VIEW_YAML,
+          }),
+          settings: {},
+        }),
+      /routes\.yaml/,
+    );
+  });
 });
