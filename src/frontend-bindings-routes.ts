@@ -278,7 +278,12 @@ export async function clientBindingTestEntries({
   return { entries };
 }
 
-/** Build the project's own OpenAPI doc in-process and project it to `{ rows, components }`. Only `schema: self` resolves today; `id:`/`url:`/`file:` throw. */
+/** The self-backend forms the frontend bindings resolve in-process: the legacy `self` sentinel and the 1.0.0 contract's `id:<this backend>` reference, both of which mean "generate this project's own OpenAPI doc on demand". `file:`/`https:` reference external documents and are not resolved yet. */
+export function resolvesToSelf(schema: unknown): boolean {
+  return schema === "self" || (typeof schema === "string" && schema.startsWith("id:"));
+}
+
+/** Build the project's own OpenAPI doc in-process and project it to `{ rows, components }`. Only `schema: self` and `id:` self-references resolve today; `file:`/`https:` throw. */
 export async function resolveSelfDoc({
   schema,
   inputs,
@@ -288,9 +293,9 @@ export async function resolveSelfDoc({
   rows: OperationRow[];
   components: Record<string, SchemaObject>;
 }> {
-  if (schema !== "self") {
+  if (!resolvesToSelf(schema)) {
     throw new Error(
-      `frontend bindings: schema "${schema}" not yet supported — only \`self\` (this project's own backend) resolves today`,
+      `frontend bindings: schema "${schema}" not yet supported — only \`self\` or an \`id:\` reference to this project's own backend resolves today`,
     );
   }
   const doc = (await buildOpenApiDocFromInputs({
