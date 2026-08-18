@@ -3,8 +3,13 @@ import { resolveFkSeedPlan } from "./datasource-fk-deps.ts";
 import { namesFor } from "./ts-codegen-naming.ts";
 import type { NamesForOptions } from "./ts-codegen-naming.ts";
 import { effectiveTableName } from "../../lib/effective-table-name.ts";
-import { generateCreateTable, normalizeTable } from "../../lib/generate-sql.ts";
-import type { SqlDialect, SeedValue, RawIndexDef } from "../../lib/generate-sql.ts";
+import {
+  generateCreateTable,
+  normalizeTable,
+  type SeedValue,
+  type RawIndexDef,
+} from "../../../common/create-table-sql.ts";
+import type { SqlDialect } from "../../../common/sql-dialect.ts";
 import { computeEnrichmentsForDatasourceType } from "../../view-expand.ts";
 import type { Enrichment } from "../../view-expand.ts";
 export { RawTsExpr, tsLiteral } from "./ts-sample-literal.ts";

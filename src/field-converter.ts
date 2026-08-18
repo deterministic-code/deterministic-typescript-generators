@@ -102,13 +102,6 @@ export const fieldConverter = {
   },
 } satisfies ConverterModule;
 
-export const fakerId = (idType: string): string => {
-  if (idType === "uuid") return "faker.string.uuid()";
-  if (idType === "string") return "faker.string.alphanumeric({ length: 12 })";
-  if (idType === "biginteger") return "faker.number.bigInt({ min: 1n })";
-  return "faker.number.int({ min: 1 })";
-};
-
 export default fieldConverter;
 
 /** The language literal/expression for a spec field's `{ type, value }` default — `null` when absent. Datetime honors the string representation so a `z.string()` field gets an ISO string, not a native date. */

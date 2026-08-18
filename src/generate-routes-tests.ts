@@ -10,9 +10,9 @@ import {
   layoutFor,
   type NamesForOptions,
 } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { entityUsesOptimisticConcurrency } from "./sdk/lib/generate-sql.ts";
+import { entityUsesOptimisticConcurrency } from "./common/parse-routes.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
-import { fakerId } from "./field-converter.ts";
+import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
 import type {
   GeneratedFile,
   RoutesGenerateConfig,
@@ -319,7 +319,7 @@ function routerTestFixtures(
     enrichments,
     fkSuffix: fkMockSuffix(enrichments),
     idFieldName,
-    idExpr: fakerId(idType),
+    idExpr: fakeTestData.id(asIdType(idType)),
     testPath,
     pk: primaryKeyMock(idFieldName, idType, opts, testPath),
   };
@@ -337,8 +337,7 @@ export function generateReadOnlyRouterTest(
   );
 
   const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
-import { faker } from "@faker-js/faker";
-import express, { type Application } from "express";
+${preludeSource(fakeTestData)}import express, { type Application } from "express";
 import request from "supertest";
 ${pk.importLine}
 import { ${fnName} } from "../${fileBase}";
@@ -420,8 +419,7 @@ export function generateCrudRouterTest(
   const { ifMatch, occCallArg, occDecl } = occExpressions(candidate, opts);
 
   const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
-import { faker } from "@faker-js/faker";
-import express, { type Application } from "express";
+${preludeSource(fakeTestData)}import express, { type Application } from "express";
 import request from "supertest";
 ${pk.importLine}
 import { ${fnName} } from "../${fileBase}";

@@ -9,10 +9,7 @@ import {
   projectViewTypesByEagerPath,
 } from "../../view-expand.ts";
 import { buildWriteResponseSchema } from "../../lib/schema-build.ts";
-import {
-  optimisticConcurrencyByEntity,
-  type SchemaData,
-} from "../../lib/generate-sql.ts";
+import { optimisticConcurrencyByEntity } from "../../../common/parse-routes.ts";
 import { lastSegmentIsParam } from "./openapi-doc-helpers.ts";
 import { DatasourceSettings } from "../../datasource-settings.ts";
 
@@ -653,7 +650,7 @@ export function buildEnrichedOpenApiSpec({
     ds,
     useOptimisticConcurrency,
     occByEntity: optimisticConcurrencyByEntity(
-      datasourceData as unknown as SchemaData,
+      datasourceData,
       useOptimisticConcurrency === true,
     ),
     unmountedCustomRouteNames: collectUnmountedCustomRouteNames(routesData),
