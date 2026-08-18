@@ -15,7 +15,7 @@ import {
 } from "./common/parse-view-types.ts";
 import { settingsStr } from "./common/settings.ts";
 import { toNative } from "./common/type-converter.ts";
-import { indexTmpl, typeTmpl } from "./view-types/resources.ts";
+import { indexTmpl, typeTmpl } from "./resources/view-types.ts";
 
 type EmitOptions = {
   naming: ViewArtifactNaming;

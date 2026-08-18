@@ -14,7 +14,7 @@ import {
 import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
 import type { GenerateArgs } from "./frontend-generate-types.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 import type { CodegenNames } from "./sdk/codegen-naming.ts";
 import type { CodegenLayout } from "./sdk/codegen-layout.ts";
 
@@ -159,6 +159,7 @@ async function planFrontendTypesTests({ inputs, settings }: GenerateArgs) {
   return entries;
 }
 
-export const generate = makeGenerate(planFrontendTypesTests);
+export const generate = async (ctx: Parameters<typeof planFrontendTypesTests>[0]) =>
+  finalizePlan(await planFrontendTypesTests(ctx));
 
 export const assembleAfterStep = true;

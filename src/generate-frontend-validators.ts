@@ -2,12 +2,9 @@ import { join } from "node:path";
 import { CodegenFieldNames } from "./sdk/field-names.ts";
 import { namesForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
 import { datetimeOptionFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
-import { schemaSymbol, validatedSymbol } from "./zod-schema-names.ts";
 import { refName, validatorObjectEntries } from "./frontend-bindings-routes.ts";
-import { PATCH } from "./sdk/codegen/lib/generate-result.ts";
-import type { GenerateEntry } from "./sdk/codegen/lib/generate-result.ts";
+import { PATCH, finalizePlan, type GenerateEntry } from "./sdk/codegen/lib/generate-result.ts";
 import type { GenerateArgs, SchemaProp } from "./frontend-generate-types.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
 import type { CodegenNames } from "./sdk/codegen-naming.ts";
 
 const ZOD_VERSION = "^3.23.8";
@@ -80,7 +77,7 @@ function baseZod(
   if (prop.$ref) {
     const name = refName(prop.$ref);
     registerRef(name, ctx);
-    return `z.lazy(() => ${schemaSymbol(name, ctx.names)})`;
+    return `z.lazy(() => ${ctx.names.className(name)}Schema)`;
   }
   if (Array.isArray(prop.oneOf)) {
     return `z.union([${prop.oneOf.map((m) => baseZod(m, ctx, null)).join(", ")}])`;
@@ -108,7 +105,7 @@ function renderComponent(
   schema: SchemaProp,
   ctx: ValidatorCtx,
 ): string {
-  const symbol = schemaSymbol(name, ctx.names);
+  const symbol = `${ctx.names.className(name)}Schema`;
   if (Array.isArray(schema.oneOf)) {
     const members = schema.oneOf.map((m) => baseZod(m, ctx, null));
     const body =
@@ -140,15 +137,15 @@ function renderObjectValidators(
     refs: new Set<string>(),
   };
   const names = [...closure].sort((a, b) =>
-    schemaSymbol(a, base.names).localeCompare(schemaSymbol(b, base.names)),
+    base.names.className(a).localeCompare(base.names.className(b)),
   );
   const bodies = names.map((name) =>
     renderComponent(name, components[name], ctx),
   );
-  const aliases = names.map(
-    (name) =>
-      `export type ${validatedSymbol(name, base.names)} = z.infer<typeof ${schemaSymbol(name, base.names)}>;`,
-  );
+  const aliases = names.map((name) => {
+    const className = base.names.className(name);
+    return `export type ${className}Validated = z.infer<typeof ${className}Schema>;`;
+  });
   return `import { z } from "zod";\n\n${bodies.join("\n\n")}\n\n${aliases.join("\n")}\n`;
 }
 
@@ -180,6 +177,7 @@ async function planFrontendValidators({ inputs, settings }: GenerateArgs) {
   return entries;
 }
 
-export const generate = makeGenerate(planFrontendValidators);
+export const generate = async (ctx: Parameters<typeof planFrontendValidators>[0]) =>
+  finalizePlan(await planFrontendValidators(ctx));
 
 export const assembleAfterStep = true;

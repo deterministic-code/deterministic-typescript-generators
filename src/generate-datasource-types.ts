@@ -15,7 +15,7 @@ import {
   type DatasourceType,
 } from "./common/parse-datasource-types.ts";
 import { settingsBool, settingsStr } from "./common/settings.ts";
-import { indexTmpl, typeTmpl } from "./datasource-types/resources.ts";
+import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 
 type EmitOptions = {

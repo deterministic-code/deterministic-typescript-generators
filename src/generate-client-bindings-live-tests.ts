@@ -1,5 +1,5 @@
 import type { SettingsDict } from "./sdk/settings-dict.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 import {
   readBindings,
   bindingDatasource,
@@ -66,6 +66,7 @@ async function planLiveTests({
   return entries;
 }
 
-export const generate = makeGenerate(planLiveTests);
+export const generate = async (ctx: Parameters<typeof planLiveTests>[0]) =>
+  finalizePlan(await planLiveTests(ctx));
 
 export const assembleAfterStep = true;

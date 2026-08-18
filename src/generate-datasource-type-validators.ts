@@ -16,7 +16,7 @@ import {
 } from "./common/parse-datasource-types.ts";
 import { settingsStr } from "./common/settings.ts";
 import { toZod } from "./common/type-converter.ts";
-import { indexTmpl, typeTmpl } from "./datasource-type-validators/resources.ts";
+import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
 import { FieldConverter, fieldConverter } from "./field-converter.ts";
 
 type EmitOptions = {

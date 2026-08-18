@@ -293,8 +293,6 @@ export type RouteNaming = ArtifactNaming & {
     customSubdir: boolean,
   ) => string;
   validatorImport: (fromEntity: string, targetEntity: string) => string;
-  nestedFileBase: (stem: string) => string;
-  nestedFilePath: (featureEntity: string, fileBase: string) => string;
 };
 
 const pluralSnake = (entity: string): string => {
@@ -348,10 +346,5 @@ export const typescriptRouteNaming = (
       importSpec(routeSrc(from), serviceSrc(target, customSubdir)),
     validatorImport: (from, target) =>
       importSpec(routeSrc(from), validatorSrc(target)),
-    nestedFileBase: (stem) => c.fileCase(stem),
-    nestedFilePath: (featEntity, fb) =>
-      c.byFeature
-        ? `features/${c.dirCase(featEntity)}/${fb}.ts`
-        : `${fb}.ts`,
   };
 };

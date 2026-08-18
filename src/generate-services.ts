@@ -22,7 +22,7 @@ import {
   customStubTmpl,
   genericTmpl,
   indexTmpl,
-} from "./services/resources.ts";
+} from "./resources/services.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;

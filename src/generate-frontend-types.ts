@@ -8,7 +8,7 @@ import {
 } from "./frontend-bindings-routes.ts";
 import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
 import type { GenerateArgs, SchemaProp } from "./frontend-generate-types.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 import type { CodegenNames } from "./sdk/codegen-naming.ts";
 import type { CodegenFieldNames } from "./sdk/field-names.ts";
 import type { CodegenLayout } from "./sdk/codegen-layout.ts";
@@ -200,6 +200,7 @@ async function planFrontendTypes({ inputs, settings }: GenerateArgs) {
   return entries;
 }
 
-export const generate = makeGenerate(planFrontendTypes);
+export const generate = async (ctx: Parameters<typeof planFrontendTypes>[0]) =>
+  finalizePlan(await planFrontendTypes(ctx));
 
 export const assembleAfterStep = true;

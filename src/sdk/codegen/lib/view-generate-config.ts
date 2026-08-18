@@ -6,7 +6,7 @@ import {
 } from "../../view-expand.ts";
 import type { RawTypesDoc } from "../../deterministic-shapes.ts";
 import { configKnobsFromSettings } from "./generate-settings-options.ts";
-import { makeGenerate, type GenerateContext } from "./make-generate.ts";
+import { finalizePlan, type GenerateEntry } from "./generate-result.ts";
 import type { SettingsDict } from "../../settings-dict.ts";
 
 interface ViewGenerateConfigInput {
@@ -16,7 +16,7 @@ interface ViewGenerateConfigInput {
   settings: SettingsDict;
 }
 
-export interface ViewGenerateContext extends GenerateContext {
+export interface ViewGenerateContext {
   inputs: {
     all(): Promise<{ viewYamlText: string; datasourceYamlText: string }>;
   };
@@ -24,12 +24,12 @@ export interface ViewGenerateContext extends GenerateContext {
 }
 
 /** Build the generate config every view step (`view_types` / `view_type_validators` / `view_types_tests`) hands its language generator: parse the assumed-valid view + datasource YAML texts, expand the view against the datasource, and merge the settings-driven knobs — mirroring the legacy `dispatchViewStep` config. A missing datasource file defaults to `{ types: [] }`, and a view whose `includes:` carries a datasource_types directive without one is malformed and throws. */
-function buildViewGenerateConfig({
+const buildViewGenerateConfig = ({
   language,
   viewYamlText,
   datasourceYamlText,
   settings,
-}: ViewGenerateConfigInput): Record<string, unknown> {
+}: ViewGenerateConfigInput): Record<string, unknown> => {
   const viewData = parse(viewYamlText);
   const datasourceData = datasourceYamlText
     ? parseDatasourceTypes(datasourceYamlText, settings)
@@ -47,16 +47,16 @@ function buildViewGenerateConfig({
     settings,
     ...configKnobsFromSettings(settings, language),
   };
-}
+};
 
 /** Build a self-describing catalog-runner `generate` for one view step: read the whole-dir inputs and render via the language generator's `createGenerator`. The generated paths are output-root-relative (bare when flat, `features/<dir>/` under by-feature); the runner's `--output` (from `outputFor`) supplies the step's artifact directory, so the generator never re-prefixes it. `makeViewGenerate(createGenerator, language)`. A leftover three-arg form `makeViewGenerate(createGenerator, step, language)` still works. */
-export function makeViewGenerate<C>(
+export const makeViewGenerate = <C>(
   createGenerator: () => { generate: (config: C) => unknown },
   language: string,
   maybeLanguage?: string,
-) {
+): ((ctx: ViewGenerateContext) => Promise<GenerateEntry[]>) => {
   const lang = maybeLanguage ?? language;
-  return makeGenerate(async ({ inputs, settings }: ViewGenerateContext) => {
+  return async ({ inputs, settings }: ViewGenerateContext) => {
     const { viewYamlText, datasourceYamlText } = await inputs.all();
     const config = buildViewGenerateConfig({
       language: lang,
@@ -69,6 +69,6 @@ export function makeViewGenerate<C>(
       path: string;
       content: string;
     }[];
-    return { files };
-  });
-}
+    return finalizePlan({ files });
+  };
+};

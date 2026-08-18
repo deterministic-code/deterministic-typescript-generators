@@ -10,19 +10,13 @@ import {
   layoutFor,
   type NamesForOptions,
 } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { collectCombinedRouteDescriptors } from "./sdk/codegen/lib/iterate-combined-routes.ts";
 import { entityUsesOptimisticConcurrency } from "./sdk/lib/generate-sql.ts";
-import {
-  generateNestedDirectFkRouterTest,
-  generateNestedM2mRouterTest,
-} from "./generate-nested-routes-tests.ts";
-import { candidateIdExprs } from "./route-test-sample-id.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
+import { fakerId } from "./field-converter.ts";
 import type {
   GeneratedFile,
   RoutesGenerateConfig,
 } from "./sdk/codegen/lib/routes-generate-types.ts";
-import type { NestedRouteDescriptor } from "./nested-routes-generate-types.ts";
 
 interface Enrichment {
   targetTable: string;
@@ -74,8 +68,7 @@ interface RouterTestFixtures {
   enrichments: Enrichment[];
   fkSuffix: string;
   idFieldName: string;
-  idValueExpr: (n: number) => string;
-  idPathExpr: (n: number) => string;
+  idExpr: string;
   testPath: string;
   pk: PrimaryKeyMock;
 }
@@ -89,11 +82,11 @@ interface ByFieldCtx {
 
 /** The `import { PrimaryKey }` line + the `new PrimaryKey(col, idType)` expression a router test uses to build its mock service's key, so the router derives route id-parsing from `service.primaryKey` exactly as production does. */
 function primaryKeyMock(
-  candidate: TestCandidate,
+  idFieldName: string,
+  idType: string,
   opts: TestGenerateOptions,
   testPath: string,
 ): PrimaryKeyMock {
-  const { idFieldName, idType } = candidateIdExprs(candidate);
   const repositoriesImport = libraryImportSpecifier(
     "repositories",
     opts.libraryReferenceMode,
@@ -317,7 +310,8 @@ function routerTestFixtures(
   fileBase: string,
 ): RouterTestFixtures {
   const enrichments = candidate.enrichments ?? [];
-  const { idFieldName, idValueExpr, idPathExpr } = candidateIdExprs(candidate);
+  const idFieldName = candidate.primaryKey?.column ?? "id";
+  const idType = candidate.primaryKey?.idType ?? "integer";
   const testPath = layoutFor(opts).testPath(candidate.name, "route", {
     fileName: `${fileBase}.integration.test.ts`,
   });
@@ -325,10 +319,9 @@ function routerTestFixtures(
     enrichments,
     fkSuffix: fkMockSuffix(enrichments),
     idFieldName,
-    idValueExpr,
-    idPathExpr,
+    idExpr: fakerId(idType),
     testPath,
-    pk: primaryKeyMock(candidate, opts, testPath),
+    pk: primaryKeyMock(idFieldName, idType, opts, testPath),
   };
 }
 
@@ -337,10 +330,14 @@ export function generateReadOnlyRouterTest(
   opts: TestGenerateOptions = DEFAULT_GENERATE_OPTIONS,
 ): GeneratedFile {
   const { fnName, fileBase, mountPath } = routerTestNaming(candidate, opts);
-  const { fkSuffix, idFieldName, idValueExpr, idPathExpr, testPath, pk } =
-    routerTestFixtures(candidate, opts, fileBase);
+  const { fkSuffix, idFieldName, idExpr, testPath, pk } = routerTestFixtures(
+    candidate,
+    opts,
+    fileBase,
+  );
 
   const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
+import { faker } from "@faker-js/faker";
 import express, { type Application } from "express";
 import request from "supertest";
 ${pk.importLine}
@@ -359,23 +356,25 @@ describe("${fnName}", () => {
   });
 
   it("GET ${mountPath} returns items from service.findAll", async () => {
-    service.findAll.mockResolvedValueOnce([{ ${idFieldName}: ${idValueExpr(1)}${fkSuffix} }]);
+    service.findAll.mockResolvedValueOnce([{ ${idFieldName}: ${idExpr}${fkSuffix} }]);
     const res = await request(app).get("${mountPath}");
     expect(res.status).toBe(200);
     expect(service.findAll).toHaveBeenCalledOnce();
   });
 
   it("GET ${mountPath}/:${idFieldName} returns the entity from service.findById", async () => {
-    service.findById.mockResolvedValueOnce({ ${idFieldName}: ${idValueExpr(7)}${fkSuffix} });
-    const res = await request(app).get("${mountPath}/${idPathExpr(7)}");
+    const id = ${idExpr};
+    service.findById.mockResolvedValueOnce({ ${idFieldName}: id${fkSuffix} });
+    const res = await request(app).get(\`${mountPath}/\${id}\`);
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ ${idFieldName}: ${idValueExpr(7)} });
-    expect(service.findById).toHaveBeenCalledWith(${idValueExpr(7)});
+    expect(res.body).toMatchObject({ ${idFieldName}: id });
+    expect(service.findById).toHaveBeenCalledWith(id);
   });
 
   it("GET ${mountPath}/:${idFieldName} returns 404 when service.findById yields null", async () => {
+    const id = ${idExpr};
     service.findById.mockResolvedValueOnce(null);
-    const res = await request(app).get("${mountPath}/${idPathExpr(999)}");
+    const res = await request(app).get(\`${mountPath}/\${id}\`);
     expect(res.status).toBe(404);
   });
 ${byFieldsTestBlock(mountPath, candidate.byFields)}
@@ -415,19 +414,13 @@ export function generateCrudRouterTest(
     candidate,
     opts,
   );
-  const {
-    enrichments,
-    fkSuffix,
-    idFieldName,
-    idValueExpr,
-    idPathExpr,
-    testPath,
-    pk,
-  } = routerTestFixtures(candidate, opts, fileBase);
+  const { enrichments, fkSuffix, idFieldName, idExpr, testPath, pk } =
+    routerTestFixtures(candidate, opts, fileBase);
   const nameSuffix = requestNameSuffix(enrichments);
   const { ifMatch, occCallArg, occDecl } = occExpressions(candidate, opts);
 
   const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
+import { faker } from "@faker-js/faker";
 import express, { type Application } from "express";
 import request from "supertest";
 ${pk.importLine}
@@ -454,69 +447,49 @@ ${occDecl}  let app: Application;
   });
 
   it("GET ${mountPath}/:${idFieldName} delegates to service.findById", async () => {
-    service.findById.mockResolvedValueOnce({ ${idFieldName}: ${idValueExpr(3)}${fkSuffix} });
-    const res = await request(app).get("${mountPath}/${idPathExpr(3)}");
+    const id = ${idExpr};
+    service.findById.mockResolvedValueOnce({ ${idFieldName}: id${fkSuffix} });
+    const res = await request(app).get(\`${mountPath}/\${id}\`);
     expect(res.status).toBe(200);
-    expect(service.findById).toHaveBeenCalledWith(${idValueExpr(3)});
+    expect(service.findById).toHaveBeenCalledWith(id);
   });
 
   it("POST ${mountPath} delegates to service.create", async () => {
     const payload = { name: "${entity}-new"${nameSuffix} };
-    service.create.mockResolvedValueOnce({ ${idFieldName}: ${idValueExpr(11)}${fkSuffix} });
+    service.create.mockResolvedValueOnce({ ${idFieldName}: ${idExpr}${fkSuffix} });
     const res = await request(app).post("${mountPath}").send(payload);
     expect(res.status).toBe(201);
     expect(service.create).toHaveBeenCalledWith({ name: "${entity}-new"${nameSuffix} });
   });
 
   it("PUT ${mountPath}/:${idFieldName} delegates to service.update", async () => {
+    const id = ${idExpr};
     const payload = { name: "${entity}-updated"${nameSuffix} };
-    service.update.mockResolvedValueOnce({ ${idFieldName}: ${idValueExpr(4)}${fkSuffix} });
-    await request(app).put("${mountPath}/${idPathExpr(4)}")${ifMatch}.send(payload);
-    expect(service.update).toHaveBeenCalledWith(${idValueExpr(4)}, { name: "${entity}-updated"${nameSuffix} }${occCallArg});
+    service.update.mockResolvedValueOnce({ ${idFieldName}: id${fkSuffix} });
+    await request(app).put(\`${mountPath}/\${id}\`)${ifMatch}.send(payload);
+    expect(service.update).toHaveBeenCalledWith(id, { name: "${entity}-updated"${nameSuffix} }${occCallArg});
   });
 
   it("PATCH ${mountPath}/:${idFieldName} delegates to service.patch", async () => {
+    const id = ${idExpr};
     const payload = { name: "${entity}-patched"${nameSuffix} };
-    service.patch.mockResolvedValueOnce({ ${idFieldName}: ${idValueExpr(5)}${fkSuffix} });
-    await request(app).patch("${mountPath}/${idPathExpr(5)}")${ifMatch}.send(payload);
-    expect(service.patch).toHaveBeenCalledWith(${idValueExpr(5)}, { name: "${entity}-patched"${nameSuffix} }${occCallArg});
+    service.patch.mockResolvedValueOnce({ ${idFieldName}: id${fkSuffix} });
+    await request(app).patch(\`${mountPath}/\${id}\`)${ifMatch}.send(payload);
+    expect(service.patch).toHaveBeenCalledWith(id, { name: "${entity}-patched"${nameSuffix} }${occCallArg});
   });
 
   it("DELETE ${mountPath}/:${idFieldName} delegates to service.delete", async () => {
+    const id = ${idExpr};
     service.delete.mockResolvedValueOnce(true);
-    const res = await request(app).delete("${mountPath}/${idPathExpr(6)}")${ifMatch};
+    const res = await request(app).delete(\`${mountPath}/\${id}\`)${ifMatch};
     expect(res.status).toBe(200);
-    expect(service.delete).toHaveBeenCalledWith(${idValueExpr(6)}${occCallArg});
+    expect(service.delete).toHaveBeenCalledWith(id${occCallArg});
   });
 ${byFieldsTestBlock(mountPath, candidate.byFields, ifMatch)}
 });
 `;
 
   return { path: testPath, content };
-}
-
-export function generateCombinedRouteTests(
-  {
-    routesData,
-    datasourceData,
-  }: { routesData: unknown; datasourceData: unknown },
-  generateOptions: TestGenerateOptions,
-): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  const descriptors = collectCombinedRouteDescriptors({
-    routesData,
-    datasourceData,
-  } as Parameters<
-    typeof collectCombinedRouteDescriptors
-  >[0]) as NestedRouteDescriptor[];
-  for (const d of descriptors) {
-    if (d.kind === "direct-fk") {
-      files.push(generateNestedDirectFkRouterTest(d, generateOptions));
-    } else if (d.kind === "m2m") {
-      files.push(generateNestedM2mRouterTest(d, generateOptions));
-    }
-  }
-  return files;
 }
 
 /** Catalog `routes_tests` step (typescript). */
@@ -537,7 +510,6 @@ export const createGenerator = () => ({
       primitives: {
         generateReadOnlyRouterTest,
         generateCrudRouterTest,
-        generateCombinedRouteTests,
         defaultGenerateOptions: DEFAULT_GENERATE_OPTIONS,
       },
     }),

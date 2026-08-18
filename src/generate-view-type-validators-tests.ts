@@ -26,7 +26,7 @@ import {
 } from "./common/parse-view-types.ts";
 import { settingsStr } from "./common/settings.ts";
 import { FieldConverter, fieldConverter } from "./field-converter.ts";
-import { typeTestTmpl } from "./view-type-validators-tests/resources.ts";
+import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;

@@ -242,7 +242,7 @@ function typeNameById(catalog: FieldTypeCatalog): Map<number, string> {
   return new Map(catalog.types.map((t): [number, string] => [t.id, t.name]));
 }
 
-/** `Map<typeName, targetType>` for one target language — the data `createTypeMapper` builds its lookup from. */
+/** `Map<typeName, targetType>` for one target language. */
 export function languageTypeMap(
   catalog: FieldTypeCatalog,
   language: string,

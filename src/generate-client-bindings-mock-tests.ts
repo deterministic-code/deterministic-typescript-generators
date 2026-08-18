@@ -1,5 +1,5 @@
 import type { SettingsDict } from "./sdk/settings-dict.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 import { clientBindingTestEntries } from "./frontend-bindings-routes.ts";
 import {
   BODY_METHODS,
@@ -322,6 +322,7 @@ async function planMockTests({
   return entries;
 }
 
-export const generate = makeGenerate(planMockTests);
+export const generate = async (ctx: Parameters<typeof planMockTests>[0]) =>
+  finalizePlan(await planMockTests(ctx));
 
 export const assembleAfterStep = true;
