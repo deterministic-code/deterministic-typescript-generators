@@ -136,4 +136,55 @@ services:
       /outside \.\/features\//,
     );
   });
+
+  it("omits indexes when codegen.create_index is false", async () => {
+    const entries = await generate({
+      reader: fixtureReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "services.yaml": SERVICES_YAML,
+        "routes.yaml": ROUTES_YAML,
+      }),
+      settings: { "codegen.create_index": "false" },
+    });
+    const paths = entries.map((e) => e.filename);
+    assert.ok(paths.includes("user-service.ts"));
+    assert.ok(!paths.includes("index.ts"));
+    assert.ok(!paths.includes("../custom/index.ts"));
+  });
+
+  it("emits description doc comments when comments=description", async () => {
+    const entries = await generate({
+      reader: fixtureReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "services.yaml": `includes:
+  - view_type_services:
+      filter: 'type == "user"'
+services: []
+`,
+      }),
+      settings: { comments: "description" },
+    });
+    const user = textOf(entries, "user-service.ts");
+    assert.match(user, /Datasource type: standard/);
+    assert.match(user, /Target: StandardCrud/);
+  });
+
+  it("emits no doc comments when comments=none", async () => {
+    const entries = await generate({
+      reader: fixtureReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "services.yaml": `includes:
+  - view_type_services:
+      filter: 'type == "user"'
+services: []
+`,
+      }),
+      settings: { comments: "none" },
+    });
+    const user = textOf(entries, "user-service.ts");
+    assert.ok(!user.includes("/**"));
+  });
 });
