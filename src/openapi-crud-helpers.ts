@@ -1,15 +1,15 @@
 /** CRUD-block helpers for the client-live lifecycle test lane (`client-live-lifecycle.ts`). Pure (no I/O, no TS-source emission): every export operates on the parsed OpenAPI document and returns plain JS values (booleans, strings, seed-dependency arrays) that drive deterministic CRUD test coverage from shared primitives. */
-import { resolveRef } from "./sdk/codegen/lib/schema-sample.ts";
+import { resolveRef } from "./openapi/codegen/lib/schema-sample.ts";
 import {
   operationRequestSchema,
   operationResponseSchema,
-} from "./sdk/codegen/lib/openapi-doc-helpers.ts";
+} from "./openapi/codegen/lib/openapi-doc-helpers.ts";
 import type {
   Bucket,
   OpenApiDocument,
   OpenApiPathItem,
   OpenApiSchema,
-} from "./sdk/codegen/lib/openapi-types.ts";
+} from "./openapi/codegen/lib/openapi-types.ts";
 
 export {
   hasOp,
@@ -18,12 +18,12 @@ export {
   stripStubOperations,
   groupBuckets,
   classifyBucket,
-} from "./sdk/codegen/lib/openapi-doc-helpers.ts";
+} from "./openapi/codegen/lib/openapi-doc-helpers.ts";
 
 export {
   camelToSnake,
   snakeToCamel,
-} from "./sdk/case.ts";
+} from "./openapi/case.ts";
 
 interface SeedDep {
   field: string;

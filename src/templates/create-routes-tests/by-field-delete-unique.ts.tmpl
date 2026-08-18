@@ -1,0 +1,14 @@
+
+  it("DELETE {{mountPath}}/{{kebab}}/:value returns success when one row deleted", async () => {
+    service.deleteBy.mockResolvedValueOnce(1);
+    const res = await request(app).delete("{{mountPath}}/{{kebab}}/x"){{&ifMatch}};
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true });
+    expect(service.deleteBy).toHaveBeenCalledWith([{ name: "{{byField}}", value: "x" }]);
+  });
+
+  it("DELETE {{mountPath}}/{{kebab}}/:value returns 404 when no row matches", async () => {
+    service.deleteBy.mockResolvedValueOnce(0);
+    const res = await request(app).delete("{{mountPath}}/{{kebab}}/missing"){{&ifMatch}};
+    expect(res.status).toBe(404);
+  });

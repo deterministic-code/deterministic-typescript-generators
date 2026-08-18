@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { memoryReader } from "./common/deterministic-reader.ts";
+import { generate } from "./generate-perf-server.ts";
+
+const DS = `types:
+  - user:
+      fields:
+        - email:
+            type: string
+`;
+
+describe("generate-perf-server", () => {
+  it("rejects a missing datasource_types.yaml", async () => {
+    await assert.rejects(
+      () => generate({ reader: memoryReader({}), settings: {} }),
+      /datasource_types\.yaml is required/,
+    );
+  });
+
+  it("emits the server, vitest config, and package.json patch", async () => {
+    const entries = await generate({
+      reader: memoryReader({ "datasource_types.yaml": DS }),
+      settings: {},
+    });
+    const names = entries.map((e) => e.filename);
+    assert.ok(names.includes("perf-server.ts"));
+    assert.ok(names.includes("vitest.perf.config.ts"));
+    assert.ok(names.includes("package.json"));
+    const server = entries.find((e) => e.filename === "perf-server.ts");
+    assert.equal(server?.kind, "content");
+    if (server?.kind === "content") {
+      assert.match(
+        server.contents,
+        /from "@deterministic-code\/deterministic\/app"/,
+      );
+    }
+  });
+
+  it("uses a bundled app import when requested", async () => {
+    const entries = await generate({
+      reader: memoryReader({ "datasource_types.yaml": DS }),
+      settings: {
+        "languages.typescript.library_reference_mode": "bundled",
+      },
+    });
+    const server = entries.find((e) => e.filename === "perf-server.ts");
+    assert.equal(server?.kind, "content");
+    if (server?.kind === "content") {
+      assert.match(server.contents, /_deterministic\/app\.js/);
+    }
+  });
+});

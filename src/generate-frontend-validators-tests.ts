@@ -1,5 +1,8 @@
-import { CodegenFieldNames } from "./sdk/field-names.ts";
-import { namesForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
+import { fill } from "./common/fill.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import type { GenerateEntry } from "./common/generate-entry.ts";
+import { CodegenFieldNames } from "./openapi/field-names.ts";
+import { namesForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
 import { validatorObjectEntries } from "./frontend-bindings-routes.ts";
 import {
   sampleForComponent,
@@ -7,15 +10,11 @@ import {
   nullableFieldNames,
   enumerateComponentMutations,
 } from "./component-fixture.ts";
-import { serializeSampleValue as serializeValue } from "./sdk/codegen/lib/ts-sample-literal.ts";
-import { fill } from "./common/fill.ts";
+import { serializeSampleValue as serializeValue } from "./sample-literal.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
 import { validatorsTestTmpl } from "./resources/frontend-validators-tests.ts";
-import type { GenerateEntry } from "./sdk/codegen/lib/generate-result.ts";
-import type { GenerateArgs } from "./frontend-generate-types.ts";
-import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
-import type { CodegenNames } from "./sdk/codegen-naming.ts";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+import type { CodegenNames } from "./openapi/codegen-naming.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
 
 /** The validators fixtures feed zod at runtime: an ISO date-time string parses under both z.string() (string mode) and z.coerce.date() (native mode), so the tests stay settings-agnostic. */
 const FIXTURE_DATETIME = "string";
@@ -102,15 +101,14 @@ const testFileContents = (
 };
 
 /** Generate a `validators.test.ts` next to every object's `validators.ts` — one describe per zod schema that file exports, driven by the same route projection + reachable-component closure the validators generator uses, so the tests cover exactly the schemas that were generated. Each schema gets a valid-payload case, a nullable-fields case when it has any, and a rejecting case per invalid mutation (missing/null required, wrong scalar type). Adds the vitest + zod harness to frontend/package.json. */
-const planFrontendValidatorsTests = async ({
-  inputs,
-  settings,
-}: GenerateArgs) => {
-  const names = namesForSettings(settings, "typescript");
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const names = namesForSettings(ctx.settings, "typescript");
   const fields = new CodegenFieldNames({ fieldFormat: names.fieldFormat });
   const ident = (key: string) => fields.ident(key);
   const entries: GenerateEntry[] = await validatorObjectEntries(
-    { inputs, settings },
+    ctx,
     { test: true },
     (
       closure: Set<string>,
@@ -135,8 +133,3 @@ const planFrontendValidatorsTests = async ({
   }
   return entries;
 };
-
-export const generate = async (ctx: Parameters<typeof planFrontendValidatorsTests>[0]) =>
-  finalizePlan(await planFrontendValidatorsTests(ctx));
-
-export const assembleAfterStep = true;

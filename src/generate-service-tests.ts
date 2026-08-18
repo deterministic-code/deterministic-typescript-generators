@@ -1,152 +1,83 @@
+import { fill } from "./common/fill.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { datasourceSettings } from "./common/datasource-settings.ts";
+import { typescriptServiceNaming, type ServiceNaming } from "./common/naming.ts";
 import {
-  generateServiceTestsFiles,
-  dispatchServiceTestsStep,
-  servicesStepGenerate,
-  type GeneratedFile,
-  type ServiceTestsGenerateConfig,
-} from "./sdk/codegen/lib/services-generate.ts";
-import { joinImport, libraryImportSpecifier } from "./library-import.ts";
-import {
-  layoutFor,
-  namesFor,
-  type NamesForOptions,
-} from "./sdk/codegen/lib/ts-codegen-naming.ts";
+  DATASOURCE_TYPES_YAML,
+  parseDatasourceTypes,
+  primaryKeyFor,
+  type DatasourceType,
+} from "./common/parse-datasource-types.ts";
+import { loadServices, type ServiceCandidate } from "./common/parse-services.ts";
+import { settingsStr } from "./common/settings.ts";
 import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
+import { joinImport, libraryImportSpecifier } from "./library-import.ts";
+import { genericTmpl } from "./resources/service-tests.ts";
 
-interface PrimaryKeyInfo {
-  column: string;
+type EmitOptions = {
+  naming: ServiceNaming;
+  datasources: DatasourceType[];
   idType: string;
-}
+  libraryReferenceMode: string | undefined;
+};
 
-interface ServiceTestCandidate {
-  name: string;
-  primaryKey: PrimaryKeyInfo;
-}
-
-interface TsTestGenerateOptions extends NamesForOptions {
-  schemaVersion?: string;
-  servicePath?: string;
-  libraryReferenceMode?: string;
-}
-
-export const DEFAULT_GENERATE_OPTIONS = {
-  schemaVersion: "1.0",
-  servicePath: "..",
-  fileFormat: "Camel",
-} as const;
-
-export function generateGenericServiceTest(
-  candidate: ServiceTestCandidate,
-  opts: TsTestGenerateOptions = DEFAULT_GENERATE_OPTIONS,
-): GeneratedFile {
-  const names = namesFor(opts);
-  const className = names.className(candidate.name, "service");
-  const fileBase = names.fileBase(candidate.name, "service");
-  const servicePath = opts.servicePath ?? DEFAULT_GENERATE_OPTIONS.servicePath;
-  const importPath = joinImport(servicePath, fileBase);
-  const path = layoutFor(opts).testPath(candidate.name, "service", {
-    fileName: `${fileBase}.test.ts`,
-  });
-  const repositoriesImport = libraryImportSpecifier(
-    "repositories",
-    opts.libraryReferenceMode,
-    opts.organizeByFeature
-      ? path
-      : `services/generated/__tests__/${fileBase}.test.ts`,
-  );
-  const pk = candidate.primaryKey;
-  const idExpr = fakeTestData.id(asIdType(pk.idType));
-  const pkExpr = `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`;
-
-  const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
-${preludeSource(fakeTestData)}import type { ICrudRepository } from "${repositoriesImport}";
-import { PrimaryKey } from "${repositoriesImport}";
-import { ${className} } from "${importPath}";
-
-type Repo = ICrudRepository<any>;
-
-function createMockRepository(): Repo {
+const emitOptions = async (
+  ctx: GenerateContext,
+): Promise<EmitOptions> => {
+  const ds = datasourceSettings(ctx.settings);
+  const hasDs = await ctx.reader.exists(DATASOURCE_TYPES_YAML);
   return {
-    entityName: ${JSON.stringify(candidate.name)},
-    primaryKey: ${pkExpr},
-    query: vi.fn().mockResolvedValue([]),
-    findAll: vi.fn().mockResolvedValue([]),
-    find: vi.fn().mockResolvedValue(null),
-    findBy: vi.fn().mockResolvedValue([]),
-    findIn: vi.fn().mockResolvedValue([]),
-    add: vi.fn(async (data: unknown) => ({ id: 1, ...(data as object) })),
-    update: vi.fn(async (id: number, data: unknown) => ({ id, ...(data as object) })),
-    delete: vi.fn().mockResolvedValue(true),
-  } as unknown as Repo;
-}
+    naming: typescriptServiceNaming(ctx.settings),
+    idType: ds.idType,
+    libraryReferenceMode: settingsStr(
+      ctx.settings,
+      "languages.typescript.library_reference_mode",
+    ),
+    datasources: hasDs
+      ? parseDatasourceTypes({
+          yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
+          idType: ds.idType,
+        })
+      : [],
+  };
+};
 
-describe("${className}", () => {
-  let repo: Repo;
-  let service: ${className};
-
-  beforeEach(() => {
-    repo = createMockRepository();
-    service = new ${className}(repo);
-  });
-
-  it("findAll delegates to the repository", async () => {
-    await service.findAll();
-    expect(repo.findAll).toHaveBeenCalledOnce();
-  });
-
-  it("findById forwards the id to repo.find", async () => {
-    const id = ${idExpr};
-    await service.findById(id);
-    expect(repo.find).toHaveBeenCalledWith(id);
-  });
-
-  it("create forwards the payload to repo.add", async () => {
-    const payload = { name: "example" } as any;
-    await service.create(payload);
-    expect(repo.add).toHaveBeenCalledWith(payload);
-  });
-
-  it("update forwards id + patch", async () => {
-    const id = ${idExpr};
-    const patch = { name: "renamed" } as any;
-    await service.update(id, patch);
-    expect(repo.update).toHaveBeenCalledWith(id, patch);
-  });
-
-  it("delete forwards the id", async () => {
-    const id = ${idExpr};
-    await service.delete(id);
-    expect(repo.delete).toHaveBeenCalledWith(id);
-  });
-
-  it("findBy translates a single NameValue to repo.findBy", async () => {
-    await service.findBy([{ name: "email", value: "a@b.c" }]);
-    expect(repo.findBy).toHaveBeenCalledWith("email", "a@b.c");
-  });
-});
-`;
-
-  return { path, content };
-}
-
-/** Catalog `service_tests` step (typescript). */
-export const generate = (ctx: unknown) =>
-  servicesStepGenerate(
-    {
-      dispatchStep: dispatchServiceTestsStep,
-      generator: { createGenerator },
-      language: "typescript",
-    },
-    ctx,
-  );
-
-export const createGenerator = () => ({
-  generate: (config: ServiceTestsGenerateConfig) =>
-    generateServiceTestsFiles({
-      ...config,
-      primitives: {
-        generateGenericServiceTest,
-        defaultGenerateOptions: DEFAULT_GENERATE_OPTIONS,
-      },
+const renderTest = (
+  candidate: ServiceCandidate,
+  opts: EmitOptions,
+): GenerateEntry => {
+  const { naming } = opts;
+  const pk = primaryKeyFor(candidate.name, opts.datasources, opts.idType);
+  const path = naming.testPath(candidate.name);
+  const fileBase = naming.fileBase(candidate.name);
+  return content(
+    path,
+    fill(genericTmpl, {
+      prelude: preludeSource(fakeTestData),
+      repositoriesImport: libraryImportSpecifier(
+        "repositories",
+        opts.libraryReferenceMode,
+        naming.byFeature
+          ? path
+          : `services/generated/__tests__/${fileBase}.test.ts`,
+      ),
+      className: naming.serviceClassName(candidate.name),
+      importPath: joinImport("..", fileBase),
+      entityNameJson: JSON.stringify(candidate.name),
+      pkExpr: `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`,
+      idExpr: fakeTestData.id(asIdType(pk.idType)),
     }),
-});
+  );
+};
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const opts = await emitOptions(ctx);
+  const { generics } = await loadServices(ctx.reader, {
+    idType: opts.idType,
+    serviceClassName: opts.naming.serviceClassName,
+  });
+  return generics.map((c) => renderTest(c, opts));
+};

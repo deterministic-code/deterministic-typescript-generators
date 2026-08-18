@@ -191,6 +191,31 @@ export const parseDatasourceTypes = (args: {
   }));
 };
 
+export type PrimaryKey = { column: string; idType: string };
+
+const idTypeFromFieldType = (fieldType: string): string => {
+  if (
+    fieldType === "string" ||
+    fieldType === "uuid" ||
+    fieldType === "biginteger"
+  ) {
+    return fieldType;
+  }
+  return "integer";
+};
+
+/** First non-`id` `primary_key` field, else the project `id` / `idType`. */
+export const primaryKeyFor = (
+  entity: string,
+  datasources: DatasourceType[],
+  defaultIdType: string,
+): PrimaryKey => {
+  const table = datasources.find((d) => d.name === entity);
+  const custom = table?.fields.find((f) => f.isPrimaryKey && f.name !== "id");
+  if (custom === undefined) return { column: "id", idType: defaultIdType };
+  return { column: custom.name, idType: idTypeFromFieldType(custom.type) };
+};
+
 /** Unique lookup columns: `is_unique` fields plus single-column unique indexes. */
 export const uniqueLookupFields = (
   type: DatasourceType,

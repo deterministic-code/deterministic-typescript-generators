@@ -137,6 +137,7 @@ export type ServiceNaming = ArtifactNaming & {
   finderMethod: (field: string) => string;
   casedFileStem: (stem: string) => string;
   customStubPath: (className: string) => string;
+  testPath: (entity: string) => string;
   featureEntityFromClass: (className: string) => string;
   importSpecifier: (
     fromEntity: string,
@@ -270,6 +271,12 @@ export const typescriptServiceNaming = (
     finderMethod: (field) => camelCase(`find_by_${field}`),
     casedFileStem,
     featureEntityFromClass,
+    testPath: (entity) => {
+      const file = `${fileBase(entity)}.test.ts`;
+      return c.byFeature
+        ? `features/${c.dirCase(entity)}/__tests__/${file}`
+        : file;
+    },
     customStubPath: (className) => {
       const entity = featureEntityFromClass(className) || "shared";
       return `features/${entity}/custom/${casedFileStem(className)}.ts`;
@@ -285,6 +292,7 @@ export const typescriptServiceNaming = (
 export type RouteNaming = ArtifactNaming & {
   routerFnName: (entity: string) => string;
   apiPath: (entity: string) => string;
+  testPath: (entity: string) => string;
   customRouteFileBase: (name: string) => string;
   customStubPath: (className: string, fileBase: string) => string;
   serviceImport: (
@@ -337,6 +345,12 @@ export const typescriptRouteNaming = (
     routerFnName: (entity) => camelCase(pluralSnake(entity) + "_router"),
     apiPath: (entity) =>
       kebabCase(pluralSnake(entity)).replace(/_/g, "-"),
+    testPath: (entity) => {
+      const file = `${fileBase(entity)}.integration.test.ts`;
+      return c.byFeature
+        ? `features/${c.dirCase(featureEntity(entity))}/__tests__/${file}`
+        : file;
+    },
     customRouteFileBase: (name) => c.fileCase(`${name}_route`),
     customStubPath: (className, fileBaseName) => {
       const entity = featureEntityFromClass(className) || "shared";

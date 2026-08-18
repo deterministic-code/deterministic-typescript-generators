@@ -1,22 +1,18 @@
-import { isWriteDtoViewName } from "./sdk/lib/schema-build.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { isWriteDtoViewName } from "./schema-helpers.ts";
 import { buildFrontendComponents } from "./frontend-type-components.ts";
-import { layoutForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
+import { layoutForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
 import { readBindings, bindingDatasource } from "./frontend-bindings-routes.ts";
-import {
-  serializeSampleValue as serializeValue,
-  accessExpr,
-} from "./sdk/codegen/lib/ts-sample-literal.ts";
+import { serializeSampleValue as serializeValue, accessExpr } from "./sample-literal.ts";
 import {
   sampleForComponent,
   scalarSetFields,
   nullableFieldNames,
 } from "./component-fixture.ts";
-import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
-import type { GenerateArgs } from "./frontend-generate-types.ts";
-import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
-import type { CodegenNames } from "./sdk/codegen-naming.ts";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+import type { CodegenNames } from "./openapi/codegen-naming.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
 
 type Components = Record<string, unknown>;
 
@@ -118,24 +114,27 @@ function datasourceTestEntries(
   { readNames, components, opts, layout }: TestModel,
 ) {
   const ctx: TestCtx = { ...opts, layout, datasource };
-  return readNames.map((name) => ({
-    kind: CONTENT,
-    filename: layout.frontendTypesFile(
-      datasource,
-      `${opts.names.casedFileStem(name)}.test.ts`,
+  return readNames.map((name) =>
+    content(
+      layout.frontendTypesFile(
+        datasource,
+        `${opts.names.casedFileStem(name)}.test.ts`,
+      ),
+      testFileContents(name, components, ctx),
     ),
-    contents: testFileContents(name, components, ctx),
-  }));
+  );
 }
 
 /** Generate a `<stem>.test.ts` next to every read type frontend_types generates — under `bindings/<datasource>/types/` for each `frontend_bindings.yaml` datasource, the same entity/view components filtered to read types the same way. Each test constructs a fully-typed instance (a compile-time shape check against the generated interface) and exercises get/set on its plain scalar fields plus null-assignment on its nullable ones. Adds the vitest harness to frontend/package.json. */
-async function planFrontendTypesTests({ inputs, settings }: GenerateArgs) {
-  const { datasources } = await readBindings(inputs);
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const { datasources } = await readBindings(ctx.reader);
   if (datasources.length === 0) return [];
   const { components, names, fields, datetime } = await buildFrontendComponents(
-    { inputs, settings },
+    ctx,
   );
-  const layout = layoutForSettings(settings, "typescript");
+  const layout = layoutForSettings(ctx.settings, "typescript");
   const opts: TestOpts = {
     names,
     ident: (key: string) => fields.ident(key),
@@ -157,9 +156,4 @@ async function planFrontendTypesTests({ inputs, settings }: GenerateArgs) {
   }
   if (entries.length > 0) entries.push(frontendTestHarnessPatch());
   return entries;
-}
-
-export const generate = async (ctx: Parameters<typeof planFrontendTypesTests>[0]) =>
-  finalizePlan(await planFrontendTypesTests(ctx));
-
-export const assembleAfterStep = true;
+};

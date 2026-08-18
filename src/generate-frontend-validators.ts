@@ -1,11 +1,12 @@
 import { join } from "node:path";
-import { CodegenFieldNames } from "./sdk/field-names.ts";
-import { namesForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { datetimeOptionFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
+import { datasourceSettings } from "./common/datasource-settings.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { patch, type GenerateEntry } from "./common/generate-entry.ts";
+import { CodegenFieldNames } from "./openapi/field-names.ts";
+import { namesForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
 import { refName, validatorObjectEntries } from "./frontend-bindings-routes.ts";
-import { PATCH, finalizePlan, type GenerateEntry } from "./sdk/codegen/lib/generate-result.ts";
-import type { GenerateArgs, SchemaProp } from "./frontend-generate-types.ts";
-import type { CodegenNames } from "./sdk/codegen-naming.ts";
+import type { SchemaProp } from "./frontend-generate-types.ts";
+import type { CodegenNames } from "./openapi/codegen-naming.ts";
 
 const ZOD_VERSION = "^3.23.8";
 
@@ -151,33 +152,29 @@ function renderObjectValidators(
 
 /** The generated validators.ts files `import { z } from "zod"`, so the frontend needs zod at runtime — add it (add-if-absent, deep-merged) rather than leaving a dangling import the generated app can't resolve. */
 function zodDependencyPatch() {
-  return {
-    kind: PATCH,
-    filename: join("frontend", "package.json"),
-    content: JSON.stringify({ dependencies: { zod: ZOD_VERSION } }),
-  };
+  return patch(
+    join("frontend", "package.json"),
+    JSON.stringify({ dependencies: { zod: ZOD_VERSION } }),
+  );
 }
 
 /** Generate a self-contained zod validators file per object, placed by layout mode via `CodegenLayout.frontendValidatorFile` (flat `validators/<object>.ts`, by-feature `features/<object>/validators.ts`) — driven by the same `frontend_bindings.yaml` + route projection as `client_bindings`, so validators track the clients. Each file holds the zod schemas for the read + create/update/eager types that object's routes send/receive (transitive `$ref` closure); `client_bindings` imports them through the layout's `frontendRelImport`. Always generates when the step runs; `settings.frontend.generate_validators` gates only whether the frontend `--all` sweep includes this step (see generate.mjs runAll). `$ref` becomes `z.lazy(() => XSchema)` so circular refs survive ESM module init; datetime honors the setting (native → `z.coerce.date()`). */
-async function planFrontendValidators({ inputs, settings }: GenerateArgs) {
-  const names = namesForSettings(settings, "typescript");
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const names = namesForSettings(ctx.settings, "typescript");
   const fields = new CodegenFieldNames({ fieldFormat: names.fieldFormat });
   const base: ValidatorBase = {
     names,
     fields,
-    datetime: datetimeOptionFromSettings(settings).datetime,
+    datetime: datasourceSettings(ctx.settings).datetimeRepr,
   };
   const entries: GenerateEntry[] = await validatorObjectEntries(
-    { inputs, settings },
+    ctx,
     { test: false },
     (closure: Set<string>, components: Record<string, SchemaProp>) =>
       renderObjectValidators(closure, components, base),
   );
   if (entries.length > 0) entries.push(zodDependencyPatch());
   return entries;
-}
-
-export const generate = async (ctx: Parameters<typeof planFrontendValidators>[0]) =>
-  finalizePlan(await planFrontendValidators(ctx));
-
-export const assembleAfterStep = true;
+};

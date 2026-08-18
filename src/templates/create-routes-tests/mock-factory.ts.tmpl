@@ -1,0 +1,16 @@
+function createMock(primaryKey?: any): any {
+  return {
+    primaryKey,
+    query: vi.fn().mockResolvedValue([]),
+    findAll: vi.fn().mockResolvedValue([]),
+    find: vi.fn().mockResolvedValue([]),
+    findById: vi.fn().mockResolvedValue(null),
+    findBy: vi.fn().mockResolvedValue([]),
+    create: vi.fn(async (data: unknown) => ({ id: 1, ...(data as object) })),
+    update: vi.fn(async (id: number, data: unknown) => ({ id, ...(data as object) })),
+    patch: vi.fn(async (id: number, data: unknown) => ({ id, ...(data as object) })),
+    delete: vi.fn().mockResolvedValue(true),
+    updateBy: vi.fn().mockResolvedValue(0),
+    deleteBy: vi.fn().mockResolvedValue(0),
+  };
+}

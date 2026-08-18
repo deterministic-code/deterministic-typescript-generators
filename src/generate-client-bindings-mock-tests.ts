@@ -1,5 +1,5 @@
-import type { SettingsDict } from "./sdk/settings-dict.ts";
-import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
+import type { GenerateContext } from "./common/generate-context.ts";
+import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { clientBindingTestEntries } from "./frontend-bindings-routes.ts";
 import {
   BODY_METHODS,
@@ -8,10 +8,9 @@ import {
   pathParamsOf,
 } from "./client-op-model.ts";
 import { sampleForSchema } from "./component-fixture.ts";
-import { serializeSampleValue as serializeValue } from "./sdk/codegen/lib/ts-sample-literal.ts";
-import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
+import { serializeSampleValue as serializeValue } from "./sample-literal.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
-import type { CodegenLayout } from "./sdk/codegen-layout.ts";
+import type { CodegenLayout } from "./openapi/codegen-layout.ts";
 
 interface RouteRow {
   method: string;
@@ -292,37 +291,27 @@ function entityClientEntries(
       entity,
       `${client}.ts`,
     );
-    return {
-      kind: CONTENT,
-      filename: testFile,
-      contents: FILE_RENDERERS[client](ops, {
+    return content(
+      testFile,
+      FILE_RENDERERS[client](ops, {
         entity,
         symbols: importedSymbols(ops, client),
         clientImport: layout.frontendRelImport(testFile, clientFile),
       }),
-    };
+    );
   });
 }
 
 /** Generate a `<client>.test.ts` next to every generated client file, one per (object, library). Each drives the real client function against a mocked transport — fetch/tanstack stub `globalThis.fetch`, axios mocks the module — and asserts the exact method + URL (params substituted) + JSON body the client sends, that the response is returned, and that a non-ok/error transport rejects. Driven by the same route projection as client_bindings, so the tests track the generated clients one-to-one. Adds the vitest harness to frontend/package.json. */
-async function planMockTests({
-  inputs,
-  settings,
-}: {
-  inputs: unknown;
-  settings: SettingsDict;
-}) {
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
   const { entries } = await clientBindingTestEntries({
-    inputs,
-    settings,
+    reader: ctx.reader,
+    settings: ctx.settings,
     clientLibs: CLIENT_LIBS,
     entryFor: entityClientEntries,
     harness: () => [frontendTestHarnessPatch()],
   });
   return entries;
-}
-
-export const generate = async (ctx: Parameters<typeof planMockTests>[0]) =>
-  finalizePlan(await planMockTests(ctx));
-
-export const assembleAfterStep = true;
+};

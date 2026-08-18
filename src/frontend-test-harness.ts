@@ -1,9 +1,5 @@
 import { join } from "node:path";
-import {
-  CONTENT,
-  PATCH,
-  type GenerateEntry,
-} from "./sdk/codegen/lib/generate-result.ts";
+import { content, patch, type GenerateEntry } from "./common/generate-entry.ts";
 
 const VITEST_VERSION = "^2.1.0";
 const ZOD_VERSION = "^3.23.8";
@@ -49,35 +45,22 @@ interface PackageJsonPatch {
 export function frontendTestHarnessPatch({
   needsZod = false,
 }: { needsZod?: boolean } = {}): GenerateEntry {
-  const patch: PackageJsonPatch = {
+  const body: PackageJsonPatch = {
     devDependencies: { vitest: VITEST_VERSION },
     scripts: { test: "vitest run" },
   };
-  if (needsZod) patch.dependencies = { zod: ZOD_VERSION };
-  return {
-    kind: PATCH,
-    filename: join("frontend", "package.json"),
-    content: JSON.stringify(patch),
-  };
+  if (needsZod) body.dependencies = { zod: ZOD_VERSION };
+  return patch(join("frontend", "package.json"), JSON.stringify(body));
 }
 
 /** The frontend-root harness the live client-bindings tests need: a base-URL setup that rewrites the generated clients' relative `/api/...` fetches at `BINDINGS_BASE_URL` (a resolver, not a mock — real requests pass through to the running backend), a dedicated `passWithNoTests` vitest config whose `bindings.live.ts` include keeps these files out of the default `vitest run`, and a `test:bindings-live` script the verify runner invokes. Always generated, so a project with zero frontend bindings still has the script the verify step calls — it just runs zero live tests and passes. */
 export function bindingsLiveHarnessEntries(): GenerateEntry[] {
   return [
-    {
-      kind: CONTENT,
-      filename: join("frontend", BINDINGS_LIVE_SETUP),
-      contents: BINDINGS_LIVE_SETUP_SRC,
-    },
-    {
-      kind: CONTENT,
-      filename: join("frontend", BINDINGS_LIVE_CONFIG),
-      contents: BINDINGS_LIVE_CONFIG_SRC,
-    },
-    {
-      kind: PATCH,
-      filename: join("frontend", "package.json"),
-      content: JSON.stringify({
+    content(join("frontend", BINDINGS_LIVE_SETUP), BINDINGS_LIVE_SETUP_SRC),
+    content(join("frontend", BINDINGS_LIVE_CONFIG), BINDINGS_LIVE_CONFIG_SRC),
+    patch(
+      join("frontend", "package.json"),
+      JSON.stringify({
         devDependencies: {
           vitest: VITEST_VERSION,
           "@types/node": NODE_TYPES_VERSION,
@@ -86,6 +69,6 @@ export function bindingsLiveHarnessEntries(): GenerateEntry[] {
           "test:bindings-live": `vitest run --config ${BINDINGS_LIVE_CONFIG}`,
         },
       }),
-    },
+    ),
   ];
 }

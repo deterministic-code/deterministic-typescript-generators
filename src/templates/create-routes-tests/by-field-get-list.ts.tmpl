@@ -1,0 +1,10 @@
+
+  it("GET {{mountPath}}/{{kebab}}/:value returns the array of matches", async () => {
+    service.findBy.mockResolvedValueOnce([
+      { id: 1, {{byField}}: "x" },
+      { id: 2, {{byField}}: "x" },
+    ]);
+    const res = await request(app).get("{{mountPath}}/{{kebab}}/x");
+    expect(res.status).toBe(200);
+    expect(service.findBy).toHaveBeenCalledWith([{ name: "{{byField}}", value: "x" }]);
+  });
