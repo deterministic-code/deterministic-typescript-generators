@@ -4,11 +4,10 @@ import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { datasourceSettings } from "./common/datasource-settings.ts";
 import { typescriptServiceNaming } from "./common/naming.ts";
 import {
+  SpecificationParser,
   DATASOURCE_TYPES_YAML,
-  parseDatasourceTypes,
   type DatasourceType,
-} from "./common/parse-datasource-types.ts";
-import { loadServices } from "./common/parse-services.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 
@@ -101,13 +100,13 @@ export const generate = async (
 ): Promise<GenerateEntry[]> => {
   const ds = datasourceSettings(ctx.settings);
   const naming = typescriptServiceNaming(ctx.settings);
-  const { generics } = await loadServices(ctx.reader, {
+  const { generics } = await new SpecificationParser(ctx.reader).loadServices({
     idType: ds.idType,
     serviceClassName: naming.serviceClassName,
   });
   const hasDs = await ctx.reader.exists(DATASOURCE_TYPES_YAML);
   const datasources = hasDs
-    ? parseDatasourceTypes({
+    ? new SpecificationParser().parseDatasourceTypes({
         yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
         idType: ds.idType,
       })

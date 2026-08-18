@@ -1,6 +1,56 @@
-import { RuntimeValue } from "./sample-literal.ts";
+import {
+  datetimeLiteral,
+  typescriptHomegrownTestData,
+  type IFakeTestData,
+} from "./fake-test-data.ts";
 import { converterTypeForSchema } from "./schema-helpers.ts";
 import { NUMERIC_TYPES } from "./field-converter.ts";
+
+/** A TS source fragment to splice into a fixture tree (faker/homegrown leaf, or a live identifier). */
+export class RawTsExpr {
+  source: string;
+  constructor(source: string) {
+    this.source = source;
+  }
+}
+
+const tsExpr = (source: string): RawTsExpr => new RawTsExpr(source);
+
+const safeKey = (key: string): string =>
+  /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key);
+
+export const accessExpr = (key: string): string =>
+  /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key)
+    ? `.${key}`
+    : `[${JSON.stringify(key)}]`;
+
+const serializeLeaf = (value: unknown): string | null => {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (value instanceof RawTsExpr) return value.source;
+  if (typeof value === "bigint") return `${value}n`;
+  if (value instanceof Date) {
+    return `new Date(${JSON.stringify(value.toISOString())})`;
+  }
+  if (typeof value === "object") return null;
+  return JSON.stringify(value);
+};
+
+export const serializeSampleValue = (
+  value: unknown,
+  opts: { jsonKeys?: boolean } = {},
+): string => {
+  const leaf = serializeLeaf(value);
+  if (leaf !== null) return leaf;
+  const rec = (v: unknown): string => serializeSampleValue(v, opts);
+  if (Array.isArray(value)) return `[${value.map(rec).join(", ")}]`;
+  const keyOf = (k: string): string =>
+    opts.jsonKeys === true ? JSON.stringify(k) : safeKey(k);
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([k, v]) => `${keyOf(k)}: ${rec(v)}`)
+    .join(", ");
+  return `{ ${entries} }`;
+};
 
 interface SchemaNode {
   $ref?: string;
@@ -23,11 +73,13 @@ interface SampleCtx {
   datetime: string;
   ident: (key: string) => string;
   nullableVariant: boolean;
+  data: IFakeTestData;
 }
 
 interface SampleOptions {
   datetime?: string;
   ident?: (key: string) => string;
+  data?: IFakeTestData;
 }
 
 interface IdentOptions {
@@ -50,26 +102,31 @@ function refName(ref: string): string {
   return ref.slice(REF_PREFIX.length);
 }
 
-function scalarSample(schema: SchemaNode, datetime: string): unknown {
+const scalarSample = (schema: SchemaNode, ctx: SampleCtx): unknown => {
   if (Array.isArray(schema.enum) && schema.enum.length > 0) {
     return schema.enum[0];
   }
+  const { data, datetime } = ctx;
   const key = converterTypeForSchema(schema);
-  if (NUMERIC_TYPES.has(key)) return 1;
-  if (key === "boolean") return true;
-  if (key === "uuid") return new RuntimeValue("uuid");
-  if (key === "datetime") return new RuntimeValue("datetime", { datetime });
-  if (key === "date") return new RuntimeValue("date");
-  if (key === "binary") return new Uint8Array(0);
-  if (key === "email") return new RuntimeValue("email");
+  if (NUMERIC_TYPES.has(key)) return tsExpr(data.integer());
+  if (key === "boolean") return tsExpr(data.boolean());
+  if (key === "uuid") return tsExpr(data.uuid());
+  if (key === "datetime") return tsExpr(datetimeLiteral(data, datetime));
+  if (key === "date") return tsExpr(data.date());
+  if (key === "binary") return tsExpr(data.binary());
+  if (key === "email") return tsExpr(data.email());
   // A pattern-constrained string can't take a random value and still match, so keep a stable literal there.
   if (typeof schema.pattern === "string") {
     return Number.isFinite(schema.maxLength)
       ? "sample".slice(0, schema.maxLength) || "s"
       : "sample";
   }
-  return new RuntimeValue("string", { size: schema.maxLength });
-}
+  return tsExpr(
+    data.string(
+      Number.isFinite(schema.maxLength) ? schema.maxLength : undefined,
+    ),
+  );
+};
 
 // A complete sample value for one schema node: `$ref` resolves through the components map (a re-entered ref yields null, mirroring schema-sample's cycle guard), `oneOf` picks its first member, arrays carry one element, and objects fill EVERY property (not just required) so the value matches the frontend_types interface shape, not only what zod would accept.
 function baseSample(
@@ -89,7 +146,7 @@ function baseSample(
   if (schema.type === "array") {
     return [baseSample(schema.items, ctx, seen)];
   }
-  return scalarSample(schema, ctx.datetime);
+  return scalarSample(schema, ctx);
 }
 
 function objectSample(
@@ -124,7 +181,11 @@ const IDENTITY = (key: string): string => key;
 export function sampleForSchema(
   schema: unknown,
   components: unknown,
-  { datetime = "string", ident = IDENTITY }: SampleOptions = {},
+  {
+    datetime = "string",
+    ident = IDENTITY,
+    data = typescriptHomegrownTestData,
+  }: SampleOptions = {},
 ): unknown {
   return objectSample(
     schema as SchemaNode,
@@ -133,6 +194,7 @@ export function sampleForSchema(
       datetime,
       ident,
       nullableVariant: false,
+      data,
     },
     new Set<string>(),
   );
@@ -142,7 +204,11 @@ export function sampleForSchema(
 export function sampleForComponent(
   name: string,
   components: unknown,
-  { datetime = "string", ident = IDENTITY }: SampleOptions = {},
+  {
+    datetime = "string",
+    ident = IDENTITY,
+    data = typescriptHomegrownTestData,
+  }: SampleOptions = {},
 ): Record<string, unknown> {
   const comps = components as Components;
   const schema = comps[name];
@@ -150,7 +216,7 @@ export function sampleForComponent(
     throw new Error(`sampleForComponent: unknown component "${name}"`);
   return objectSample(
     schema,
-    { components: comps, datetime, ident, nullableVariant: false },
+    { components: comps, datetime, ident, nullableVariant: false, data },
     new Set<string>([name]),
   ) as Record<string, unknown>;
 }
@@ -159,7 +225,11 @@ export function sampleForComponent(
 export function nullableVariantForComponent(
   name: string,
   components: unknown,
-  { datetime = "string", ident = IDENTITY }: SampleOptions = {},
+  {
+    datetime = "string",
+    ident = IDENTITY,
+    data = typescriptHomegrownTestData,
+  }: SampleOptions = {},
 ): unknown {
   const comps = components as Components;
   const schema = comps[name];
@@ -167,7 +237,7 @@ export function nullableVariantForComponent(
     throw new Error(`nullableVariantForComponent: unknown component "${name}"`);
   return objectSample(
     schema,
-    { components: comps, datetime, ident, nullableVariant: true },
+    { components: comps, datetime, ident, nullableVariant: true, data },
     new Set<string>([name]),
   );
 }

@@ -4,16 +4,14 @@ import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { datasourceSettings } from "./common/datasource-settings.ts";
 import { typescriptRouteNaming, type RouteNaming } from "./common/naming.ts";
 import {
+  SpecificationParser,
   primaryKeyFor,
-  type DatasourceType,
-} from "./common/parse-datasource-types.ts";
-import {
   entityUsesOptimisticConcurrency,
-  loadRoutes,
+  type DatasourceType,
   type RouteByField,
   type RouteCandidate,
-} from "./common/parse-routes.ts";
-import { loadViewTypes, type ViewEnrichment } from "./common/parse-view-types.ts";
+  type ViewEnrichment,
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
@@ -41,7 +39,7 @@ type EmitOptions = {
 const emitOptions = async (ctx: GenerateContext): Promise<EmitOptions> => {
   const ds = datasourceSettings(ctx.settings);
   const views = (await ctx.reader.exists("view_types.yaml"))
-    ? await loadViewTypes(ctx.reader)
+    ? await new SpecificationParser(ctx.reader).loadViewTypes()
     : [];
   return {
     naming: typescriptRouteNaming(ctx.settings),
@@ -164,7 +162,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = await emitOptions(ctx);
-  const parsed = await loadRoutes(ctx.reader, { idType: opts.idType });
+  const parsed = await new SpecificationParser(ctx.reader).loadRoutes({ idType: opts.idType });
   return parsed.candidates.map((c) =>
     renderTest(c, { ...opts, datasources: parsed.datasources }),
   );

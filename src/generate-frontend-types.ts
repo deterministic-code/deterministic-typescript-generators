@@ -2,16 +2,16 @@ import type { GenerateContext } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { isWriteDtoViewName } from "./schema-helpers.ts";
 import { buildFrontendComponents } from "./frontend-type-components.ts";
-import { layoutForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
+import { layoutForSettings } from "./common/codegen-layout.ts";
 import {
   readBindings,
   bindingDatasource,
   refName,
 } from "./frontend-bindings-routes.ts";
 import type { SchemaProp } from "./frontend-generate-types.ts";
-import type { CodegenNames } from "./openapi/codegen-naming.ts";
+import type { CodegenNames } from "./common/codegen-naming.ts";
 import type { CodegenFieldNames } from "./openapi/field-names.ts";
-import type { CodegenLayout } from "./openapi/codegen-layout.ts";
+import type { CodegenLayout } from "./common/codegen-layout.ts";
 
 const SCHEMA_VERSION = "1.0";
 

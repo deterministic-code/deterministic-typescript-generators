@@ -1,10 +1,12 @@
 import { parse } from "yaml";
+import { generate as generateOpenApi } from "@deterministic-code/generators-openapi/generate-openapi";
 import type { IDeterministicReader } from "./common/deterministic-reader.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import type { CodegenLayout } from "./openapi/codegen-layout.ts";
-import { buildOpenApiDocFromReader } from "./openapi/codegen/lib/generate-openapi-docs-shared.ts";
-import { layoutForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
+import {
+  layoutForSettings,
+  type CodegenLayout,
+} from "./common/codegen-layout.ts";
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -287,10 +289,14 @@ export async function resolveSelfDoc({
       `frontend bindings: schema "${schema}" not yet supported — only \`self\` or an \`id:\` reference to this project's own backend resolves today`,
     );
   }
-  const doc = (await buildOpenApiDocFromReader({
-    reader,
-    settings,
-  })) as unknown as OpenApiDoc;
+  const entries = await generateOpenApi({ reader, settings });
+  const jsonEntry = entries.find(
+    (e) => e.kind === "content" && e.filename === "openapi.json",
+  );
+  if (jsonEntry === undefined || jsonEntry.kind !== "content") {
+    throw new Error("openapi json lane did not emit openapi.json");
+  }
+  const doc = JSON.parse(jsonEntry.contents) as OpenApiDoc;
   return {
     doc,
     rows: operationRows(doc),

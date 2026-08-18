@@ -21,8 +21,8 @@ export const namedEntries = (
       })
     : [];
 
-export const isFiniteInt = (v: unknown): boolean =>
+export const isFiniteInt = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v) && Number.isInteger(v);
 
-export const isFiniteNumber = (v: unknown): boolean =>
+export const isFiniteNumber = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v);

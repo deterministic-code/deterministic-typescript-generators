@@ -7,10 +7,10 @@ import {
   type ViewArtifactNaming,
 } from "./common/naming.ts";
 import {
-  loadViewTypes,
+  SpecificationParser,
   type ViewField,
   type ViewType,
-} from "./common/parse-view-types.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { typeTestTmpl } from "./resources/view-types-tests.ts";
 
@@ -143,6 +143,6 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const views = await loadViewTypes(ctx.reader);
+  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   return views.map((view) => renderTests(view, opts));
 };

@@ -13,7 +13,7 @@ import { to, toNative } from "./common/type-converter.ts";
 
 export type { ConverterField, ConverterModule };
 
-/** The base64 sample a `binary` field takes on the TypeScript wire — binary is carried as a base64 string in a `format: byte` body, so the sampler generates a base64 string literal, not an `ArrayBuffer`. The canonical home; `ts-sample-literal.ts` re-exports it. */
+/** The base64 sample a `binary` field takes on the TypeScript wire — binary is carried as a base64 string in a `format: byte` body, so the sampler generates a base64 string literal, not an `ArrayBuffer`. */
 export const SAMPLE_BINARY_BASE64 = "AAAAAAAAAAAAAAAAAAAAAA==";
 
 /** The converter type keys that carry a numeric sample value (a `0` template, a `1` json sample). */

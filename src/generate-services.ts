@@ -3,7 +3,6 @@ import {
   nativeFieldType,
   type DatasourceSettings,
 } from "./common/datasource-settings.ts";
-import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
@@ -12,10 +11,10 @@ import {
   type ServiceNaming,
 } from "./common/naming.ts";
 import {
-  loadServices,
+  SpecificationParser,
   type CustomServiceEntry,
   type ServiceCandidate,
-} from "./common/parse-services.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
@@ -24,10 +23,19 @@ import {
   indexTmpl,
 } from "./resources/services.ts";
 
+const docTokens = (settings: SettingsDict) => {
+  const comments = settingsStr(settings, "comments");
+  return {
+    simpleDoc: comments !== "none" && comments !== "description",
+    descriptionDoc: comments === "description",
+  };
+};
+
 type EmitOptions = {
   ds: DatasourceSettings;
   naming: ServiceNaming;
-  style: CommentStyle;
+  simpleDoc: boolean;
+  descriptionDoc: boolean;
   libraryReferenceMode: string | undefined;
   createIndex: boolean;
 };
@@ -38,7 +46,7 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
   return {
     ds: datasourceSettings(settings),
     naming,
-    style: commentStyle(settingsStr(settings, "comments")),
+    ...docTokens(settings),
     libraryReferenceMode: settingsStr(
       settings,
       "languages.typescript.library_reference_mode",
@@ -87,16 +95,11 @@ export const resolveCustomGeneratePath = (
   return `../${parts.join("/")}.ts`;
 };
 
-const docFlags = (style: CommentStyle) => ({
-  simpleDoc: style === "simple",
-  descriptionDoc: style === "description",
-});
-
 const renderGeneric = (
   candidate: ServiceCandidate,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, style, ds, libraryReferenceMode } = opts;
+  const { naming, simpleDoc, descriptionDoc, ds, libraryReferenceMode } = opts;
   const typeName = naming.className(candidate.name);
   const className = naming.serviceClassName(candidate.name);
   const interfaceName = `I${className}`;
@@ -113,7 +116,8 @@ const renderGeneric = (
   return content(
     generatePath,
     fill(genericTmpl, {
-      ...docFlags(style),
+      simpleDoc,
+      descriptionDoc,
       typeImport: true,
       typeName,
       typeImportPath,
@@ -136,13 +140,14 @@ const renderCustom = (
   entry: CustomServiceEntry,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, style } = opts;
+  const { naming, simpleDoc, descriptionDoc } = opts;
   const className = entry.name;
   const interfaceName = `I${className}`;
   return content(
     resolveCustomGeneratePath(entry, naming, naming.byFeature),
     fill(customStubTmpl, {
-      ...docFlags(style),
+      simpleDoc,
+      descriptionDoc,
       interfaceName,
       className,
       hasMethods: entry.methods.length > 0,
@@ -200,7 +205,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const { generics, customs } = await loadServices(ctx.reader, {
+  const { generics, customs } = await new SpecificationParser(ctx.reader).loadServices({
     idType: opts.ds.idType,
     serviceClassName: opts.naming.serviceClassName,
   });

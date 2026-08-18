@@ -13,17 +13,14 @@ import {
   type ViewValidatorNaming,
 } from "./common/naming.ts";
 import {
+  SpecificationParser,
   DATASOURCE_TYPES_YAML,
-  parseDatasourceTypes,
   type DatasourceField,
   type DatasourceType,
-} from "./common/parse-datasource-types.ts";
-import {
-  loadViewTypes,
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "./common/parse-view-types.ts";
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { FieldConverter, fieldConverter } from "./field-converter.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
@@ -340,9 +337,9 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const base = emitBase(ctx.settings);
-  const views = await loadViewTypes(ctx.reader);
+  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const tables = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
-    ? parseDatasourceTypes({
+    ? new SpecificationParser().parseDatasourceTypes({
         yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
         idType: base.ds.idType,
       })

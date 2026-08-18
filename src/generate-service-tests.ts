@@ -4,12 +4,12 @@ import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { datasourceSettings } from "./common/datasource-settings.ts";
 import { typescriptServiceNaming, type ServiceNaming } from "./common/naming.ts";
 import {
+  SpecificationParser,
   DATASOURCE_TYPES_YAML,
-  parseDatasourceTypes,
   primaryKeyFor,
   type DatasourceType,
-} from "./common/parse-datasource-types.ts";
-import { loadServices, type ServiceCandidate } from "./common/parse-services.ts";
+  type ServiceCandidate,
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
@@ -35,7 +35,7 @@ const emitOptions = async (
       "languages.typescript.library_reference_mode",
     ),
     datasources: hasDs
-      ? parseDatasourceTypes({
+      ? new SpecificationParser().parseDatasourceTypes({
           yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
           idType: ds.idType,
         })
@@ -75,7 +75,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = await emitOptions(ctx);
-  const { generics } = await loadServices(ctx.reader, {
+  const { generics } = await new SpecificationParser(ctx.reader).loadServices({
     idType: opts.idType,
     serviceClassName: opts.naming.serviceClassName,
   });

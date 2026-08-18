@@ -4,25 +4,33 @@ import {
   nativeFieldType,
   type DatasourceSettings,
 } from "./common/datasource-settings.ts";
-import { commentStyle, type CommentStyle } from "./common/doc-comment.ts";
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
 import {
+  SpecificationParser,
   DATASOURCE_TYPES_YAML,
-  parseDatasourceTypes,
   type DatasourceType,
-} from "./common/parse-datasource-types.ts";
+} from "./common/specification-parser.ts";
 import { settingsBool, settingsStr } from "./common/settings.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
+
+const docTokens = (settings: SettingsDict) => {
+  const comments = settingsStr(settings, "comments");
+  return {
+    simpleDoc: comments !== "none" && comments !== "description",
+    descriptionDoc: comments === "description",
+  };
+};
 
 type EmitOptions = {
   ds: DatasourceSettings;
   naming: ArtifactNaming;
   schemaVersion: string;
-  style: CommentStyle;
+  simpleDoc: boolean;
+  descriptionDoc: boolean;
   libraryMode: string | undefined;
   createIndex: boolean;
 };
@@ -34,7 +42,7 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
     ds,
     naming,
     schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
-    style: commentStyle(settingsStr(settings, "comments")),
+    ...docTokens(settings),
     libraryMode: settingsStr(
       settings,
       "languages.typescript.library_reference_mode",
@@ -48,7 +56,8 @@ const renderType = (
   dsType: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { ds, naming, schemaVersion, style, libraryMode } = opts;
+  const { ds, naming, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
+    opts;
   const className = naming.className(dsType.name);
   const fields = declaredFields(dsType.fields, ds);
   return content(
@@ -61,8 +70,8 @@ const renderType = (
         naming.projectRelPath(dsType.name),
       ),
       withUuid: ds.withUuidColumn,
-      simpleDoc: style === "simple",
-      descriptionDoc: style === "description",
+      simpleDoc,
+      descriptionDoc,
       className,
       datasourceType: dsType.datasourceType,
       fieldCount: String(fields.length),
@@ -95,7 +104,7 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
-  const types = parseDatasourceTypes({
+  const types = new SpecificationParser().parseDatasourceTypes({
     yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
     idType: opts.ds.idType,
   });

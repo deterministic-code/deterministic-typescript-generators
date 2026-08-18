@@ -3,10 +3,10 @@ import { datasourceSettings } from "./common/datasource-settings.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { patch, type GenerateEntry } from "./common/generate-entry.ts";
 import { CodegenFieldNames } from "./openapi/field-names.ts";
-import { namesForSettings } from "./openapi/codegen/lib/ts-codegen-naming.ts";
+import { namesForSettings } from "./common/codegen-naming.ts";
 import { refName, validatorObjectEntries } from "./frontend-bindings-routes.ts";
 import type { SchemaProp } from "./frontend-generate-types.ts";
-import type { CodegenNames } from "./openapi/codegen-naming.ts";
+import type { CodegenNames } from "./common/codegen-naming.ts";
 
 const ZOD_VERSION = "^3.23.8";
 

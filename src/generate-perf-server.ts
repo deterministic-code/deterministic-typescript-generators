@@ -1,7 +1,9 @@
 import { fill } from "./common/fill.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { content, patch, type GenerateEntry } from "./common/generate-entry.ts";
-import { DATASOURCE_TYPES_YAML } from "./common/parse-datasource-types.ts";
+import {
+  DATASOURCE_TYPES_YAML,
+} from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { serverTmpl, vitestPerfTmpl } from "./resources/perf-server.ts";

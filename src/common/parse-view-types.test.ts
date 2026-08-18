@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseViewTypes } from "./parse-view-types.ts";
+import { SpecificationParser } from "./specification-parser.ts";
 
 const DS = `types:
   - user:
@@ -32,7 +32,7 @@ const DS = `types:
 
 describe("parseViewTypes", () => {
   it("reads shaped and union views", () => {
-    const views = parseViewTypes({
+    const views = new SpecificationParser().parseViewTypes({
       viewYaml: `types:
   - user_summary:
       inherits: datasource_types.user
@@ -101,7 +101,7 @@ describe("parseViewTypes", () => {
   });
 
   it("pass-throughs included datasource types and derives update variants", () => {
-    const views = parseViewTypes({
+    const views = new SpecificationParser().parseViewTypes({
       viewYaml: `includes:
   - datasource_types:
       include: "*"
@@ -129,7 +129,7 @@ types: []
   });
 
   it("skips update variants for readonly-lookup and already-prefixed names", () => {
-    const views = parseViewTypes({
+    const views = new SpecificationParser().parseViewTypes({
       viewYaml: `types:
   - role:
       inherits: datasource_types.role
@@ -145,7 +145,7 @@ types: []
   });
 
   it("auto-enriches FK columns on inherited views", () => {
-    const views = parseViewTypes({
+    const views = new SpecificationParser().parseViewTypes({
       viewYaml: `includes:
   - datasource_types:
       include: user
@@ -172,7 +172,7 @@ types: []
   });
 
   it("filters pass-throughs with the datasource_types.filter expression", () => {
-    const views = parseViewTypes({
+    const views = new SpecificationParser().parseViewTypes({
       viewYaml: `includes:
   - datasource_types:
       include: "*"
@@ -194,7 +194,7 @@ types: []
   it("throws when a datasource_types include is present without datasource YAML", () => {
     assert.throws(
       () =>
-        parseViewTypes({
+        new SpecificationParser().parseViewTypes({
           viewYaml: `includes:
   - datasource_types:
       include: "*"
@@ -208,7 +208,7 @@ types: []
   it("rejects an invalid datasource_types.filter expression", () => {
     assert.throws(
       () =>
-        parseViewTypes({
+        new SpecificationParser().parseViewTypes({
           viewYaml: `includes:
   - datasource_types:
       include: "*"

@@ -80,20 +80,20 @@ const LANGUAGE_ALIASES: Record<string, LanguageKey> = {
   rust: "rust",
 };
 
-function normalizeCasingLanguage(
+const normalizeCasingLanguage = (
   raw: string | null | undefined,
-): LanguageKey | null {
+): LanguageKey | null => {
   if (!raw) return null;
   const key = String(raw)
     .toLowerCase()
     .replace(/[\s_\-]/g, "");
   return LANGUAGE_ALIASES[key] ?? null;
-}
+};
 
-export function resolveAutoCasing(
+export const resolveAutoCasing = (
   language: string,
   options: LanguageCasing,
-): LanguageCasing {
+): LanguageCasing => {
   const key = normalizeCasingLanguage(language);
   if (!key) {
     throw new Error(
@@ -107,22 +107,19 @@ export function resolveAutoCasing(
   if (out.fieldFormat === "Auto") out.fieldFormat = conventions.fieldFormat;
   if (out.dirFormat === "Auto") out.dirFormat = conventions.dirFormat;
   return out;
-}
+};
 
-export function tokenize(name: string): string[] {
-  return name
+export const tokenize = (name: string): string[] =>
+  name
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .split(/[\s_\-]+/)
     .filter((s) => s.length > 0)
     .map((s) => s.toLowerCase());
-}
 
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function toCase(name: string, format: CaseFormat): string {
+export const toCase = (name: string, format: CaseFormat): string => {
   const tokens = tokenize(name);
   switch (format) {
     case "Camel":
@@ -138,24 +135,16 @@ export function toCase(name: string, format: CaseFormat): string {
         `Unknown case format: ${format}. Valid: ${CASE_FORMATS.join(", ")}.`,
       );
   }
-}
+};
 
-export function kebab(name: string): string {
-  return toCase(name, "Kebab");
-}
+export const kebab = (name: string): string => toCase(name, "Kebab");
 
-export function snake(name: string): string {
-  return toCase(name, "Snake");
-}
+export const snake = (name: string): string => toCase(name, "Snake");
 
-export function pascal(name: string): string {
-  return toCase(name, "Pascal");
-}
+export const pascal = (name: string): string => toCase(name, "Pascal");
 
-// Literal dash→underscore for already-kebab input; unlike snake() it does not re-tokenize camelCase.
-export function kebabToSnake(name: string): string {
-  return name.replace(/-/g, "_");
-}
+/** Literal dash→underscore for already-kebab input; unlike snake() it does not re-tokenize camelCase. */
+export const kebabToSnake = (name: string): string => name.replace(/-/g, "_");
 
 const CASE_VARIANT_FORMATS: readonly CaseFormat[] = [
   "Camel",
@@ -164,7 +153,7 @@ const CASE_VARIANT_FORMATS: readonly CaseFormat[] = [
   "Kebab",
 ];
 
-export function caseVariantsOf(name: string): string[] {
+export const caseVariantsOf = (name: string): string[] => {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const format of CASE_VARIANT_FORMATS) {
@@ -175,44 +164,33 @@ export function caseVariantsOf(name: string): string[] {
     }
   }
   return out;
-}
+};
 
-export function snakeToCamel(name: string): string {
-  return name
+export const snakeToCamel = (name: string): string =>
+  name
     .split(/[_-]/)
     .map((part, i) => (i === 0 ? part : cap(part)))
     .join("");
-}
 
-export function snakeToPascal(name: string): string {
-  return cap(snakeToCamel(name));
-}
+export const snakeToPascal = (name: string): string => cap(snakeToCamel(name));
 
-export function snakeToKebab(name: string): string {
-  return name.replace(/_/g, "-");
-}
+export const snakeToKebab = (name: string): string => name.replace(/_/g, "-");
 
-// The general camelCase/PascalCase → snake_case caser (tokenizes acronyms), shared by byField/route discovery; identical to snake().
-export function camelToSnake(name: string): string {
-  return toCase(name, "Snake");
-}
+/** camelCase/PascalCase → snake_case (tokenizes acronyms); identical to snake(). */
+export const camelToSnake = (name: string): string => toCase(name, "Snake");
 
-// npm `pluralize` — handles irregulars + already-plural + -f/-fe; mirrors effective-table-name.mjs and effectiveTableName.ts so filenames and table names stay in sync.
-export function pluralize(word: string): string {
-  return npmPluralize.plural(word);
-}
+/** npm `pluralize` — irregulars + already-plural + -f/-fe. */
+export const pluralize = (word: string): string => npmPluralize.plural(word);
 
-export function kebabPlural(name: string): string {
+export const kebabPlural = (name: string): string => {
   const kebabName = snakeToKebab(name);
   const parts = kebabName.split("-");
-  parts[parts.length - 1] = pluralize(parts[parts.length - 1]);
+  parts[parts.length - 1] = pluralize(parts[parts.length - 1]!);
   return parts.join("-");
-}
+};
 
-export function apiPathSegment(entity: string): string {
-  return kebabPlural(entity).replace(/_/g, "-");
-}
+export const apiPathSegment = (entity: string): string =>
+  kebabPlural(entity).replace(/_/g, "-");
 
-export function camelPlural(entity: string): string {
-  return snakeToCamel(kebabPlural(entity).replace(/-/g, "_"));
-}
+export const camelPlural = (entity: string): string =>
+  snakeToCamel(kebabPlural(entity).replace(/-/g, "_"));

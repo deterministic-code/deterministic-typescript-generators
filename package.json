@@ -23,22 +23,20 @@
     "src"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/ && mkdir -p dist/openapi && cp src/openapi/default-settings.yaml dist/openapi/",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/",
     "prepare": "npm run build",
-    "test": "node --experimental-strip-types --test src/generate-backend-app.integration.test.ts src/generate-frontend-app.integration.test.ts src/generate-frontend-types.integration.test.ts src/generate-datasource-types.integration.test.ts src/generate-datasource-types-tests.integration.test.ts src/generate-datasource-type-validators.integration.test.ts src/generate-datasource-type-validators-tests.integration.test.ts src/generate-view-types.integration.test.ts src/generate-view-types-tests.integration.test.ts src/generate-view-type-validators.integration.test.ts src/generate-view-type-validators-tests.integration.test.ts src/generate-services.integration.test.ts src/generate-service-tests.integration.test.ts src/generate-routes.integration.test.ts src/generate-routes-tests.integration.test.ts src/generate-perf-e2e-tests.integration.test.ts src/generate-perf-server.integration.test.ts src/common/parse-datasource-types.test.ts src/common/parse-view-types.test.ts src/common/parse-services.test.ts src/common/parse-routes.test.ts src/frontend-bindings-routes.test.ts",
+    "test": "node --experimental-strip-types --test src/generate-backend-app.integration.test.ts src/generate-frontend-app.integration.test.ts src/generate-frontend-types.integration.test.ts src/generate-datasource-types.integration.test.ts src/generate-datasource-types-tests.integration.test.ts src/generate-datasource-type-validators.integration.test.ts src/generate-datasource-type-validators-tests.integration.test.ts src/generate-view-types.integration.test.ts src/generate-view-types-tests.integration.test.ts src/generate-view-type-validators.integration.test.ts src/generate-view-type-validators-tests.integration.test.ts src/generate-services.integration.test.ts src/generate-service-tests.integration.test.ts src/generate-routes.integration.test.ts src/generate-routes-tests.integration.test.ts src/generate-perf-e2e-tests.integration.test.ts src/generate-perf-server.integration.test.ts src/common/parse-datasource-types.test.ts src/common/parse-view-types.test.ts src/common/parse-services.test.ts src/common/parse-routes.test.ts src/common/specification-parser.test.ts src/frontend-bindings-routes.test.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
-    "@deterministic-code/deterministic-specifications": "github:deterministic-code/deterministic-specifications",
+    "@deterministic-code/generators-openapi": "github:deterministic-code/generators-openapi",
     "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger",
     "change-case": "^5.4.4",
-    "js-yaml": "^4.1.0",
     "mustache": "^4.2.0",
     "pluralize": "^8.0.0",
     "yaml": "^2.6.0"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9",
     "@types/mustache": "^4.2.6",
     "@types/node": "^22.10.0",
     "@types/pluralize": "^0.0.33",
