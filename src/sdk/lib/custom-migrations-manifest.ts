@@ -1,5 +1,5 @@
 import { parse, stringify } from "yaml";
-import { SQL_DIALECTS, normalizeDialect } from "./generate-sql.ts";
+import { SQL_DIALECTS, normalizeDialect } from "../../common/sql-dialect.ts";
 
 /** One custom migration slot for a dialect: a 1-based `order`, a `name`, and the paired `up`/`down` SQL. This is the single wire shape shared by the CLI save path (which reads the local custom/ folder) and the id:-include fetch path (which re-generates the migrations), kept separate from the on-disk file layout so the store never depends on filenames. */
 export interface CustomMigrationPair {

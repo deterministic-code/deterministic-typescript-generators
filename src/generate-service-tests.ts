@@ -11,7 +11,7 @@ import {
   namesFor,
   type NamesForOptions,
 } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { fakerId } from "./field-converter.ts";
+import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
 
 interface PrimaryKeyInfo {
   column: string;
@@ -55,12 +55,11 @@ export function generateGenericServiceTest(
       : `services/generated/__tests__/${fileBase}.test.ts`,
   );
   const pk = candidate.primaryKey;
-  const idExpr = fakerId(pk.idType);
+  const idExpr = fakeTestData.id(asIdType(pk.idType));
   const pkExpr = `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`;
 
   const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
-import { faker } from "@faker-js/faker";
-import type { ICrudRepository } from "${repositoriesImport}";
+${preludeSource(fakeTestData)}import type { ICrudRepository } from "${repositoriesImport}";
 import { PrimaryKey } from "${repositoriesImport}";
 import { ${className} } from "${importPath}";
 

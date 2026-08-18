@@ -25,21 +25,3 @@ export function libraryImportSpecifier(
   // why explicit .js for bundled: tsc with moduleResolution=bundler preserves the import string verbatim into the compiled JS; Node ESM at runtime requires an explicit extension or a package.json exports map — bundled `_deterministic/` ships neither, so the extension goes on at generate-time. Missing it triggered ERR_MODULE_NOT_FOUND on `/app/dist/_deterministic/app` even after PR #1122's runtime-stage COPY landed.
   return subpath ? `${rel}/${subpath}.js` : `${rel}/index.js`;
 }
-
-const LIBRARY_IMPORT_RE = new RegExp(
-  `(["'])${NPM_PACKAGE.replace(/[/\\]/g, "\\$&")}(?:/([\\w./-]+))?\\1`,
-  "g",
-);
-
-/** Rewrite every quoted `@deterministic-code/deterministic[/subpath]` specifier in raw template source to the mode-appropriate one for the file it lands at. A genuine no-op in npm/registry mode (returns the same bare specifier); in bundled mode redirects each to the vendored `_deterministic/…js` relative path. Only quoted specifiers match, so a backtick reference inside a comment is left alone. */
-export function rewriteLibraryImports(
-  source: string,
-  mode: string | undefined,
-  generatedFileRelToProjectRoot: string,
-): string {
-  return source.replace(
-    LIBRARY_IMPORT_RE,
-    (_match: string, quote: string, subpath: string | undefined) =>
-      `${quote}${libraryImportSpecifier(subpath ?? "", mode, generatedFileRelToProjectRoot)}${quote}`,
-  );
-}

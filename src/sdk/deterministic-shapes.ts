@@ -17,6 +17,7 @@ export type RawFieldEntry = Record<string, RawFieldDef>;
 /** A datasource-type or view-type definition body. `__enrichments` / `__omitFromInherited` are internal markers the view expander stamps on during auto-enrich, never authored. */
 export interface RawTypeDef {
   datasource_type?: string | null;
+  use_optimistic_concurrency?: boolean;
   inherits?: string;
   fields?: RawFieldEntry[];
   omit?: string[];

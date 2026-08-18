@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { SQL_DIALECTS, normalizeDialect } from "./generate-sql.ts";
+import { SQL_DIALECTS, normalizeDialect } from "../../common/sql-dialect.ts";
 import type { CustomMigrationPair } from "./custom-migrations-manifest.ts";
 
 const ORDER_FILENAME_RE = /^(\d+)_([A-Za-z0-9][A-Za-z0-9_-]*)_(up|down)\.sql$/;
