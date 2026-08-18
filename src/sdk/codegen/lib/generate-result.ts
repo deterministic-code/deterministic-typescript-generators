@@ -18,6 +18,11 @@ interface FileLike {
   content: string;
 }
 
+/** What a lane's `plan` may return: native `GenerateEntry[]`, or a `{ files }` bag normalized below. */
+export type PlanOutput =
+  | GenerateEntry[]
+  | { files: FileLike[]; skeletonTarget?: (path: string) => boolean };
+
 /** The empty generate result a create-script returns when validation fails: no files, no resolved language/organize, carrying the failed `validation` for the caller to surface. */
 export function emptyGenerateResult(validation: unknown) {
   return { files: [], language: null, organize: null, validation };
@@ -74,3 +79,16 @@ export function assertEntry(entry: Record<string, unknown>) {
     );
   }
 }
+
+/** Normalize a plan result to validated `GenerateEntry[]`. */
+export const finalizePlan = (output: PlanOutput): GenerateEntry[] => {
+  const entries = Array.isArray(output)
+    ? output
+    : output.skeletonTarget
+      ? skeletonEntriesFromFiles(output.files, output.skeletonTarget)
+      : entriesFromFiles(output.files);
+  for (const entry of entries) {
+    assertEntry(entry as Record<string, unknown>);
+  }
+  return entries;
+};

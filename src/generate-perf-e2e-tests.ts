@@ -1,4 +1,4 @@
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 
 const FILE_BODY = `import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFile, access } from "node:fs/promises";
@@ -266,6 +266,7 @@ export function generatePerfE2eTestTypescript(): string {
 const PERF_E2E_BASENAME = "app.perf.client.test.ts";
 
 /** Self-describing catalog `perf_e2e_tests` (typescript): the perf e2e client that replays performance-plan.yaml against a running backend. The `--output` already resolves to the `__tests__` dir, so the file is placed by basename. */
-export const generate = makeGenerate(async () => ({
-  files: [{ path: PERF_E2E_BASENAME, content: generatePerfE2eTestTypescript() }],
-}));
+export const generate = async () =>
+  finalizePlan({
+    files: [{ path: PERF_E2E_BASENAME, content: generatePerfE2eTestTypescript() }],
+  });

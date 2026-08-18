@@ -1,11 +1,16 @@
-import { INLINED_VIEW_AUDIT_FIELDS as STANDARD_DATASOURCE_FIELDS } from "./standard-columns.ts";
-
 /** A datasource type's declared field, normalized to codegen-neutral shape. */
 export interface DeclaredField {
   name: string;
   type: string;
   isNullable: boolean;
 }
+
+const STANDARD_DATASOURCE_FIELDS: DeclaredField[] = [
+  { name: "id", type: "number", isNullable: false },
+  { name: "uuid", type: "string", isNullable: false },
+  { name: "created", type: "datetime", isNullable: false },
+  { name: "updated", type: "datetime", isNullable: false },
+];
 
 interface DatasourceFieldDef {
   type: string;

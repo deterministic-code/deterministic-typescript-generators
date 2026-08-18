@@ -59,7 +59,7 @@ const textOf = (entries: GenerateEntry[], path: string): string => {
 };
 
 describe("generate-routes", () => {
-  it("emits CRUD, readonly, byField, custom health, app-wiring, and nested", async () => {
+  it("emits CRUD, readonly, byField, custom health, and app-wiring", async () => {
     const entries = await generate({
       reader: memoryReader({
         "datasource_types.yaml": DS_YAML,
@@ -76,8 +76,8 @@ describe("generate-routes", () => {
     assert.ok(paths.includes("app-wiring.ts"));
     assert.ok(paths.some((p) => p.includes("get-health") || p.includes("GetHealth") || p.endsWith("get-health-route.ts") || p.includes("health")));
     assert.ok(
-      paths.some((p) => p.includes("nested-order-order-item") || p.includes("nested_order_order_item")),
-      `nested missing in ${paths.join(", ")}`,
+      !paths.some((p) => p.includes("nested")),
+      `nested routers must not emit; got ${paths.join(", ")}`,
     );
 
     const users = textOf(entries, "users.ts");

@@ -1,5 +1,4 @@
 import { parse } from "yaml";
-import { resolveLanguage } from "./resolve-language.ts";
 import { validateViewAndDatasource } from "./script-input.ts";
 import {
   idTypeFromSettings,
@@ -33,7 +32,11 @@ import {
   extractEagerWriteChildren,
   buildEagerWriteChildrenClosure,
 } from "./eager-write-children.ts";
-import { settingsStr, type SettingsDict } from "../../settings-dict.ts";
+import {
+  settingsList,
+  settingsStr,
+  type SettingsDict,
+} from "../../settings-dict.ts";
 import type { JsonValue } from "../../read-settings.ts";
 import type {
   RawTypesDoc,
@@ -43,10 +46,58 @@ import type { CaseFormat } from "../../case.ts";
 import type { CommentStyle } from "../../generate-doc-comment.ts";
 import type { DatasourceSettings } from "../../datasource-settings.ts";
 import type { ServicesDoc } from "../../lib/services-expand.ts";
-import type {
-  GeneratedFile,
-  ServiceTestsGenerateConfig,
-} from "./service-tests-generate-types.ts";
+import type { GeneratedFile } from "./routes-generate-types.ts";
+
+export type { GeneratedFile };
+
+/** The `createGenerator().generate(config)` payload the shared services step passes through — every field is opaque here and typed downstream. */
+export interface ServiceTestsGenerateConfig {
+  services: unknown;
+  viewTypes: unknown;
+  datasourceTypes: unknown;
+  routes: unknown;
+  settings: SettingsDict;
+  language: unknown;
+}
+
+const resolveLanguage = (
+  args: { language?: string } | null,
+  settings: SettingsDict | null,
+  opts: {
+    defaultLanguage?: string;
+    supportedLanguages?: string[];
+    validLanguages?: string[];
+  } = {},
+): string | undefined => {
+  const { defaultLanguage, supportedLanguages, validLanguages } = opts;
+  const declared = settings ? settingsList(settings, "backend.languages") : [];
+  const candidates = Array.isArray(supportedLanguages)
+    ? declared.filter((l) =>
+        supportedLanguages.some((s) => s.toLowerCase() === l.toLowerCase()),
+      )
+    : declared;
+  const fromSettings =
+    candidates.length === 0
+      ? defaultLanguage
+      : candidates.length === 1
+        ? candidates[0]
+        : (() => {
+            throw new Error(
+              `--language must be specified: settings.backend.languages has multiple entries [${declared.join(", ")}]; refusing to silently pick one. Pass --language <lang>.`,
+            );
+          })();
+  const raw = args?.language ? args.language : fromSettings;
+  if (Array.isArray(validLanguages)) {
+    const lowered = String(raw).toLowerCase();
+    if (!validLanguages.includes(lowered)) {
+      throw new Error(
+        `unknown language "${raw}"; valid: ${validLanguages.join(", ")}`,
+      );
+    }
+    return lowered;
+  }
+  return raw;
+};
 
 interface ServiceEntryDef {
   name: string;

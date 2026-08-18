@@ -23,7 +23,6 @@ import {
 } from "./common/parse-routes.ts";
 import { isRecord } from "./common/yaml-entry.ts";
 import { settingsStr } from "./common/settings.ts";
-import { renderNestedRoutes } from "./generate-nested-routes.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   appWiringTmpl,
@@ -32,7 +31,7 @@ import {
   customStubTmpl,
   readonlyByFieldsTmpl,
   readonlyPlainTmpl,
-} from "./routes/resources.ts";
+} from "./resources/routes.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;
@@ -491,14 +490,6 @@ export const generate = async (
     ...(parsed.candidates.length > 0
       ? [renderAppWiring(parsed.candidates, opts)]
       : []),
-    ...renderNestedRoutes(parsed.nested, {
-      naming: opts.naming,
-      style: opts.style,
-      libraryReferenceMode: opts.libraryReferenceMode,
-      ds: opts.ds,
-      datasources: parsed.datasources,
-      customServiceEntities: opts.customServiceEntities,
-    }),
   ];
   if (opts.createIndex) entries.push(...renderIndexes(entries));
   return entries;

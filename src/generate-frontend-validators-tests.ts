@@ -1,6 +1,5 @@
 import { CodegenFieldNames } from "./sdk/field-names.ts";
 import { namesForSettings } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { schemaSymbol } from "./zod-schema-names.ts";
 import { validatorObjectEntries } from "./frontend-bindings-routes.ts";
 import {
   sampleForComponent,
@@ -11,10 +10,10 @@ import {
 import { serializeSampleValue as serializeValue } from "./sdk/codegen/lib/ts-sample-literal.ts";
 import { fill } from "./common/fill.ts";
 import { frontendTestHarnessPatch } from "./frontend-test-harness.ts";
-import { validatorsTestTmpl } from "./frontend-validators-tests/resources.ts";
+import { validatorsTestTmpl } from "./resources/frontend-validators-tests.ts";
 import type { GenerateEntry } from "./sdk/codegen/lib/generate-result.ts";
 import type { GenerateArgs } from "./frontend-generate-types.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 import type { CodegenNames } from "./sdk/codegen-naming.ts";
 import type { CodegenLayout } from "./sdk/codegen-layout.ts";
 
@@ -50,7 +49,7 @@ type TestFileCtx = SchemaCtx & { validatorsImport: string };
 
 const closureNames = (closure: Set<string>, names: CodegenNames): string[] =>
   [...closure].sort((a, b) =>
-    schemaSymbol(a, names).localeCompare(schemaSymbol(b, names)),
+    names.className(a).localeCompare(names.className(b)),
   );
 
 const schemaCases = (
@@ -93,10 +92,10 @@ const testFileContents = (
 ): string => {
   const ordered = closureNames(closure, ctx.names);
   return fill(validatorsTestTmpl, {
-    symbols: ordered.map((name) => schemaSymbol(name, ctx.names)).join(", "),
+    symbols: ordered.map((name) => `${ctx.names.className(name)}Schema`).join(", "),
     validatorsImport: ctx.validatorsImport,
     schemas: ordered.map((name) => ({
-      schemaName: schemaSymbol(name, ctx.names),
+      schemaName: `${ctx.names.className(name)}Schema`,
       cases: schemaCases(name, components, ctx),
     })),
   });
@@ -137,6 +136,7 @@ const planFrontendValidatorsTests = async ({
   return entries;
 };
 
-export const generate = makeGenerate(planFrontendValidatorsTests);
+export const generate = async (ctx: Parameters<typeof planFrontendValidatorsTests>[0]) =>
+  finalizePlan(await planFrontendValidatorsTests(ctx));
 
 export const assembleAfterStep = true;

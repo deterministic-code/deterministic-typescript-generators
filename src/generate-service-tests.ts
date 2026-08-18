@@ -1,11 +1,9 @@
-import type {
-  GeneratedFile,
-  ServiceTestsGenerateConfig,
-} from "./sdk/codegen/lib/service-tests-generate-types.ts";
 import {
   generateServiceTestsFiles,
   dispatchServiceTestsStep,
   servicesStepGenerate,
+  type GeneratedFile,
+  type ServiceTestsGenerateConfig,
 } from "./sdk/codegen/lib/services-generate.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import {
@@ -13,7 +11,7 @@ import {
   namesFor,
   type NamesForOptions,
 } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { sampleIdFactory } from "./route-test-sample-id.ts";
+import { fakerId } from "./field-converter.ts";
 
 interface PrimaryKeyInfo {
   column: string;
@@ -57,11 +55,11 @@ export function generateGenericServiceTest(
       : `services/generated/__tests__/${fileBase}.test.ts`,
   );
   const pk = candidate.primaryKey;
-  const sampleId = sampleIdFactory(pk.idType);
-  const idLit = (n: number) => sampleId(n).lit;
+  const idExpr = fakerId(pk.idType);
   const pkExpr = `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`;
 
   const content = `import { describe, it, expect, vi, beforeEach } from "vitest";
+import { faker } from "@faker-js/faker";
 import type { ICrudRepository } from "${repositoriesImport}";
 import { PrimaryKey } from "${repositoriesImport}";
 import { ${className} } from "${importPath}";
@@ -98,8 +96,9 @@ describe("${className}", () => {
   });
 
   it("findById forwards the id to repo.find", async () => {
-    await service.findById(${idLit(42)});
-    expect(repo.find).toHaveBeenCalledWith(${idLit(42)});
+    const id = ${idExpr};
+    await service.findById(id);
+    expect(repo.find).toHaveBeenCalledWith(id);
   });
 
   it("create forwards the payload to repo.add", async () => {
@@ -109,14 +108,16 @@ describe("${className}", () => {
   });
 
   it("update forwards id + patch", async () => {
+    const id = ${idExpr};
     const patch = { name: "renamed" } as any;
-    await service.update(${idLit(7)}, patch);
-    expect(repo.update).toHaveBeenCalledWith(${idLit(7)}, patch);
+    await service.update(id, patch);
+    expect(repo.update).toHaveBeenCalledWith(id, patch);
   });
 
   it("delete forwards the id", async () => {
-    await service.delete(${idLit(9)});
-    expect(repo.delete).toHaveBeenCalledWith(${idLit(9)});
+    const id = ${idExpr};
+    await service.delete(id);
+    expect(repo.delete).toHaveBeenCalledWith(id);
   });
 
   it("findBy translates a single NameValue to repo.findBy", async () => {

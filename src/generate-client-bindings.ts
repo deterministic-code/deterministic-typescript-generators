@@ -2,7 +2,7 @@ import {
   settingsBool,
   type SettingsDict,
 } from "./sdk/settings-dict.ts";
-import { makeGenerate } from "./sdk/codegen/lib/make-generate.ts";
+import { finalizePlan } from "./sdk/codegen/lib/generate-result.ts";
 import type { RawTypesDoc } from "./sdk/deterministic-shapes.ts";
 import { join } from "node:path";
 import { parse } from "yaml";
@@ -15,7 +15,6 @@ import {
   namesForSettings,
   layoutForSettings,
 } from "./sdk/codegen/lib/ts-codegen-naming.ts";
-import { schemaSymbol, validatedSymbol } from "./zod-schema-names.ts";
 import { datetimeOptionFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
 import {
   refName,
@@ -177,22 +176,22 @@ function schemaRef(
 ): SchemaRef | null {
   if (!schema || typeof schema !== "object") return null;
   if (schema.$ref) {
-    const name = refName(schema.$ref);
+    const className = ctx.names.className(refName(schema.$ref));
     return {
-      parse: schemaSymbol(name, ctx.names),
-      value: schemaSymbol(name, ctx.names),
-      typeName: validatedSymbol(name, ctx.names),
-      type: validatedSymbol(name, ctx.names),
+      parse: `${className}Schema`,
+      value: `${className}Schema`,
+      typeName: `${className}Validated`,
+      type: `${className}Validated`,
       needsZod: false,
     };
   }
   if (schema.type === "array" && schema.items?.$ref) {
-    const name = refName(schema.items.$ref);
+    const className = ctx.names.className(refName(schema.items.$ref));
     return {
-      parse: `z.array(${schemaSymbol(name, ctx.names)})`,
-      value: schemaSymbol(name, ctx.names),
-      typeName: validatedSymbol(name, ctx.names),
-      type: `${validatedSymbol(name, ctx.names)}[]`,
+      parse: `z.array(${className}Schema)`,
+      value: `${className}Schema`,
+      typeName: `${className}Validated`,
+      type: `${className}Validated[]`,
       needsZod: true,
     };
   }
@@ -523,6 +522,7 @@ async function planClientBindings({
   return entries;
 }
 
-export const generate = makeGenerate(planClientBindings);
+export const generate = async (ctx: Parameters<typeof planClientBindings>[0]) =>
+  finalizePlan(await planClientBindings(ctx));
 
 export const assembleAfterStep = true;

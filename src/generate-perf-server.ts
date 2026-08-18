@@ -1,14 +1,15 @@
 import { parseDatasourceTypes } from "./sdk/codegen/lib/parse-datasource-types.ts";
 import { libraryReferenceModeFromSettings } from "./sdk/codegen/lib/generate-settings-options.ts";
 import {
-  makeGenerate,
-  type GenerateContext,
-} from "./sdk/codegen/lib/make-generate.ts";
+  CONTENT,
+  finalizePlan,
+} from "./sdk/codegen/lib/generate-result.ts";
 import type { SettingsDict } from "./sdk/settings-dict.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
-import { CONTENT } from "./sdk/codegen/lib/generate-result.ts";
 import { perfServerTypescriptEntries } from "./sdk/codegen/lib/migrate-perf-harness.ts";
 import type { GeneratedFile } from "./sdk/codegen/lib/routes-generate-types.ts";
+
+type GenerateContext = { inputs: unknown; settings: SettingsDict };
 
 interface DatasourceData {
   types?: unknown;
@@ -114,4 +115,5 @@ async function planPerfServer({ inputs, settings }: PerfServerTsGenerateInput) {
   ];
 }
 
-export const generate = makeGenerate(planPerfServer);
+export const generate = async (ctx: Parameters<typeof planPerfServer>[0]) =>
+  finalizePlan(await planPerfServer(ctx));

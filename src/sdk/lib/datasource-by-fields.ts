@@ -88,7 +88,7 @@ function fieldShapeInEntity(def: EntityDef, fieldName: string): FieldShape {
 /**
  * Like `byFieldsFromDatasource`, but each entry carries the column's declared
  * `{ field, type, size }` so a service generator can render a typed
- * `findBy<Field>` finder (param type via the shared type-mapper). Same
+ * `findBy<Field>` finder. Same
  * datasource-only derivation and keying as `byFieldsFromDatasource`.
  */
 export function byFieldsWithTypesFromDatasource(

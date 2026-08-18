@@ -30,6 +30,7 @@ import {
 import { DEFAULT_COMMENT_STYLE } from "../../generate-doc-comment.ts";
 import { SUPPORTED_LANGUAGES } from "../../read-settings.ts";
 import {
+  settingsList,
   settingsStr,
   settingsBool,
   type SettingsDict,
@@ -38,7 +39,6 @@ import { inferPkForCandidate } from "./infer-pk-for-candidate.ts";
 import { buildRouteCandidates } from "./route-candidates.ts";
 import { compileRoutesFilter } from "../../lib/compile-filter.ts";
 import { hasNoRouteSurface } from "../../lib/routes-expand.ts";
-import { resolveLanguage } from "./resolve-language.ts";
 import { validateViewAndDatasource } from "./script-input.ts";
 import { resolveStepInputs } from "./deterministic-inputs.ts";
 import {
@@ -63,6 +63,45 @@ type DatasourceData = Extract<
   ValidatedDocs,
   { viewData: RawTypesDoc }
 >["datasourceData"];
+
+const resolveLanguage = (
+  args: { language?: string } | null,
+  settings: SettingsDict | null,
+  opts: {
+    defaultLanguage?: string;
+    supportedLanguages?: string[];
+    validLanguages?: string[];
+  } = {},
+): string | undefined => {
+  const { defaultLanguage, supportedLanguages, validLanguages } = opts;
+  const declared = settings ? settingsList(settings, "backend.languages") : [];
+  const candidates = Array.isArray(supportedLanguages)
+    ? declared.filter((l) =>
+        supportedLanguages.some((s) => s.toLowerCase() === l.toLowerCase()),
+      )
+    : declared;
+  const fromSettings =
+    candidates.length === 0
+      ? defaultLanguage
+      : candidates.length === 1
+        ? candidates[0]
+        : (() => {
+            throw new Error(
+              `--language must be specified: settings.backend.languages has multiple entries [${declared.join(", ")}]; refusing to silently pick one. Pass --language <lang>.`,
+            );
+          })();
+  const raw = args?.language ? args.language : fromSettings;
+  if (Array.isArray(validLanguages)) {
+    const lowered = String(raw).toLowerCase();
+    if (!validLanguages.includes(lowered)) {
+      throw new Error(
+        `unknown language "${raw}"; valid: ${validLanguages.join(", ")}`,
+      );
+    }
+    return lowered;
+  }
+  return raw;
+};
 
 interface RouteDefEntry {
   entity?: string;

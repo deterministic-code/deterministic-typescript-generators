@@ -12,7 +12,7 @@ import {
   type ViewType,
 } from "./common/parse-view-types.ts";
 import { settingsStr } from "./common/settings.ts";
-import { typeTestTmpl } from "./view-types-tests/resources.ts";
+import { typeTestTmpl } from "./resources/view-types-tests.ts";
 
 type EmitOptions = {
   naming: ViewArtifactNaming;

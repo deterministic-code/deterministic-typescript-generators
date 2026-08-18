@@ -19,7 +19,7 @@ import {
 } from "./common/parse-view-types.ts";
 import { settingsStr } from "./common/settings.ts";
 import { toZod } from "./common/type-converter.ts";
-import { indexTmpl, typeTmpl } from "./view-type-validators/resources.ts";
+import { indexTmpl, typeTmpl } from "./resources/view-type-validators.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;

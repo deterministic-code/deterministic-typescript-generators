@@ -1,19 +1,9 @@
-import type {
-  GeneratedFile,
-  ServiceTestsGenerateConfig,
-} from "./sdk/codegen/lib/service-tests-generate-types.ts";
-import type {
-  ClassifiedColumn,
-  CreateStep,
-  FkSeedPlan,
-  IntegrationTestCandidate,
-  NamedField,
-  ResolvedSpec,
-} from "./sdk/codegen/lib/service-integration-tests-generate-types.ts";
 import {
   generateServiceIntegrationTestsFiles,
   dispatchServiceIntegrationTestsStep,
   servicesStepGenerate,
+  type GeneratedFile,
+  type ServiceTestsGenerateConfig,
 } from "./sdk/codegen/lib/services-generate.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import {
@@ -29,6 +19,58 @@ import {
 import { datasourceSettingsFor } from "./sdk/codegen/lib/ts-datasource-settings.ts";
 import type { DatasourceSettings } from "./sdk/datasource-settings.ts";
 import { classifyEntitySampleColumns } from "./sdk/codegen/lib/datasource-fk-deps.ts";
+
+interface IntegrationTestCandidate {
+  name: string;
+  kind: string;
+}
+
+interface NamedField {
+  name: string;
+  type: string;
+}
+
+interface FkColumnBinding {
+  column: string;
+  parentTable: string;
+}
+
+interface LookupStep {
+  kind: "lookup";
+  table: string;
+}
+
+interface CreateStep {
+  kind: "create";
+  table: string;
+  scalars: Record<string, unknown>;
+  fkColumns: FkColumnBinding[];
+  nullFkColumns: string[];
+}
+
+interface FkSeedPlan {
+  needsSeed: boolean;
+  steps: (LookupStep | CreateStep)[];
+  stripOrder: string[];
+  entityFkColumns: FkColumnBinding[];
+  entityNullFkColumns: string[];
+}
+
+interface ResolvedSpec {
+  entityName: string;
+  className: string;
+  tableName: string;
+  sample: Record<string, unknown>;
+  findByField: NamedField | null;
+  updateField: NamedField | null;
+  updatedValue: string | null;
+  fkSeedPlan: FkSeedPlan;
+}
+
+type ClassifiedColumn =
+  | { column: string; kind: "fk"; parentTable: string }
+  | { column: string; kind: "null" }
+  | { column: string; kind: "literal"; value: unknown };
 
 interface TsGenerateOptions extends NamesForOptions {
   servicePath?: string;

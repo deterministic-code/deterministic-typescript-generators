@@ -15,7 +15,7 @@ import {
   type DatasourceType,
 } from "./common/parse-datasource-types.ts";
 import { settingsStr } from "./common/settings.ts";
-import { typeTestTmpl } from "./datasource-types-tests/resources.ts";
+import { typeTestTmpl } from "./resources/datasource-types-tests.ts";
 import { FieldConverter, fieldConverter } from "./field-converter.ts";
 
 type EmitOptions = {
