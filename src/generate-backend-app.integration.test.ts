@@ -100,6 +100,8 @@ describe("generate", () => {
     assert.equal(requireEntry(byName, "server.ts").kind, "content");
     assert.match(server, /process\.env\.PORT \?\? 4001/);
     assert.match(server, /catalog-api listening on http:\/\/localhost:/);
+    assert.match(server, /await createBackendApp\(\)/);
+    assert.doesNotMatch(server, /\.then\(/);
   });
 
   it("renders package.json for the npm library, not bundled runtime deps", () => {
@@ -134,7 +136,101 @@ describe("generate", () => {
   it("emits health and boot tests from templates", () => {
     const health = entryBody(requireEntry(byName, "__tests__/health.test.ts"));
     assert.match(health, /GET \/api\/health/);
+    assert.match(health, /await createBackendApp\(\)/);
+    assert.doesNotMatch(health, /\.then\(/);
     const boot = entryBody(requireEntry(byName, "__tests__/app-boot.test.ts"));
     assert.match(boot, /createBackendApp/);
+    assert.match(boot, /await createBackendApp\(\)/);
+  });
+
+  it("treats omitted app_generate_complexity as deterministic", async () => {
+    const omitted = await generate({
+      reader: memoryReader({}),
+      settings: { application_name: "catalog-api" },
+    });
+    const explicit = await generate({
+      reader: memoryReader({}),
+      settings: {
+        application_name: "catalog-api",
+        app_generate_complexity: "deterministic",
+      },
+    });
+    assert.deepEqual(
+      omitted.map((e) => e.filename).sort(),
+      explicit.map((e) => e.filename).sort(),
+    );
+  });
+
+  it("rejects an unknown app_generate_complexity", async () => {
+    await assert.rejects(
+      () =>
+        generate({
+          reader: memoryReader({}),
+          settings: {
+            application_name: "catalog-api",
+            app_generate_complexity: "full",
+          },
+        }),
+      /settings\.app_generate_complexity must be "minimal" or "deterministic"/,
+    );
   });
 });
+
+describe("generate minimal", () => {
+  let byName = new Map<string, GenerateEntry>();
+
+  before(async () => {
+    byName = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: {
+          application_name: "catalog-api",
+          app_generate_complexity: "minimal",
+        },
+      }),
+    );
+  });
+
+  it("emits only the boot and health-check scaffold", () => {
+    assert.deepEqual(
+      [...byName.keys()].sort(),
+      [
+        "__tests__/health.test.ts",
+        "app.ts",
+        "package.json",
+        "server.ts",
+        "tsconfig.json",
+      ],
+    );
+  });
+
+  it("omits docker, vitest, migrate hooks, and extra test tooling", () => {
+    const app = entryBody(requireEntry(byName, "app.ts"));
+    assert.doesNotMatch(app, /BEGIN APP_DB_IMPORTS/);
+    assert.doesNotMatch(app, /BEGIN APP_BEFORE_HOOK/);
+    assert.doesNotMatch(app, /@deterministic-code\/deterministic/);
+    assert.doesNotMatch(app, /createDeterministicApp/);
+    assert.doesNotMatch(app, /settingsConfig/);
+    const pkg = JSON.parse(entryBody(requireEntry(byName, "package.json")));
+    assert.equal(pkg.name, "catalog-api");
+    assert.equal(pkg.dependencies, undefined);
+    assert.deepEqual(Object.keys(pkg.devDependencies).sort(), [
+      "@types/node",
+      "typescript",
+    ]);
+    assert.equal(
+      pkg.scripts.test,
+      "node --experimental-strip-types --test __tests__/health.test.ts",
+    );
+    const tsconfig = JSON.parse(entryBody(requireEntry(byName, "tsconfig.json")));
+    assert.deepEqual(tsconfig.include, ["app.ts", "server.ts"]);
+    const health = entryBody(requireEntry(byName, "__tests__/health.test.ts"));
+    assert.match(health, /GET \/api\/health/);
+    assert.match(health, /from "node:test"/);
+    const server = entryBody(requireEntry(byName, "server.ts"));
+    assert.match(server, /await createBackendApp\(\)/);
+    assert.match(server, /createServer\(app\)/);
+    assert.doesNotMatch(server, /\.then\(/);
+  });
+});
+

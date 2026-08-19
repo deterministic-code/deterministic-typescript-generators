@@ -1,0 +1,15 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+
+export const createBackendApp = async () => {
+  const handle = (req: IncomingMessage, res: ServerResponse): void => {
+    const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+    if (req.method === "GET" && path === "/api/health") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  };
+  return handle;
+};
