@@ -63,22 +63,22 @@ describe("generate-routes-tests", () => {
     });
     const paths = entries.map((e) => e.filename).sort();
     assert.deepEqual(paths, [
-      "orders.integration.test.ts",
-      "roles.integration.test.ts",
-      "users.integration.test.ts",
+      "order.integration.test.ts",
+      "role.integration.test.ts",
+      "user.integration.test.ts",
     ]);
 
-    const users = textOf(entries, "users.integration.test.ts");
-    assert.match(users, /import \{ usersRouter \} from "\.\.\/users"/);
-    assert.match(users, /POST \/api\/users delegates to service.create/);
-    assert.match(users, /GET \/api\/users\/email\/:value returns the row/);
+    const users = textOf(entries, "user.integration.test.ts");
+    assert.match(users, /import \{ userRouter \} from "\.\.\/user"/);
+    assert.match(users, /POST \/api\/user delegates to service.create/);
+    assert.match(users, /GET \/api\/user\/email\/:value returns the row/);
     assert.match(users, /new PrimaryKey\("id", "integer"\)/);
 
-    const roles = textOf(entries, "roles.integration.test.ts");
-    assert.match(roles, /GET \/api\/roles returns items from service.findAll/);
+    const roles = textOf(entries, "role.integration.test.ts");
+    assert.match(roles, /GET \/api\/role returns items from service.findAll/);
     assert.ok(!roles.includes("service.create"));
 
-    const orders = textOf(entries, "orders.integration.test.ts");
+    const orders = textOf(entries, "order.integration.test.ts");
     assert.match(orders, /If-Match/);
     assert.match(orders, /expectedUpdated: occToken/);
   });
@@ -92,14 +92,5 @@ describe("generate-routes-tests", () => {
       settings: {},
     });
     assert.deepEqual(entries, []);
-  });
-
-  it("nests tests under features when by-feature", async () => {
-    const entries = await generate({
-      reader: memoryReader(yaml),
-      settings: { "other.organize_by_feature": "true" },
-    });
-    const paths = entries.map((e) => e.filename);
-    assert.ok(paths.includes("features/user/__tests__/users.integration.test.ts"));
   });
 });

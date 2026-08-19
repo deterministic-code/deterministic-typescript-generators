@@ -183,7 +183,7 @@ types: []
         settings: { "codegen.schema_version": "2.0" },
       });
       const card = entryBody(
-        requireEntry(indexEntries(wrapped), "card-payment.ts"),
+        requireEntry(indexEntries(wrapped), "card_payment.ts"),
       );
       assert.match(card, /schema-version: 2\.0/);
     } finally {
@@ -196,35 +196,35 @@ types: []
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card-payment.ts",
-        "cash-payment.ts",
+        "card_payment.ts",
+        "cash_payment.ts",
         "index.ts",
         "payment.ts",
         "role.ts",
         "tag.ts",
-        "update-tag.ts",
-        "update-user-summary.ts",
-        "update-user.ts",
-        "user-summary.ts",
+        "update_tag.ts",
+        "update_user.ts",
+        "update_user_summary.ts",
         "user.ts",
+        "user_summary.ts",
       ],
     );
   });
 
   it("renders a shaped view with primitive, datasource, and view fields", async () => {
-    const card = await bodyOf("card-payment.ts");
+    const card = await bodyOf("card_payment.ts");
     assert.match(card, /schema-version: 1\.0/);
-    assert.match(card, /import type \{ Tag \} from "\.\.\/datasource\/tag";/);
+    assert.match(card, /import type \{ tag \} from "\.\.\/datasource\/tag";/);
     assert.match(
       card,
-      /import type \{ UserSummary \} from "\.\/user-summary";/,
+      /import type \{ user_summary \} from "\.\/user_summary";/,
     );
-    assert.match(card, /\/\*\* View CardPayment\. \*\//);
-    assert.match(card, /export interface CardPayment \{/);
+    assert.match(card, /\/\*\* View card_payment\. \*\//);
+    assert.match(card, /export interface card_payment \{/);
     assert.match(card, /amount: string;/);
     assert.match(card, /paid_at: Date;/);
-    assert.match(card, /tags: Tag\[\];/);
-    assert.match(card, /owner: UserSummary;/);
+    assert.match(card, /tags: tag\[\];/);
+    assert.match(card, /owner: user_summary;/);
     assert.match(card, /note: string \| null;/);
   });
 
@@ -232,27 +232,27 @@ types: []
     const payment = await bodyOf("payment.ts");
     assert.match(
       payment,
-      /import type \{ CardPayment \} from "\.\/card-payment";/,
+      /import type \{ card_payment \} from "\.\/card_payment";/,
     );
     assert.match(
       payment,
-      /import type \{ CashPayment \} from "\.\/cash-payment";/,
+      /import type \{ cash_payment \} from "\.\/cash_payment";/,
     );
     assert.match(
       payment,
-      /export type Payment = CardPayment \| CashPayment;/,
+      /export type payment = card_payment \| cash_payment;/,
     );
   });
 
   it("extends the inherited datasource type and omits enrichment FKs plus explicit omit", async () => {
-    const summary = await bodyOf("user-summary.ts");
+    const summary = await bodyOf("user_summary.ts");
     assert.match(
       summary,
-      /import type \{ User \} from "\.\.\/datasource\/user";/,
+      /import type \{ user \} from "\.\.\/datasource\/user";/,
     );
     assert.match(
       summary,
-      /export interface UserSummary extends Omit<User, "role_id" \| "nick_name"> \{/,
+      /export interface user_summary extends Omit<user, "role_id" \| "nick_name"> \{/,
     );
     assert.match(summary, /display_name: string;/);
     assert.match(summary, /role_name: string;/);
@@ -262,40 +262,13 @@ types: []
     const user = await bodyOf("user.ts");
     assert.match(
       user,
-      /import type \{ User as UserBase \} from "\.\.\/datasource\/user";/,
+      /import type \{ user as userBase \} from "\.\.\/datasource\/user";/,
     );
     assert.match(
       user,
-      /export interface User extends Omit<UserBase, "role_id"> \{/,
+      /export interface user extends Omit<userBase, "role_id"> \{/,
     );
     assert.match(user, /role_name: string;/);
-  });
-
-  it("nests files under features/ when organize_by_feature is set", async () => {
-    const nested = await generateWith({
-      "other.organize_by_feature": "true",
-    });
-    const names = nested.map((e) => e.filename).sort();
-    assert.ok(names.includes("features/user/user-view.ts"));
-    assert.ok(names.includes("features/user/update-user.ts"));
-    assert.ok(names.includes("features/user-summary/user-summary-view.ts"));
-    assert.ok(names.includes("features/card-payment/card-payment-view.ts"));
-    assert.equal(
-      names.some((n) => n === "index.ts"),
-      false,
-    );
-  });
-
-  it("uses by-feature import specifiers", async () => {
-    const card = await bodyOf("card-payment-view.ts", {
-      "other.organize_by_feature": "true",
-    });
-    assert.match(card, /from "\.\.\/tag\/tag"/);
-    assert.match(card, /from "\.\.\/user-summary\/user-summary-view"/);
-    const user = await bodyOf("user-view.ts", {
-      "other.organize_by_feature": "true",
-    });
-    assert.match(user, /from "\.\/user"/);
   });
 
   it("skips the barrel when codegen.create_index is false", async () => {
@@ -308,24 +281,24 @@ types: []
 
   it("writes the barrel with type re-exports", async () => {
     const index = await bodyOf("index.ts");
-    assert.match(index, /export type \{ User \} from "\.\/user";/);
-    assert.match(index, /export type \{ Payment \} from "\.\/payment";/);
+    assert.match(index, /export type \{ user \} from "\.\/user";/);
+    assert.match(index, /export type \{ payment \} from "\.\/payment";/);
     assert.match(
       index,
-      /export type \{ UserSummary \} from "\.\/user-summary";/,
+      /export type \{ user_summary \} from "\.\/user_summary";/,
     );
   });
 
   it("writes codegen.schema_version into the file header", async () => {
-    const card = await bodyOf("card-payment.ts", {
+    const card = await bodyOf("card_payment.ts", {
       "codegen.schema_version": "9.9",
     });
     assert.match(card, /schema-version: 9.9/);
   });
 
   it("comments=description emits the multi-line view doc", async () => {
-    const card = await bodyOf("card-payment.ts", { comments: "description" });
-    assert.match(card, /\* View CardPayment\./);
+    const card = await bodyOf("card_payment.ts", { comments: "description" });
+    assert.match(card, /\* View card_payment\./);
     assert.match(card, /\* Datasource type: standard\./);
     assert.match(card, /\* Target: ShapedView\./);
     assert.match(card, /\* Fields: 5\./);
@@ -334,63 +307,16 @@ types: []
   });
 
   it("comments=none omits the view doc", async () => {
-    const card = await bodyOf("card-payment.ts", { comments: "none" });
+    const card = await bodyOf("card_payment.ts", { comments: "none" });
     assert.doesNotMatch(card, /\/\*\*/);
-    assert.doesNotMatch(card, /View CardPayment/);
+    assert.doesNotMatch(card, /View card_payment/);
   });
 
   it("datasource.datetime=string maps datetime fields to string", async () => {
-    const card = await bodyOf("card-payment.ts", {
+    const card = await bodyOf("card_payment.ts", {
       "datasource.datetime": "string",
     });
     assert.match(card, /paid_at: string;/);
   });
 
-  it("types casing changes the interface name", async () => {
-    const card = await bodyOf("card-payment.ts", {
-      "languages.typescript.casing.types": "camel",
-    });
-    assert.match(card, /export interface cardPayment \{/);
-  });
-
-  it("fields casing changes property identifiers and Omit keys", async () => {
-    const camel = await bodyOf("user-summary.ts", {
-      "languages.typescript.casing.fields": "camel",
-    });
-    assert.match(camel, /displayName: string;/);
-    assert.match(camel, /roleName: string;/);
-    assert.match(camel, /Omit<User, "roleId" \| "nickName">/);
-    const kebab = await bodyOf("card-payment.ts", {
-      "languages.typescript.casing.fields": "kebab",
-    });
-    assert.match(kebab, /"paid-at": Date;/);
-  });
-
-  it("file_names casing changes the emitted filename", async () => {
-    const emitted = await generateWith(
-      { "languages.typescript.casing.file_names": "pascal" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.equal(
-      emitted.some((e) => e.filename === "CardPayment.ts"),
-      true,
-    );
-  });
-
-  it("directories casing changes the feature folder", async () => {
-    const nested = await generateWith(
-      {
-        "other.organize_by_feature": "true",
-        "languages.typescript.casing.directories": "pascal",
-        "languages.typescript.casing.file_names": "snake",
-      },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.deepEqual(
-      nested.map((e) => e.filename).sort(),
-      ["features/CardPayment/card_payment_view.ts"],
-    );
-  });
 });

@@ -5,12 +5,12 @@
   "type": "module",
   "exports": {
     "./generate-context": {
-      "types": "./dist/generate-context.d.ts",
-      "import": "./dist/generate-context.js"
+      "types": "./dist/common/generate-context.d.ts",
+      "import": "./dist/common/generate-context.js"
     },
     "./field-converter": {
-      "types": "./dist/field-converter.d.ts",
-      "import": "./dist/field-converter.js"
+      "types": "./dist/common/field-converter.d.ts",
+      "import": "./dist/common/field-converter.js"
     },
     "./*": {
       "types": "./dist/*.d.ts",

@@ -1,4 +1,3 @@
-import { camelCase } from "change-case";
 import {
   datasourceSettings,
   nativeFieldType,
@@ -9,9 +8,9 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import {
-  typescriptViewValidatorNaming,
-  type ViewValidatorNaming,
-} from "./common/naming.ts";
+  viewValidatorPaths,
+  type ViewValidatorPaths,
+} from "./common/paths.ts";
 import {
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
@@ -22,12 +21,12 @@ import {
   type ViewType,
 } from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
-import { FieldConverter, fieldConverter } from "./field-converter.ts";
+import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: ViewValidatorNaming;
+  naming: ViewValidatorPaths;
   schemaVersion: string;
   converter: FieldConverter;
   tables: Map<string, DatasourceType>;
@@ -62,7 +61,7 @@ const emitBase = (settings: SettingsDict) => {
   const ds = datasourceSettings(settings);
   return {
     ds,
-    naming: typescriptViewValidatorNaming(settings),
+    naming: viewValidatorPaths(settings),
     schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
     converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
@@ -190,7 +189,7 @@ const viewFixture = (
   );
 };
 
-const testPath = (entity: string, naming: ViewValidatorNaming): string => {
+const testPath = (entity: string, naming: ViewValidatorPaths): string => {
   const file = `${naming.fileBase(entity)}.test.ts`;
   if (!naming.byFeature) return file;
   const typeFile = naming.filePath(entity);
@@ -326,7 +325,7 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry =>
     testPath(view.name, opts.naming),
     fill(typeTestTmpl, {
       schemaVersion: opts.schemaVersion,
-      schemaName: `${camelCase(view.name)}Schema`,
+      schemaName: `${view.name}Schema`,
       viewName: view.name,
       schemaImport: `../${opts.naming.fileBase(view.name)}`,
       cases: view.kind === "union" ? unionCases(view, opts) : shapedCases(view, opts),

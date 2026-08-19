@@ -1,4 +1,3 @@
-import { camelCase, kebabCase } from "change-case";
 import {
   datasourceSettings,
   type DatasourceSettings,
@@ -7,10 +6,13 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import {
-  featureEntityFromClass,
-  typescriptRouteNaming,
-  type RouteNaming,
-} from "./common/naming.ts";
+  importSpec,
+  modulePathParts,
+  routePaths,
+  servicePaths,
+  type RoutePaths,
+  type ServicePaths,
+} from "./common/paths.ts";
 import {
   SpecificationParser,
   entityUsesOptimisticConcurrency,
@@ -24,12 +26,16 @@ import { isRecord } from "./common/yaml-entry.ts";
 import { YamlNode } from "./common/yaml-node.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
-  appWiringTmpl,
-  crudByFieldsTmpl,
-  crudPlainTmpl,
+  byFieldDeleteListTmpl,
+  byFieldDeleteUniqueTmpl,
+  byFieldGetListTmpl,
+  byFieldGetUniqueTmpl,
+  byFieldPutListTmpl,
+  byFieldPutUniqueTmpl,
+  crudTmpl,
   customStubTmpl,
-  readonlyByFieldsTmpl,
-  readonlyPlainTmpl,
+  indexTmpl,
+  readonlyTmpl,
 } from "./resources/routes.ts";
 
 const docTokens = (settings: SettingsDict) => {
@@ -42,58 +48,55 @@ const docTokens = (settings: SettingsDict) => {
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: RouteNaming;
+  naming: RoutePaths;
+  services: ServicePaths;
   simpleDoc: boolean;
   descriptionDoc: boolean;
   libraryReferenceMode: string | undefined;
   createIndex: boolean;
-  customServiceEntities: Set<string>;
 };
 
-const emitOptions = async (
-  settings: SettingsDict,
-  reader: GenerateContext["reader"],
-): Promise<EmitOptions> => {
-  const naming = typescriptRouteNaming(settings);
+const emitOptions = (settings: SettingsDict): EmitOptions => {
+  const naming = routePaths(settings);
   const createIndex = settingsStr(settings, "codegen.create_index");
-  const customServiceEntities = new Set<string>();
-  if (await reader.exists(SERVICES_YAML)) {
-    const root = YamlNode.fromYaml(await reader.read(SERVICES_YAML));
-    for (const entry of root.child("services").items()) {
-      const name = entry.str("name");
-      if (name === undefined) continue;
-      const derived = featureEntityFromClass(name);
-      if (derived) customServiceEntities.add(derived);
-    }
-  }
   return {
     ds: datasourceSettings(settings),
     naming,
+    services: servicePaths(settings),
     ...docTokens(settings),
     libraryReferenceMode: settingsStr(
       settings,
       "languages.typescript.library_reference_mode",
     ),
     createIndex:
-      !naming.byFeature &&
-      (createIndex === undefined || createIndex === "true"),
-    customServiceEntities,
+      !naming.byFeature && (createIndex === undefined || createIndex === "true"),
   };
+};
+
+const customServiceEntities = async (
+  reader: GenerateContext["reader"],
+): Promise<Set<string>> => {
+  const names = new Set<string>();
+  if (!(await reader.exists(SERVICES_YAML))) return names;
+  const root = YamlNode.fromYaml(await reader.read(SERVICES_YAML));
+  for (const entry of root.child("services").items()) {
+    const name = entry.str("name");
+    if (name !== undefined) names.add(name);
+  }
+  return names;
 };
 
 const libImports = (
   opts: EmitOptions,
   entity: string,
-): {
-  serviceImport: string;
-  routesImport: string;
-  responsesImport: string;
-  errorsImport: string;
-} => {
+  customService: boolean,
+) => {
   const projectRel = opts.naming.projectRelPath(entity);
-  const custom = opts.customServiceEntities.has(kebabCase(entity));
+  const serviceRel = customService
+    ? opts.services.customProjectRelPath(entity)
+    : opts.services.projectRelPath(entity);
   return {
-    serviceImport: opts.naming.serviceImport(entity, entity, custom),
+    serviceImport: importSpec(projectRel, serviceRel),
     routesImport: libraryImportSpecifier(
       "routes",
       opts.libraryReferenceMode,
@@ -112,172 +115,39 @@ const libImports = (
   };
 };
 
-const notFoundIfZero = (
-  entity: string,
-  byField: string,
-  indent: string,
-): string => `${indent}    if (count === 0) {
-${indent}      sendError(res, 404, "NOT_FOUND", \`${entity} with ${byField} '\${value}' not found\`);
-${indent}      return;
-${indent}    }`;
+const methodsOf = (entry: RouteByField, fallback: string[]): string[] =>
+  Array.isArray(entry.methods) ? entry.methods : fallback;
 
-const uniqueCountGuards = (
-  entity: string,
-  byField: string,
-  indent: string,
-): string => `${notFoundIfZero(entity, byField, indent)}
-${indent}    if (count > 1) {
-${indent}      sendError(res, 409, "CONFLICT", \`Multiple ${entity} rows matched ${byField}='\${value}'\`);
-${indent}      return;
-${indent}    }`;
+const BY_FIELD_TMPLS = {
+  GET: { unique: byFieldGetUniqueTmpl, list: byFieldGetListTmpl },
+  PUT: { unique: byFieldPutUniqueTmpl, list: byFieldPutListTmpl },
+  DELETE: { unique: byFieldDeleteUniqueTmpl, list: byFieldDeleteListTmpl },
+} as const;
 
-const byFieldGetBlock = (args: {
-  entity: string;
-  byField: string;
-  fieldCamel: string;
-  fieldKebab: string;
-  unique: boolean;
-  indent: string;
-}): string => {
-  const { entity, byField, fieldCamel, fieldKebab, unique, indent } = args;
-  if (unique) {
-    return `${indent}router.get("/${fieldKebab}/:${fieldCamel}", async (req, res, next) => {
-${indent}  try {
-${indent}    const value = req.params.${fieldCamel} ?? "";
-${indent}    const rows = await service.findBy([{ name: "${byField}", value }]);
-${indent}    if (rows.length === 0) {
-${indent}      sendError(res, 404, "NOT_FOUND", \`${entity} with ${byField} '\${value}' not found\`);
-${indent}      return;
-${indent}    }
-${indent}    if (rows.length > 1) {
-${indent}      sendError(res, 409, "CONFLICT", \`Multiple ${entity} rows matched ${byField}='\${value}'\`);
-${indent}      return;
-${indent}    }
-${indent}    sendItem(res, rows[0] as unknown as Record<string, unknown>);
-${indent}  } catch (err) {
-${indent}    next(err);
-${indent}  }
-${indent}});`;
-  }
-  return `${indent}router.get("/${fieldKebab}/:${fieldCamel}", async (req, res, next) => {
-${indent}  try {
-${indent}    const value = req.params.${fieldCamel} ?? "";
-${indent}    const rows = await service.findBy([{ name: "${byField}", value }]);
-${indent}    sendItems(res, rows as unknown[]);
-${indent}  } catch (err) {
-${indent}    next(err);
-${indent}  }
-${indent}});`;
-};
-
-const byFieldPutBlock = (args: {
-  entity: string;
-  byField: string;
-  fieldCamel: string;
-  fieldKebab: string;
-  unique: boolean;
-  indent: string;
-}): string => {
-  const { entity, byField, fieldCamel, fieldKebab, unique, indent } = args;
-  const head = `${indent}router.put("/${fieldKebab}/:${fieldCamel}", async (req, res, next) => {
-${indent}  try {
-${indent}    const value = req.params.${fieldCamel} ?? "";
-${indent}    const parsed = updateSchema.parse(req.body);
-${indent}    const count = await service.updateBy(
-${indent}      [{ name: "${byField}", value }],
-${indent}      parsed as Record<string, unknown>,
-${indent}    );`;
-  const outcome = unique
-    ? `${uniqueCountGuards(entity, byField, indent)}
-${indent}    const rows = await service.findBy([{ name: "${byField}", value }]);
-${indent}    sendItem(res, (rows[0] ?? null) as unknown as Record<string, unknown>);`
-    : `${indent}    sendItem(res, { count });`;
-  return `${head}
-${outcome}
-${indent}  } catch (err) {
-${indent}    if (handleZodError(err, res)) return;
-${indent}    next(err);
-${indent}  }
-${indent}});`;
-};
-
-const byFieldDeleteBlock = (args: {
-  entity: string;
-  byField: string;
-  fieldCamel: string;
-  fieldKebab: string;
-  unique: boolean;
-  indent: string;
-}): string => {
-  const { entity, byField, fieldCamel, fieldKebab, unique, indent } = args;
-  if (unique) {
-    return `${indent}router.delete("/${fieldKebab}/:${fieldCamel}", async (req, res, next) => {
-${indent}  try {
-${indent}    const value = req.params.${fieldCamel} ?? "";
-${indent}    const count = await service.deleteBy([{ name: "${byField}", value }]);
-${uniqueCountGuards(entity, byField, indent)}
-${indent}    sendItem(res, { success: true });
-${indent}  } catch (err) {
-${indent}    next(err);
-${indent}  }
-${indent}});`;
-  }
-  return `${indent}router.delete("/${fieldKebab}/:${fieldCamel}", async (req, res, next) => {
-${indent}  try {
-${indent}    const value = req.params.${fieldCamel} ?? "";
-${indent}    const count = await service.deleteBy([{ name: "${byField}", value }]);
-${notFoundIfZero(entity, byField, indent)}
-${indent}    sendItem(res, { count });
-${indent}  } catch (err) {
-${indent}    next(err);
-${indent}  }
-${indent}});`;
-};
-
-const byFieldsBlock = (
-  entity: string,
-  entries: RouteByField[],
-  methodFilter?: (m: string) => boolean,
-): string =>
+const byFieldsBlock = (entity: string, entries: RouteByField[]): string =>
   entries
     .map((entry) => {
-      const methods = (
-        Array.isArray(entry.methods) ? entry.methods : ["GET", "PUT", "DELETE"]
-      ).filter(methodFilter ?? (() => true));
-      const fieldCamel = camelCase(entry.byField);
-      const fieldKebab = kebabCase(entry.byField);
-      const ctx = {
-        entity,
-        byField: entry.byField,
-        fieldCamel,
-        fieldKebab,
-        unique: entry.byFieldUnique,
-        indent: "  ",
-      };
-      const blocks: string[] = [];
-      if (methods.includes("GET")) blocks.push(byFieldGetBlock(ctx));
-      if (methods.includes("PUT")) blocks.push(byFieldPutBlock(ctx));
-      if (methods.includes("DELETE")) blocks.push(byFieldDeleteBlock(ctx));
-      return blocks.join("\n");
+      const methods = methodsOf(entry, ["GET", "PUT", "DELETE"]);
+      const tokens = { entity, byField: entry.byField };
+      const kind = entry.byFieldUnique ? "unique" : "list";
+      return (["GET", "PUT", "DELETE"] as const)
+        .filter((method) => methods.includes(method))
+        .map((method) => fill(BY_FIELD_TMPLS[method][kind], tokens).trimEnd())
+        .join("\n");
     })
     .filter(Boolean)
     .join("\n\n");
 
 const byFieldsNeedsZod = (entries: RouteByField[]): boolean =>
-  entries.some((e) =>
-    (Array.isArray(e.methods) ? e.methods : ["GET", "PUT", "DELETE"]).includes(
-      "PUT",
-    ),
-  );
+  entries.some((e) => methodsOf(e, ["GET", "PUT", "DELETE"]).includes("PUT"));
 
 const renderEntityRouter = (
   candidate: RouteCandidate,
   opts: EmitOptions,
+  customServices: Set<string>,
 ): GenerateEntry => {
-  const { naming, simpleDoc, descriptionDoc, ds } = opts;
-  const entity = naming.className(candidate.name);
-  const fnName = naming.routerFnName(candidate.name);
-  const libs = libImports(opts, candidate.name);
+  const { simpleDoc, descriptionDoc, ds, naming } = opts;
+  const entity = candidate.name;
   const occ = entityUsesOptimisticConcurrency(
     {
       datasourceType: candidate.datasourceType,
@@ -289,77 +159,67 @@ const renderEntityRouter = (
   const byFields = readOnly
     ? candidate.byFields.map((e) => ({
         ...e,
-        methods: (Array.isArray(e.methods) ? e.methods : ["GET"]).filter(
-          (m) => m === "GET",
-        ),
+        methods: methodsOf(e, ["GET"]).filter((m) => m === "GET"),
       }))
     : candidate.byFields;
-  const tokens = {
-    simpleDoc,
-    descriptionDoc,
-    ...libs,
-    entity,
-    fnName,
-    datasourceType:
-      candidate.datasourceType ||
-      (readOnly ? "readonly-lookup" : "standard"),
-    occ,
-    needsZod: byFieldsNeedsZod(byFields),
-    byFieldsBlock: byFieldsBlock(entity, byFields),
-  };
-  const tmpl = readOnly
-    ? byFields.length > 0
-      ? readonlyByFieldsTmpl
-      : readonlyPlainTmpl
-    : byFields.length > 0
-      ? crudByFieldsTmpl
-      : crudPlainTmpl;
-  return content(naming.filePath(candidate.name), fill(tmpl, tokens));
+  return content(
+    naming.filePath(entity),
+    fill(readOnly ? readonlyTmpl : crudTmpl, {
+      simpleDoc,
+      descriptionDoc,
+      ...libImports(opts, entity, customServices.has(entity)),
+      entity,
+      fnName: `${entity}Router`,
+      datasourceType:
+        candidate.datasourceType || (readOnly ? "readonly-lookup" : "standard"),
+      occ,
+      needsZod: byFieldsNeedsZod(byFields),
+      hasByFields: byFields.length > 0,
+      byFieldsBlock: byFieldsBlock(entity, byFields),
+    }),
+  );
 };
 
-const moduleParts = (mod: string): string[] => {
-  const parts = mod.split("/").filter((p) => p !== "" && p !== ".");
-  while (parts.length && parts[0] === "..") parts.shift();
-  return parts;
-};
-
-export const resolveCustomRoutePath = (
-  entry: CustomRouteEntry,
-  naming: RouteNaming,
-  byFeature: boolean,
-): string => {
-  const fileBase = naming.customRouteFileBase(entry.name);
+const customRouteMeta = (entry: CustomRouteEntry) => {
   const raw = entry.entry[entry.name];
-  const mod =
-    isRecord(raw) && typeof raw.module === "string" ? raw.module : null;
-  const routeClass =
-    isRecord(raw) && typeof raw.routeClass === "string" && raw.routeClass
-      ? raw.routeClass
-      : `${entry.name}Route`;
+  const rec = isRecord(raw) ? raw : undefined;
+  const module =
+    rec !== undefined && typeof rec.module === "string" ? rec.module : undefined;
+  const className =
+    rec !== undefined && typeof rec.routeClass === "string" && rec.routeClass
+      ? rec.routeClass
+      : entry.name;
+  return { module, className, interfaceName: `I${className}` };
+};
+
+const resolveCustomRoutePath = (
+  entry: CustomRouteEntry,
+  naming: RoutePaths,
+): string => {
+  const { module: mod } = customRouteMeta(entry);
+  const defaultStub = naming.customStubPath(entry.name);
+  const { byFeature } = naming;
 
   if (byFeature) {
     const isRelative = typeof mod === "string" && mod.startsWith(".");
     const isLegacyLayer =
       isRelative &&
       (mod.startsWith("./services/") || mod.startsWith("./routes/"));
-    if (!isRelative || isLegacyLayer) {
-      return naming.customStubPath(routeClass, fileBase);
-    }
-    const parts = moduleParts(mod);
+    if (!isRelative || isLegacyLayer) return defaultStub;
+    const parts = modulePathParts(mod);
     if (parts[0] !== "features") {
-      const suggestion = naming.customStubPath(routeClass, fileBase);
       throw new Error(
         `generateCustomRouteStub: route "${entry.name}" has module "${mod}" which is outside ./features/. ` +
           `When organize=by-feature, custom routes must live under features/<entity>/custom/. ` +
-          `Drop the module: field to use the convention default (${suggestion.replace(/\.ts$/, "")}), ` +
+          `Drop the module: field to use the convention default (${defaultStub.replace(/\.ts$/, "")}), ` +
           `or point module: into ./features/.`,
       );
     }
     return `${parts.join("/")}.ts`;
   }
 
-  if (!mod || !mod.startsWith(".")) return `../custom/${fileBase}.ts`;
-  const parts = moduleParts(mod);
+  if (mod === undefined || !mod.startsWith(".")) return defaultStub;
+  const parts = modulePathParts(mod);
   if (parts[0] === "routes") parts.shift();
   return `../${parts.join("/")}.ts`;
 };
@@ -368,11 +228,10 @@ const renderCustom = (
   entry: CustomRouteEntry,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, simpleDoc, descriptionDoc } = opts;
-  const className = `${naming.className(entry.name)}Route`;
-  const interfaceName = `I${className}`;
+  const { simpleDoc, descriptionDoc, naming } = opts;
+  const { className, interfaceName } = customRouteMeta(entry);
   return content(
-    resolveCustomRoutePath(entry, naming, naming.byFeature),
+    resolveCustomRoutePath(entry, naming),
     fill(customStubTmpl, {
       simpleDoc,
       descriptionDoc,
@@ -382,120 +241,63 @@ const renderCustom = (
   );
 };
 
-const renderAppWiring = (
+const renderIndexes = (
   candidates: RouteCandidate[],
+  customs: CustomRouteEntry[],
   opts: EmitOptions,
-): GenerateEntry => {
-  const { naming, libraryReferenceMode } = opts;
-  const generatePath = naming.byFeature
-    ? "features/app-wiring.ts"
-    : "app-wiring.ts";
-  const fileRelPath = naming.byFeature
-    ? generatePath
-    : "routes/generated/app-wiring.ts";
-  const appImport = libraryImportSpecifier(
-    "app",
-    libraryReferenceMode,
-    fileRelPath,
-  );
-  const imports = candidates.map((c) => {
-    const fnName = naming.routerFnName(c.name);
-    const importPath = naming.byFeature
-      ? `./${naming.filePath(c.name).slice("features/".length).replace(/\.ts$/, ".js")}`
-      : `./${naming.fileBase(c.name)}.js`;
-    return { fnName, importPath };
-  });
-  const mounts = candidates.map((c) => {
-    const fnName = naming.routerFnName(c.name);
-    const key = JSON.stringify(c.name);
-    const readOnly = c.datasourceType === "readonly-lookup";
-    const args = readOnly
-      ? `ctx.entityService(${key})`
-      : `ctx.entityService(${key}), ctx.bodySchema(${key}, "create"), ctx.bodySchema(${key}, "update")`;
-    return { fnName, apiPath: naming.apiPath(c.name), args };
-  });
-  return content(
-    generatePath,
-    fill(appWiringTmpl, { appImport, imports, mounts }),
-  );
-};
-
-const dirOf = (p: string): string => {
-  const idx = p.lastIndexOf("/");
-  return idx === -1 ? "" : p.slice(0, idx);
-};
-
-const basenameNoExt = (p: string): string => {
-  const idx = p.lastIndexOf("/");
-  const stem = idx === -1 ? p : p.slice(idx + 1);
-  return stem.replace(/\.ts$/, "");
-};
-
-const parseExports = (
-  fileContent: string,
-): { valueNames: Set<string>; typeNames: Set<string> } => {
-  const valueNames = new Set<string>();
-  const typeNames = new Set<string>();
-  const re =
-    /^\s*export\s+(?:async\s+)?(type|interface|class|function|const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(fileContent)) !== null) {
-    if (m[1] === "type" || m[1] === "interface") typeNames.add(m[2]!);
-    else valueNames.add(m[2]!);
-  }
-  return { valueNames, typeNames };
-};
-
-const renderIndexes = (files: GenerateEntry[]): GenerateEntry[] => {
-  const byDir = new Map<
-    string,
-    Array<{ stem: string; valueNames: Set<string>; typeNames: Set<string> }>
-  >();
-  for (const f of files) {
-    if (f.kind !== "content") continue;
-    const dir = dirOf(f.filename);
-    const stem = basenameNoExt(f.filename);
-    if (stem === "index") continue;
-    const siblings = byDir.get(dir) ?? [];
-    siblings.push({ stem, ...parseExports(f.contents) });
-    byDir.set(dir, siblings);
-  }
-  const indexes: GenerateEntry[] = [];
-  for (const [dir, siblings] of byDir) {
-    siblings.sort((a, b) => a.stem.localeCompare(b.stem));
-    const lines: string[] = [];
-    for (const s of siblings) {
-      const valueList = [...s.valueNames].sort();
-      const typeList = [...s.typeNames].sort();
-      if (valueList.length > 0) {
-        lines.push(`export { ${valueList.join(", ")} } from "./${s.stem}";`);
-      }
-      if (typeList.length > 0) {
-        lines.push(
-          `export type { ${typeList.join(", ")} } from "./${s.stem}";`,
-        );
-      }
-    }
-    if (lines.length === 0) continue;
-    indexes.push(
-      content(dir ? `${dir}/index.ts` : "index.ts", `${lines.join("\n")}\n`),
+): GenerateEntry[] => {
+  const { naming } = opts;
+  const entries: GenerateEntry[] = [];
+  if (candidates.length > 0) {
+    const sorted = [...candidates].sort((a, b) => a.name.localeCompare(b.name));
+    entries.push(
+      content(
+        "index.ts",
+        fill(indexTmpl, {
+          routers: sorted.map((c) => ({
+            fnName: `${c.name}Router`,
+            fileBase: naming.fileBase(c.name),
+          })),
+        }),
+      ),
     );
   }
-  return indexes;
+  const customDir = customs.filter((e) => {
+    const { module } = customRouteMeta(e);
+    return module === undefined || !module.startsWith(".");
+  });
+  if (customDir.length > 0) {
+    const sorted = [...customDir].sort((a, b) => a.name.localeCompare(b.name));
+    entries.push(
+      content(
+        "../custom/index.ts",
+        fill(indexTmpl, {
+          types: sorted.map((e) => {
+            const { className } = customRouteMeta(e);
+            return { className, fileBase: `${e.name}_route` };
+          }),
+        }),
+      ),
+    );
+  }
+  return entries;
 };
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
-  const opts = await emitOptions(ctx.settings, ctx.reader);
-  const parsed = await new SpecificationParser(ctx.reader).loadRoutes({ idType: opts.ds.idType });
+  const opts = emitOptions(ctx.settings);
+  const parser = new SpecificationParser(ctx.reader);
+  const [parsed, customServices] = await Promise.all([
+    parser.loadRoutes({ idType: opts.ds.idType }),
+    customServiceEntities(ctx.reader),
+  ]);
   const entries: GenerateEntry[] = [
-    ...parsed.candidates.map((c) => renderEntityRouter(c, opts)),
+    ...parsed.candidates.map((c) => renderEntityRouter(c, opts, customServices)),
     ...parsed.customs.map((c) => renderCustom(c, opts)),
-    ...(parsed.candidates.length > 0
-      ? [renderAppWiring(parsed.candidates, opts)]
-      : []),
   ];
-  if (opts.createIndex) entries.push(...renderIndexes(entries));
+  if (opts.createIndex) {
+    entries.push(...renderIndexes(parsed.candidates, parsed.customs, opts));
+  }
   return entries;
 };

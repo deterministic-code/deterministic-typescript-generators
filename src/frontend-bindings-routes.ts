@@ -3,10 +3,7 @@ import { generate as generateOpenApi } from "@deterministic-code/generators-open
 import type { IDeterministicReader } from "./common/deterministic-reader.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import {
-  layoutForSettings,
-  type CodegenLayout,
-} from "./common/codegen-layout.ts";
+import { frontendPaths } from "./common/paths.ts";
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 type HttpMethod = (typeof HTTP_METHODS)[number];
@@ -61,8 +58,6 @@ interface BindingObject {
 }
 
 type BindingContext = GenerateContext;
-
-type LayoutSettings = Parameters<typeof layoutForSettings>[0];
 
 export function refName(ref: string): string {
   return ref.slice("#/components/schemas/".length);
@@ -190,7 +185,7 @@ export function bindingDatasource(entry: unknown): BindingDatasource {
   };
 }
 
-/** The per-object work-list the frontend datasource generators share (via `clientBindingTestEntries` / `validatorObjectEntries`): for each binding datasource, resolve its OpenAPI doc once and yield `{ ds, entity, entityRows, components }` per object (route-group). Generators derive placement from `ds.name`/`entity` through `CodegenLayout`, so the layout owns paths one way. */
+/** The per-object work-list the frontend datasource generators share (via `clientBindingTestEntries` / `validatorObjectEntries`): for each binding datasource, resolve its OpenAPI doc once and yield `{ ds, entity, entityRows, components }` per object (route-group). */
 async function bindingObjects({
   reader,
   settings,
@@ -214,16 +209,16 @@ async function bindingObjects({
 type ValidatorRender = (
   closure: Set<string>,
   components: Record<string, SchemaObject>,
-  ctx: { ds: string; entity: string; layout: CodegenLayout },
+  ctx: { ds: string; entity: string },
 ) => string;
 
-/** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test generator (`validators.test.ts`) share. `test` picks the validators file vs its test via `CodegenLayout.frontendValidatorFile`, so placement stays mode-aware. `render(closure, components, { ds, entity, layout })` produces the body; objects whose routes touch no component are skipped. */
+/** One CONTENT entry per binding object that has a non-empty reachable-component closure — the shape both `frontend_validators` (`validators.ts`) and its test generator (`validators.test.ts`) share. */
 export async function validatorObjectEntries(
   ctx: BindingContext,
   { test = false }: { test?: boolean },
   render: ValidatorRender,
 ): Promise<GenerateEntry[]> {
-  const layout = layoutForSettings(ctx.settings as LayoutSettings, "typescript");
+  const naming = frontendPaths(ctx.settings);
   const entries: GenerateEntry[] = [];
   for (const { ds, entity, entityRows, components } of await bindingObjects(
     ctx,
@@ -232,8 +227,8 @@ export async function validatorObjectEntries(
     if (closure.size === 0) continue;
     entries.push(
       content(
-        layout.frontendValidatorFile(ds.name, entity, { test }),
-        render(closure, components, { ds: ds.name, entity, layout }),
+        naming.validatorFile(ds.name, entity, { test }),
+        render(closure, components, { ds: ds.name, entity }),
       ),
     );
   }
@@ -242,15 +237,11 @@ export async function validatorObjectEntries(
 
 interface ClientBindingTestArgs extends BindingContext {
   clientLibs: string[];
-  entryFor: (
-    object: BindingObject,
-    clients: string[],
-    layout: CodegenLayout,
-  ) => GenerateEntry[];
+  entryFor: (object: BindingObject, clients: string[]) => GenerateEntry[];
   harness: () => GenerateEntry[];
 }
 
-/** The per-(object, client) test-generator loop shared by the mocked and live client-binding test generators: yield `entryFor(object, clients, layout)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was generated. Keeps the two generators' bodies to just their client set, per-entity renderer, and harness. */
+/** The per-(object, client) test-generator loop shared by the mocked and live client-binding test generators: yield `entryFor(object, clients)` for every binding object whose declared clients intersect `clientLibs`, then append the one-shot `harness()` entries when anything was generated. */
 export async function clientBindingTestEntries({
   reader,
   settings,
@@ -258,12 +249,11 @@ export async function clientBindingTestEntries({
   entryFor,
   harness,
 }: ClientBindingTestArgs): Promise<{ entries: GenerateEntry[] }> {
-  const layout = layoutForSettings(settings as LayoutSettings, "typescript");
   const entries: GenerateEntry[] = [];
   for (const object of await bindingObjects({ reader, settings })) {
     const clients = object.ds.clients.filter((c) => clientLibs.includes(c));
     if (clients.length === 0) continue;
-    entries.push(...entryFor(object, clients, layout));
+    entries.push(...entryFor(object, clients));
   }
   if (entries.length > 0) entries.push(...harness());
   return { entries };

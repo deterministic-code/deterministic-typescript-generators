@@ -59,7 +59,7 @@ const textOf = (entries: GenerateEntry[], path: string): string => {
 };
 
 describe("generate-routes", () => {
-  it("emits CRUD, readonly, byField, custom health, and app-wiring", async () => {
+  it("emits CRUD, readonly, byField, and custom health", async () => {
     const entries = await generate({
       reader: memoryReader({
         "datasource_types.yaml": DS_YAML,
@@ -70,28 +70,28 @@ describe("generate-routes", () => {
     });
 
     const paths = entries.map((e) => e.filename).sort();
-    assert.ok(paths.includes("users.ts"), `got: ${paths.join(", ")}`);
-    assert.ok(paths.includes("roles.ts"));
-    assert.ok(paths.includes("orders.ts"));
-    assert.ok(paths.includes("app-wiring.ts"));
-    assert.ok(paths.some((p) => p.includes("get-health") || p.includes("GetHealth") || p.endsWith("get-health-route.ts") || p.includes("health")));
+    assert.ok(paths.includes("user.ts"), `got: ${paths.join(", ")}`);
+    assert.ok(paths.includes("role.ts"));
+    assert.ok(paths.includes("order.ts"));
+    assert.ok(paths.includes("index.ts"));
+    assert.ok(paths.includes("../custom/index.ts"));
+    assert.ok(paths.some((p) => p.includes("getHealth")));
     assert.ok(
       !paths.some((p) => p.includes("nested")),
       `nested routers must not emit; got ${paths.join(", ")}`,
     );
 
-    const users = textOf(entries, "users.ts");
-    assert.match(users, /export function usersRouter/);
+    const users = textOf(entries, "user.ts");
+    assert.match(users, /export function userRouter/);
     assert.match(users, /createCrudRouter/);
     assert.match(users, /router\.get\("\/email\/:email"/);
 
-    const roles = textOf(entries, "roles.ts");
+    const roles = textOf(entries, "role.ts");
     assert.match(roles, /createReadOnlyRouter/);
 
-    const wiring = textOf(entries, "app-wiring.ts");
-    assert.match(wiring, /router\.use\("\/api\/users"/);
-    assert.match(wiring, /router\.use\("\/api\/roles"/);
-    assert.match(wiring, /ctx\.entityService\("role"\)/);
+    const index = textOf(entries, "index.ts");
+    assert.match(index, /export \{ userRouter \} from "\.\/user"/);
+    assert.match(index, /export \{ roleRouter \} from "\.\/role"/);
   });
 
   it("emits OCC option when enabled", async () => {
@@ -107,27 +107,8 @@ routes: []
       }),
       settings: { "datasource.use_optimistic_concurrency": "true" },
     });
-    const orders = textOf(entries, "orders.ts");
+    const orders = textOf(entries, "order.ts");
     assert.match(orders, /useOptimisticConcurrency: true/);
-  });
-
-  it("places routers under features/ when by-feature", async () => {
-    const entries = await generate({
-      reader: memoryReader({
-        "datasource_types.yaml": DS_YAML,
-        "view_types.yaml": VIEW_YAML,
-        "routes.yaml": `includes:
-  - view_type_routes:
-      filter: 'type == "user"'
-routes: []
-`,
-      }),
-      settings: { "other.organize_by_feature": "true" },
-    });
-    const paths = entries.map((e) => e.filename).sort();
-    assert.ok(paths.includes("features/user/users.ts"), `got: ${paths.join(", ")}`);
-    assert.ok(paths.includes("features/app-wiring.ts"));
-    assert.ok(!paths.includes("index.ts"));
   });
 
   it("omits index when codegen.create_index is false", async () => {
@@ -144,7 +125,7 @@ routes: []
       settings: { "codegen.create_index": "false" },
     });
     const paths = entries.map((e) => e.filename);
-    assert.ok(paths.includes("users.ts"));
+    assert.ok(paths.includes("user.ts"));
     assert.ok(!paths.includes("index.ts"));
   });
 

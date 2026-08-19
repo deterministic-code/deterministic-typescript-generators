@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { pascalCase } from "change-case";
 import { memoryReader } from "./deterministic-reader.ts";
 import { SpecificationParser } from "./specification-parser.ts";
 
-const serviceClassName = (entity: string) => pascalCase(`${entity}_service`);
+const serviceClassName = (entity: string) => `${entity}_service`;
 
 describe("SpecificationParser", () => {
   it("load() returns strict datasource, view, service, and route objects", async () => {

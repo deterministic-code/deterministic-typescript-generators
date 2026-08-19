@@ -2,7 +2,6 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { datasourceSettings } from "./common/datasource-settings.ts";
-import { typescriptRouteNaming, type RouteNaming } from "./common/naming.ts";
 import {
   SpecificationParser,
   primaryKeyFor,
@@ -13,7 +12,8 @@ import {
   type ViewEnrichment,
 } from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
-import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
+import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
+import { routePaths, type RoutePaths } from "./common/paths.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   byFieldDeleteListTmpl,
@@ -28,7 +28,7 @@ import {
 } from "./resources/routes-tests.ts";
 
 type EmitOptions = {
-  naming: RouteNaming;
+  naming: RoutePaths;
   datasources: DatasourceType[];
   idType: string;
   libraryReferenceMode: string | undefined;
@@ -42,7 +42,7 @@ const emitOptions = async (ctx: GenerateContext): Promise<EmitOptions> => {
     ? await new SpecificationParser(ctx.reader).loadViewTypes()
     : [];
   return {
-    naming: typescriptRouteNaming(ctx.settings),
+    naming: routePaths(ctx.settings),
     idType: ds.idType,
     libraryReferenceMode: settingsStr(
       ctx.settings,
@@ -68,7 +68,7 @@ const byFieldTokens = (
   ifMatch: string,
 ) => ({
   mountPath,
-  kebab: entry.byField.replace(/_/g, "-"),
+  kebab: entry.byField,
   byField: entry.byField,
   ifMatch,
 });
@@ -117,11 +117,10 @@ const renderTest = (
   candidate: RouteCandidate,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming } = opts;
   const pk = primaryKeyFor(candidate.name, opts.datasources, opts.idType);
-  const path = naming.testPath(candidate.name);
-  const fileBase = naming.fileBase(candidate.name);
-  const mountPath = `/api/${naming.apiPath(candidate.name)}`;
+  const path = opts.naming.testPath(candidate.name);
+  const fileBase = opts.naming.fileBase(candidate.name);
+  const mountPath = `/api/${candidate.name}`;
   const enrichments = opts.enrichmentsByEntity.get(candidate.name) ?? [];
   const occ = entityUsesOptimisticConcurrency(candidate, opts.useOcc);
   const ifMatch = occ ? `.set("If-Match", occToken)` : "";
@@ -132,7 +131,7 @@ const renderTest = (
       opts.libraryReferenceMode,
       path,
     )}";`,
-    fnName: naming.routerFnName(candidate.name),
+    fnName: `${candidate.name}Router`,
     fileBase,
     mockFactory: mockFactoryTmpl,
     pkExpr: `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`,
@@ -149,7 +148,7 @@ const renderTest = (
     path,
     fill(crudTmpl, {
       ...shared,
-      entity: naming.className(candidate.name),
+      entity: candidate.name,
       nameSuffix: requestNameSuffix(enrichments),
       occDecl: occ ? `  const occToken = new Date().toISOString();\n` : "",
       ifMatch,

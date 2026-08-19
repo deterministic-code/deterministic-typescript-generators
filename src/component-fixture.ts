@@ -2,9 +2,9 @@ import {
   datetimeLiteral,
   typescriptHomegrownTestData,
   type IFakeTestData,
-} from "./fake-test-data.ts";
+} from "./common/fake-test-data.ts";
 import { converterTypeForSchema } from "./schema-helpers.ts";
-import { NUMERIC_TYPES } from "./field-converter.ts";
+import { NUMERIC_TYPES } from "./common/field-converter.ts";
 
 /** A TS source fragment to splice into a fixture tree (faker/homegrown leaf, or a live identifier). */
 export class RawTsExpr {

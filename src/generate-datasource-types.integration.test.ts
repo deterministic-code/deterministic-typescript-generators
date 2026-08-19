@@ -155,7 +155,7 @@ describe("generate", () => {
     }
   });
 
-  it("renders User against StandardDataSourceWithUuid and the npm types library", async () => {
+  it("renders user against StandardDataSourceWithUuid and the npm types library", async () => {
     const user = await userBody({
       application_name: "catalog-api",
       "languages.typescript.library_reference_mode": "npm",
@@ -167,7 +167,7 @@ describe("generate", () => {
     );
     assert.match(
       user,
-      /export interface User extends StandardDataSourceWithUuid<number, string, Date>/,
+      /export interface user extends StandardDataSourceWithUuid<number, string, Date>/,
     );
     assert.match(user, /email: string;/);
     assert.match(user, /role_id: number;/);
@@ -177,35 +177,14 @@ describe("generate", () => {
     assert.doesNotMatch(user, /extends StandardDataSource</);
   });
 
-  it("nests files under features/ when organize_by_feature is set", async () => {
-    const nested = await generateWith({
-      "other.organize_by_feature": "true",
-    });
-    assert.deepEqual(
-      nested.map((e) => e.filename).sort(),
-      ["features/role/role.ts", "features/user/user.ts"],
-    );
-  });
-
   it("emits a barrel when codegen.create_index is true", async () => {
     const withIndex = await generateWith({
       "codegen.create_index": "true",
     });
     const map = indexEntries(withIndex);
     const index = entryBody(requireEntry(map, "index.ts"));
-    assert.match(index, /export \{ User \} from "\.\/user";/);
-    assert.match(index, /export \{ Role \} from "\.\/role";/);
-  });
-
-  it("skips the barrel when create_index is combined with organize_by_feature", async () => {
-    const nested = await generateWith({
-      "codegen.create_index": "true",
-      "other.organize_by_feature": "true",
-    });
-    assert.equal(
-      nested.some((e) => e.filename === "index.ts"),
-      false,
-    );
+    assert.match(index, /export \{ user \} from "\.\/user";/);
+    assert.match(index, /export \{ role \} from "\.\/role";/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
@@ -215,14 +194,14 @@ describe("generate", () => {
 
   it("comments=simple emits a one-line type doc", async () => {
     const user = await userBody({ comments: "simple" });
-    assert.match(user, /\/\*\* Type User\. \*\//);
+    assert.match(user, /\/\*\* Type user\. \*\//);
     assert.doesNotMatch(user, /Datasource type:/);
   });
 
   it("comments=description emits the multi-line type doc", async () => {
     const user = await userBody({ comments: "description" });
     assert.match(user, /\/\*\*/);
-    assert.match(user, /\* Type User\./);
+    assert.match(user, /\* Type user\./);
     assert.match(user, /\* Datasource type: audit\./);
     assert.match(user, /\* Target: StandardCrud\./);
     assert.match(user, /\* Fields: 5\./);
@@ -244,14 +223,6 @@ describe("generate", () => {
     );
   });
 
-  it("bundled imports are relative to the feature file when organize_by_feature is set", async () => {
-    const user = await userBody({
-      "languages.typescript.library_reference_mode": "bundled",
-      "other.organize_by_feature": "true",
-    });
-    assert.match(user, /from "\.\.\/\.\.\/_deterministic\/types\.js"/);
-  });
-
   it("datasource.id_type=biginteger uses bigint ids", async () => {
     const user = await userBody({ "datasource.id_type": "biginteger" });
     assert.match(
@@ -270,7 +241,7 @@ describe("generate", () => {
 
   it("datasource.id_type=uuid drops the uuid column and uses StandardDataSource", async () => {
     const user = await userBody({ "datasource.id_type": "uuid" });
-    assert.match(user, /export interface User extends StandardDataSource<string, Date>/);
+    assert.match(user, /export interface user extends StandardDataSource<string, Date>/);
     assert.doesNotMatch(user, /StandardDataSourceWithUuid/);
     assert.doesNotMatch(user, /^\s*uuid:/m);
     assert.match(user, /role_id: string;/);
@@ -293,54 +264,4 @@ describe("generate", () => {
     assert.match(user, /created_at: string;/);
   });
 
-  it("file_names casing changes the emitted filename", async () => {
-    const cases: Array<[string, string]> = [
-      ["auto", "user.ts"],
-      ["kebab", "user.ts"],
-      ["camel", "user.ts"],
-      ["pascal", "User.ts"],
-      ["snake", "user.ts"],
-      ["unknown", "user.ts"],
-    ];
-    for (const [casing, filename] of cases) {
-      const emitted = await generateWith({
-        "languages.typescript.casing.file_names": casing,
-      });
-      assert.equal(
-        emitted.some((e) => e.filename === filename),
-        true,
-        `file_names=${casing} should emit ${filename}`,
-      );
-    }
-  });
-
-  it("types casing changes the interface name", async () => {
-    const user = await userBody({
-      "languages.typescript.casing.types": "camel",
-    });
-    assert.match(user, /export interface user extends/);
-  });
-
-  it("fields casing changes property identifiers", async () => {
-    const camel = await userBody({
-      "languages.typescript.casing.fields": "camel",
-    });
-    assert.match(camel, /nickName: string \| null;/);
-    const kebab = await userBody({
-      "languages.typescript.casing.fields": "kebab",
-    });
-    assert.match(kebab, /"nick-name": string \| null;/);
-  });
-
-  it("directories casing changes the feature folder", async () => {
-    const nested = await generateWith({
-      "other.organize_by_feature": "true",
-      "languages.typescript.casing.directories": "pascal",
-      "languages.typescript.casing.file_names": "snake",
-    });
-    assert.deepEqual(
-      nested.map((e) => e.filename).sort(),
-      ["features/Role/role.ts", "features/User/user.ts"],
-    );
-  });
 });

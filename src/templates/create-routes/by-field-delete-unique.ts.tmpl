@@ -1,0 +1,17 @@
+  router.delete("/{{byField}}/:{{byField}}", async (req, res, next) => {
+    try {
+      const value = req.params.{{byField}} ?? "";
+      const count = await service.deleteBy([{ name: "{{byField}}", value }]);
+      if (count === 0) {
+        sendError(res, 404, "NOT_FOUND", `{{entity}} with {{byField}} '${value}' not found`);
+        return;
+      }
+      if (count > 1) {
+        sendError(res, 409, "CONFLICT", `Multiple {{entity}} rows matched {{byField}}='${value}'`);
+        return;
+      }
+      sendItem(res, { success: true });
+    } catch (err) {
+      next(err);
+    }
+  });

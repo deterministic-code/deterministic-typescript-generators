@@ -3,9 +3,9 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import {
-  typescriptViewNaming,
-  type ViewArtifactNaming,
-} from "./common/naming.ts";
+  viewPaths,
+  type ViewPaths,
+} from "./common/paths.ts";
 import {
   SpecificationParser,
   type ShapedView,
@@ -25,7 +25,7 @@ const docTokens = (settings: SettingsDict) => {
 };
 
 type EmitOptions = {
-  naming: ViewArtifactNaming;
+  naming: ViewPaths;
   schemaVersion: string;
   simpleDoc: boolean;
   descriptionDoc: boolean;
@@ -34,7 +34,7 @@ type EmitOptions = {
 };
 
 const emitOptions = (settings: SettingsDict): EmitOptions => {
-  const naming = typescriptViewNaming(settings);
+  const naming = viewPaths(settings);
   const createIndex = settingsStr(settings, "codegen.create_index");
   return {
     naming,

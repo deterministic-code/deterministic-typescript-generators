@@ -3,9 +3,9 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import {
-  typescriptViewNaming,
-  type ViewArtifactNaming,
-} from "./common/naming.ts";
+  viewPaths,
+  type ViewPaths,
+} from "./common/paths.ts";
 import {
   SpecificationParser,
   type ViewField,
@@ -15,7 +15,7 @@ import { settingsStr } from "./common/settings.ts";
 import { typeTestTmpl } from "./resources/view-types-tests.ts";
 
 type EmitOptions = {
-  naming: ViewArtifactNaming;
+  naming: ViewPaths;
   schemaVersion: string;
   datetimeType: string;
 };
@@ -30,7 +30,7 @@ type FieldTok = {
 };
 
 const emitOptions = (settings: SettingsDict): EmitOptions => ({
-  naming: typescriptViewNaming(settings),
+  naming: viewPaths(settings),
   schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
   datetimeType: datasourceSettings(settings).datetimeType,
 });
@@ -100,7 +100,7 @@ const fieldTokens = (field: ViewField, opts: EmitOptions): FieldTok => {
   };
 };
 
-const testPath = (entity: string, naming: ViewArtifactNaming): string => {
+const testPath = (entity: string, naming: ViewPaths): string => {
   const file = `${naming.fileBase(entity)}.test.ts`;
   if (!naming.byFeature) return file;
   const typeFile = naming.filePath(entity);

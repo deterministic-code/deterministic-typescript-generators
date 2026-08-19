@@ -183,48 +183,29 @@ types: []
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card-payment.test.ts",
-        "cash-payment.test.ts",
+        "card_payment.test.ts",
+        "cash_payment.test.ts",
         "payment.test.ts",
         "tag.test.ts",
-        "update-tag.test.ts",
-        "update-user-summary.test.ts",
-        "update-user.test.ts",
-        "user-summary.test.ts",
+        "update_tag.test.ts",
+        "update_user.test.ts",
+        "update_user_summary.test.ts",
         "user.test.ts",
+        "user_summary.test.ts",
       ],
     );
   });
 
-  it("nests tests under features/__tests__ when organize_by_feature is set", async () => {
-    const nested = await generateWith(
-      { "other.organize_by_feature": "true" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.deepEqual(nested.map((e) => e.filename).sort(), [
-      "features/card-payment/__tests__/card-payment-view.test.ts",
-    ]);
-  });
-
-  it("uses by-feature import specifiers for union members", async () => {
-    const payment = await bodyOf("payment-view.test.ts", {
-      "other.organize_by_feature": "true",
-    });
-    assert.match(payment, /from "\.\.\/card-payment\/card-payment-view"/);
-    assert.match(payment, /from "\.\.\/cash-payment\/cash-payment-view"/);
-  });
-
   it("imports the generated type and covers get/set plus null assignment", async () => {
     const card = await bodyOf(
-      "card-payment.test.ts",
+      "card_payment.test.ts",
       {},
       SIMPLE_VIEW_YAML,
       undefined,
     );
-    assert.match(card, /import type \{ CardPayment \} from "\.\.\/card-payment";/);
+    assert.match(card, /import type \{ card_payment \} from "\.\.\/card_payment";/);
     assert.match(card, /from "vitest"/);
-    assert.match(card, /const sample = \(\): CardPayment => \(/);
+    assert.match(card, /const sample = \(\): card_payment => \(/);
     for (const field of ["amount", "paid_at", "note"]) {
       assert.match(card, new RegExp(`it\\("gets ${field}"`));
       assert.match(card, new RegExp(`it\\("sets ${field}"`));
@@ -237,25 +218,25 @@ types: []
   });
 
   it("covers nested datasource and view fields on a shaped view", async () => {
-    const card = await bodyOf("card-payment.test.ts");
+    const card = await bodyOf("card_payment.test.ts");
     assert.match(card, /it\("gets tags"/);
     assert.match(card, /it\("sets tags"/);
     assert.match(card, /it\("gets owner"/);
-    assert.match(card, /tags: \[\{\} as Tag\]/);
-    assert.match(card, /owner: \{\} as UserSummary/);
-    assert.match(card, /const next = \{\} as UserSummary;/);
+    assert.match(card, /tags: \[\{\} as tag\]/);
+    assert.match(card, /owner: \{\} as user_summary/);
+    assert.match(card, /const next = \{\} as user_summary;/);
   });
 
   it("emits union member accept cases instead of field accessors", async () => {
     const payment = await bodyOf("payment.test.ts");
-    assert.match(payment, /import type \{ Payment \} from "\.\.\/payment";/);
+    assert.match(payment, /import type \{ payment \} from "\.\.\/payment";/);
     assert.match(
       payment,
-      /import type \{ CardPayment \} from "\.\/card-payment";/,
+      /import type \{ card_payment \} from "\.\/card_payment";/,
     );
     assert.match(
       payment,
-      /import type \{ CashPayment \} from "\.\/cash-payment";/,
+      /import type \{ cash_payment \} from "\.\/cash_payment";/,
     );
     assert.match(payment, /it\("accepts a card_payment member"/);
     assert.match(payment, /it\("accepts a cash_payment member"/);
@@ -265,7 +246,7 @@ types: []
 
   it("maps datetime fields to ISO strings when datasource.datetime=string", async () => {
     const card = await bodyOf(
-      "card-payment.test.ts",
+      "card_payment.test.ts",
       { "datasource.datetime": "string" },
       SIMPLE_VIEW_YAML,
       undefined,
@@ -276,7 +257,7 @@ types: []
 
   it("writes codegen.schema_version into the file header", async () => {
     const card = await bodyOf(
-      "card-payment.test.ts",
+      "card_payment.test.ts",
       { "codegen.schema_version": "9.9" },
       SIMPLE_VIEW_YAML,
       undefined,
@@ -284,43 +265,9 @@ types: []
     assert.match(card, /schema-version: 9.9/);
   });
 
-  it("fields casing changes getter and setter identifiers", async () => {
-    const camel = await bodyOf(
-      "card-payment.test.ts",
-      { "languages.typescript.casing.fields": "camel" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.match(camel, /it\("gets paidAt"/);
-    assert.match(camel, /it\("sets paidAt"/);
-    assert.match(camel, /value\.paidAt = next;/);
-    const kebab = await bodyOf(
-      "card-payment.test.ts",
-      { "languages.typescript.casing.fields": "kebab" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.match(kebab, /it\("gets paid-at"/);
-    assert.match(kebab, /value\["paid-at"\] = next;/);
-  });
-
-  it("types casing changes the imported interface name", async () => {
-    const card = await bodyOf(
-      "card-payment.test.ts",
-      { "languages.typescript.casing.types": "camel" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.match(card, /import type \{ cardPayment \} from "\.\.\/card-payment";/);
-    assert.match(
-      card,
-      /describe\("cardPayment field accessors \(view_types\.card_payment\)"/,
-    );
-  });
-
   it("covers remaining primitive sample literals", async () => {
     const card = await bodyOf(
-      "card-payment.test.ts",
+      "card_payment.test.ts",
       {},
       `types:
   - card_payment:
@@ -363,7 +310,7 @@ types: []
 
   it("renders empty shaped and union views", async () => {
     const empty = await bodyOf(
-      "empty-view.test.ts",
+      "empty_view.test.ts",
       {},
       `types:
   - empty_view:
@@ -373,10 +320,10 @@ types: []
 `,
       undefined,
     );
-    assert.match(empty, /const sample = \(\): EmptyView => \(\{\}\);/);
+    assert.match(empty, /const sample = \(\): empty_view => \(\{\}\);/);
     assert.doesNotMatch(empty, /it\("gets /);
     const union = await bodyOf(
-      "empty-union.test.ts",
+      "empty_union.test.ts",
       {},
       `types:
   - empty_view:
@@ -387,33 +334,5 @@ types: []
       undefined,
     );
     assert.doesNotMatch(union, /it\("accepts a /);
-  });
-
-  it("file_names casing changes the emitted filename", async () => {
-    const emitted = await generateWith(
-      { "languages.typescript.casing.file_names": "pascal" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.equal(
-      emitted.some((e) => e.filename === "CardPayment.test.ts"),
-      true,
-    );
-  });
-
-  it("directories casing changes the feature folder", async () => {
-    const nested = await generateWith(
-      {
-        "other.organize_by_feature": "true",
-        "languages.typescript.casing.directories": "pascal",
-        "languages.typescript.casing.file_names": "snake",
-      },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.deepEqual(
-      nested.map((e) => e.filename).sort(),
-      ["features/CardPayment/__tests__/card_payment_view.test.ts"],
-    );
   });
 });
