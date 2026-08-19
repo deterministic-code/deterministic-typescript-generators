@@ -1,17 +1,13 @@
-import {
-  datasourceSettings,
-  nativeFieldType,
-  tableFields,
-  type DatasourceSettings,
-} from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { nativeFieldType } from "./common/type-converters/native-to-typescript.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   viewValidatorPaths,
   type ViewValidatorPaths,
 } from "./common/paths.ts";
 import {
+  tableFields,
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
   type DatasourceField,
@@ -19,13 +15,30 @@ import {
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
+} from "@deterministic-code/generators-common/specification-parser";
 import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
+
 type EmitOptions = {
-  ds: DatasourceSettings;
+  ds: Datasource;
   naming: ViewValidatorPaths;
   schemaVersion: string;
   converter: FieldConverter;
@@ -57,12 +70,12 @@ const MUTABLE_SCALAR = new Set([
   "binary",
 ]);
 
-const emitBase = (settings: SettingsDict) => {
-  const ds = datasourceSettings(settings);
+const emitBase = (settings: Record<string, string>) => {
+  const ds = datasource(settings);
   return {
     ds,
     naming: viewValidatorPaths(settings),
-    schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
+    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
 };
@@ -104,7 +117,7 @@ const dsFixture = (name: string, opts: EmitOptions): string => {
   const table = opts.tables.get(name);
   if (table === undefined) return "{}";
   return objectLiteral(
-    tableFields(table.fields, opts.ds).map((f) => ({
+    tableFields(table.fields, opts.ds.idType).map((f) => ({
       ident: opts.naming.fieldIdent(f.name),
       expr: primitiveSample(f, opts),
     })),
@@ -135,7 +148,7 @@ const parentToks = (view: ShapedView, opts: EmitOptions): FieldTok[] => {
     ...view.omit,
     ...view.enrichments.map((e) => e.fkColumn),
   ]);
-  return tableFields(table.fields, opts.ds)
+  return tableFields(table.fields, opts.ds.idType)
     .filter((f) => !omit.has(f.name))
     .map((f) => ({
       name: f.name,

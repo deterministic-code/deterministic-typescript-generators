@@ -1,10 +1,6 @@
-import {
-  datasourceSettings,
-  type DatasourceSettings,
-} from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   importSpec,
   modulePathParts,
@@ -20,10 +16,9 @@ import {
   type CustomRouteEntry,
   type RouteByField,
   type RouteCandidate,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
-import { isRecord } from "./common/yaml-entry.ts";
-import { YamlNode } from "./common/yaml-node.ts";
+} from "@deterministic-code/generators-common/specification-parser";
+import { isRecord } from "@deterministic-code/generators-common/yaml-entry";
+import { YamlNode } from "@deterministic-code/generators-common/yaml-node";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   byFieldDeleteListTmpl,
@@ -38,16 +33,34 @@ import {
   readonlyTmpl,
 } from "./resources/routes.ts";
 
-const docTokens = (settings: SettingsDict) => {
-  const comments = settingsStr(settings, "comments");
+const docTokens = (settings: Record<string, string>) => {
+  const comments = settings["comments"];
   return {
     simpleDoc: comments !== "none" && comments !== "description",
     descriptionDoc: comments === "description",
   };
 };
 
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
+
 type EmitOptions = {
-  ds: DatasourceSettings;
+  ds: Datasource;
   naming: RoutePaths;
   services: ServicePaths;
   simpleDoc: boolean;
@@ -56,18 +69,15 @@ type EmitOptions = {
   createIndex: boolean;
 };
 
-const emitOptions = (settings: SettingsDict): EmitOptions => {
+const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = routePaths(settings);
-  const createIndex = settingsStr(settings, "codegen.create_index");
+  const createIndex = settings["codegen.create_index"];
   return {
-    ds: datasourceSettings(settings),
+    ds: datasource(settings),
     naming,
     services: servicePaths(settings),
     ...docTokens(settings),
-    libraryReferenceMode: settingsStr(
-      settings,
-      "languages.typescript.library_reference_mode",
-    ),
+    libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
   };

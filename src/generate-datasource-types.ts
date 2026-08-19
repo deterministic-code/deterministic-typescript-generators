@@ -1,32 +1,49 @@
-import {
-  datasourceSettings,
-  declaredFields,
-  nativeFieldType,
-  type DatasourceSettings,
-} from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
+  declaredFields,
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
-} from "./common/specification-parser.ts";
-import { settingsBool, settingsStr } from "./common/settings.ts";
+} from "@deterministic-code/generators-common/specification-parser";
+import {
+  datetimeToNative,
+  idTypeToNative,
+  nativeFieldType,
+} from "./common/type-converters/native-to-typescript.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 
-const docTokens = (settings: SettingsDict) => {
-  const comments = settingsStr(settings, "comments");
+const docTokens = (settings: Record<string, string>) => {
+  const comments = settings["comments"];
   return {
     simpleDoc: comments !== "none" && comments !== "description",
     descriptionDoc: comments === "description",
   };
 };
 
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
+
 type EmitOptions = {
-  ds: DatasourceSettings;
+  ds: Datasource;
   naming: ArtifactPaths;
   schemaVersion: string;
   simpleDoc: boolean;
@@ -35,20 +52,17 @@ type EmitOptions = {
   createIndex: boolean;
 };
 
-const emitOptions = (settings: SettingsDict): EmitOptions => {
-  const ds = datasourceSettings(settings);
+const emitOptions = (settings: Record<string, string>): EmitOptions => {
+  const ds = datasource(settings);
   const naming = datasourcePaths(settings);
   return {
     ds,
     naming,
-    schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
+    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
-    libraryMode: settingsStr(
-      settings,
-      "languages.typescript.library_reference_mode",
-    ),
+    libraryMode: settings["languages.typescript.library_reference_mode"],
     createIndex:
-      settingsBool(settings, "codegen.create_index") && !naming.byFeature,
+      settings["codegen.create_index"] === "true" && !naming.byFeature,
   };
 };
 
@@ -59,7 +73,7 @@ const renderType = (
   const { ds, naming, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
     opts;
   const className = naming.className(dsType.name);
-  const fields = declaredFields(dsType.fields, ds);
+  const fields = declaredFields(dsType.fields, ds.idType);
   return content(
     naming.filePath(dsType.name),
     fill(typeTmpl, {
@@ -75,8 +89,8 @@ const renderType = (
       className,
       datasourceType: dsType.datasourceType,
       fieldCount: String(fields.length),
-      idType: ds.tsIdType,
-      datetimeType: ds.datetimeType,
+      idType: idTypeToNative(ds.idType),
+      datetimeType: datetimeToNative(ds.datetimeRepr),
       fields: fields.map((f) => ({
         ident: naming.fieldIdent(f.name),
         tsType: nativeFieldType(ds, f),

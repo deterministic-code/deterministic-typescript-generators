@@ -6,12 +6,12 @@ import { describe, it } from "node:test";
 import {
   fileReader,
   memoryReader,
-} from "./common/deterministic-reader.ts";
+} from "@deterministic-code/generators-common/deterministic-reader";
 import {
   DATASOURCE_TYPES_YAML,
   VIEW_TYPES_YAML,
-} from "./common/specification-parser.ts";
-import type { GenerateEntry } from "./common/generate-entry.ts";
+} from "@deterministic-code/generators-common/specification-parser";
+import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate } from "./generate-view-types.ts";
 
 const DS_YAML = `types:

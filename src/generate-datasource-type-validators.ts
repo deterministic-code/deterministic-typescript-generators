@@ -1,25 +1,37 @@
-import {
-  datasourceSettings,
-  referenceIsUuid,
-  type DatasourceSettings,
-} from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import { isFiniteInt } from "./common/yaml-entry.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { isFiniteInt } from "@deterministic-code/generators-common/yaml-entry";
 import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
-import { toZod } from "./common/type-converter.ts";
+} from "@deterministic-code/generators-common/specification-parser";
+import { idTypeToZod, toZod } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
 import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
 
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
+
 type EmitOptions = {
-  ds: DatasourceSettings;
+  ds: Datasource;
   naming: ArtifactPaths;
   schemaVersion: string;
   datetimeRepr: string;
@@ -48,17 +60,17 @@ const STANDARD_COLUMNS: ReadonlyArray<FieldShape> = [
   { name: "updated", type: "datetime", isNullable: false },
 ];
 
-const emitOptions = (settings: SettingsDict): EmitOptions => {
-  const ds = datasourceSettings(settings);
+const emitOptions = (settings: Record<string, string>): EmitOptions => {
+  const ds = datasource(settings);
   const naming = datasourcePaths(settings);
   return {
     ds,
     naming,
-    schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
+    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     datetimeRepr: ds.datetimeRepr,
     withTypeAnnotation: true,
     createIndex:
-      settingsStr(settings, "codegen.create_index") !== "false" &&
+      settings["codegen.create_index"] !== "false" &&
       !naming.byFeature,
     converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
@@ -145,8 +157,8 @@ const zodForField = (
   useZodId: boolean,
 ): string => {
   let expr =
-    useZodId || referenceIsUuid(opts.ds, field.references)
-      ? opts.ds.zodIdType
+    useZodId || field.references?.split(".")[1] === "id"
+      ? idTypeToZod(opts.ds.idType)
       : tightenExpr(field, opts.datetimeRepr);
   if (field.isNullable) expr = `${expr}.nullable()`;
   if (field.hasDefault) {

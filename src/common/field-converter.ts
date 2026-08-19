@@ -2,14 +2,14 @@ import {
   EMPTY_UUID,
   hexToBytes,
   parseDefaultToken,
-} from "./default-token.ts";
+} from "@deterministic-code/generators-common/default-token";
 import {
   nativeTypeFor,
   renderSqlDefault,
   type ConverterField,
   type ConverterModule,
 } from "../field-converters/base.ts";
-import { to, toNative } from "./type-converter.ts";
+import { to, toNative } from "./type-converters/native-to-typescript.ts";
 
 export type { ConverterField, ConverterModule };
 

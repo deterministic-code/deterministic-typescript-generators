@@ -1,7 +1,6 @@
-import { fill } from "./common/fill.ts";
-import type { GenerateContext } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import { datasourceSettings } from "./common/datasource-settings.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   SpecificationParser,
   primaryKeyFor,
@@ -10,8 +9,7 @@ import {
   type RouteByField,
   type RouteCandidate,
   type ViewEnrichment,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
+} from "@deterministic-code/generators-common/specification-parser";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
 import { routePaths, type RoutePaths } from "./common/paths.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
@@ -37,18 +35,15 @@ type EmitOptions = {
 };
 
 const emitOptions = async (ctx: GenerateContext): Promise<EmitOptions> => {
-  const ds = datasourceSettings(ctx.settings);
+  const idType = ctx.settings["datasource.id_type"] ?? "integer";
   const views = (await ctx.reader.exists("view_types.yaml"))
     ? await new SpecificationParser(ctx.reader).loadViewTypes()
     : [];
   return {
     naming: routePaths(ctx.settings),
-    idType: ds.idType,
-    libraryReferenceMode: settingsStr(
-      ctx.settings,
-      "languages.typescript.library_reference_mode",
-    ),
-    useOcc: ds.useOptimisticConcurrency,
+    idType,
+    libraryReferenceMode: ctx.settings["languages.typescript.library_reference_mode"],
+    useOcc: ctx.settings["datasource.use_optimistic_concurrency"] === "true",
     datasources: [],
     enrichmentsByEntity: new Map(
       views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
