@@ -1,0 +1,14 @@
+{
+  "name": "{{appName}}",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "node --experimental-strip-types --test __tests__/health.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.10.0"
+  }
+}

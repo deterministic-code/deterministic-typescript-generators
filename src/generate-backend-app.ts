@@ -15,13 +15,30 @@ import {
   tsconfigJson,
   vitestConfigTs,
 } from "./resources/backend-app.ts";
+import {
+  minimalAppTs,
+  minimalHealthTestTs,
+  minimalPackageJson,
+  minimalServerTs,
+  minimalTsconfigJson,
+} from "./resources/backend-app-minimal.ts";
 
 const DEFAULT_APP_NAME = "generated-app";
+const DEFAULT_COMPLEXITY = "deterministic";
+const COMPLEXITIES = ["minimal", "deterministic"] as const;
 
-export const generate = async (
-  ctx: GenerateContext,
-): Promise<GenerateEntry[]> => {
-  const appName = ctx.settings.application_name || DEFAULT_APP_NAME;
+type AppGenerateComplexity = (typeof COMPLEXITIES)[number];
+
+const complexityOf = (settings: Record<string, string>): AppGenerateComplexity => {
+  const raw = settings.app_generate_complexity;
+  if (raw === undefined || raw === "") return DEFAULT_COMPLEXITY;
+  if (raw === "minimal" || raw === "deterministic") return raw;
+  throw new Error(
+    `settings.app_generate_complexity must be "minimal" or "deterministic", got ${JSON.stringify(raw)}`,
+  );
+};
+
+const emitDeterministic = (appName: string): GenerateEntry[] => {
   const named = { appName };
   return [
     patch("app.ts", appTs),
@@ -39,4 +56,25 @@ export const generate = async (
     content("__tests__/health.test.ts", healthTestTs),
     content("__tests__/app-boot.test.ts", appBootTestTs),
   ];
+};
+
+const emitMinimal = (appName: string): GenerateEntry[] => {
+  const named = { appName };
+  return [
+    patch("app.ts", fill(minimalAppTs, named)),
+    content("server.ts", fill(minimalServerTs, named)),
+    patch("package.json", fill(minimalPackageJson, named)),
+    content("tsconfig.json", fill(minimalTsconfigJson, named)),
+    content("__tests__/health.test.ts", fill(minimalHealthTestTs, named)),
+  ];
+};
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  const appName = ctx.settings.application_name || DEFAULT_APP_NAME;
+  const complexity = complexityOf(ctx.settings);
+  return complexity === "minimal"
+    ? emitMinimal(appName)
+    : emitDeterministic(appName);
 };
