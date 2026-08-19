@@ -8,10 +8,7 @@ import {
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
 } from "@deterministic-code/generators-common/specification-parser";
-import {
-  idTypeToNative,
-  toNative,
-} from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./base-type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 
@@ -86,7 +83,7 @@ const renderType = (
       className,
       datasourceType: dsType.datasourceType,
       fieldCount: String(fields.length),
-      idType: idTypeToNative(ds.idType),
+      idType: toNative(ds.idType),
       datetimeType: toNative("datetime"),
       fields: fields.map((f) => ({
         ident: naming.fieldIdent(f.name),

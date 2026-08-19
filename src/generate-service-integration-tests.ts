@@ -1,7 +1,7 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { idTypeToNative } from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./base-type-converter.ts";
 import { servicePaths } from "./common/paths.ts";
 import {
   SpecificationParser,
@@ -56,7 +56,7 @@ export const generate = async (
           entityNameJson: JSON.stringify(c.name),
           entityName: c.name,
           pkIdTypeJson: JSON.stringify(isUuid ? "uuid" : "integer"),
-          idTsType: idTypeToNative(idType),
+          idTsType: toNative(idType),
           withUuid: withUuidColumn,
           stampCols: withUuidColumn
             ? "id/uuid/created/updated"

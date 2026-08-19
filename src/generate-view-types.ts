@@ -11,7 +11,7 @@ import {
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
-import { toNative } from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./base-type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/view-types.ts";
 
 const docTokens = (settings: Record<string, string>) => {
