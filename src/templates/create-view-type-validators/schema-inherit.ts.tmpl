@@ -1,0 +1,14 @@
+export const {{schemaName}} = {{dsAlias}}{{#hasOmits}}.omit({ {{&omitObj}} }){{/hasOmits}}{{#partialId}}.partial({ id: true }){{/partialId}}{{#hasFields}}.extend({
+{{#fields}}
+  {{ident}}: {{&zodExpr}},
+{{/fields}}
+}){{/hasFields}};
+{{#hasTrio}}
+export const {{updateName}} = {{dsAlias}}.omit({ {{&updateOmitObj}} }){{#hasEnrich}}.extend({
+{{#enrichFields}}
+  {{&ident}}: z.string().trim(),
+{{/enrichFields}}
+}){{/hasEnrich}};
+export const {{createName}} = {{updateName}};
+export const {{patchName}} = {{updateName}}.partial();
+{{/hasTrio}}

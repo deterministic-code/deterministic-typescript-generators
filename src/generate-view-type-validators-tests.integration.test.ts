@@ -156,39 +156,28 @@ describe("generate view type validators tests", () => {
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card-payment.test.ts",
-        "cash-payment.test.ts",
+        "card_payment.test.ts",
+        "cash_payment.test.ts",
         "payment.test.ts",
         "role.test.ts",
         "tag.test.ts",
-        "update-tag.test.ts",
-        "update-user-summary.test.ts",
-        "update-user.test.ts",
-        "user-summary.test.ts",
+        "update_tag.test.ts",
+        "update_user.test.ts",
+        "update_user_summary.test.ts",
         "user.test.ts",
+        "user_summary.test.ts",
       ],
     );
   });
 
-  it("nests tests under features/__tests__ when organize_by_feature is set", async () => {
-    const nested = await generateWith(
-      { "other.organize_by_feature": "true" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.deepEqual(nested.map((e) => e.filename).sort(), [
-      "features/card-payment/__tests__/card-payment-view.test.ts",
-    ]);
-  });
-
   it("imports the generated schema and covers parse, nullable, and reject cases", async () => {
     const card = await bodyOf(
-      "card-payment.test.ts",
+      "card_payment.test.ts",
       {},
       SIMPLE_VIEW_YAML,
       undefined,
     );
-    assert.match(card, /import \{ cardPaymentSchema \} from "\.\.\/card-payment";/);
+    assert.match(card, /import \{ card_paymentSchema \} from "\.\.\/card_payment";/);
     assert.match(card, /it\("parses a valid payload"/);
     assert.match(card, /it\("accepts null for nullable fields"/);
     assert.match(card, /it\("rejects when missing required field \\"amount\\""/);
@@ -206,7 +195,7 @@ describe("generate view type validators tests", () => {
   });
 
   it("covers nested datasource and view fields on a shaped view", async () => {
-    const card = await bodyOf("card-payment.test.ts");
+    const card = await bodyOf("card_payment.test.ts");
     assert.match(card, /tags: \[\{ /);
     assert.match(card, /label: "sample"/);
     assert.match(card, /owner: \{ /);
@@ -227,7 +216,7 @@ describe("generate view type validators tests", () => {
 
   it("writes codegen.schema_version into the file header", async () => {
     const card = await bodyOf(
-      "card-payment.test.ts",
+      "card_payment.test.ts",
       { "codegen.schema_version": "9.9" },
       SIMPLE_VIEW_YAML,
       undefined,

@@ -2,14 +2,14 @@ import {
   EMPTY_UUID,
   hexToBytes,
   parseDefaultToken,
-} from "./common/default-token.ts";
+} from "./default-token.ts";
 import {
   nativeTypeFor,
   renderSqlDefault,
   type ConverterField,
   type ConverterModule,
-} from "./field-converters/base.ts";
-import { to, toNative } from "./common/type-converter.ts";
+} from "../field-converters/base.ts";
+import { to, toNative } from "./type-converter.ts";
 
 export type { ConverterField, ConverterModule };
 

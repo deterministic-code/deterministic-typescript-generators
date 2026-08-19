@@ -7,9 +7,10 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import {
-  typescriptServiceNaming,
-  type ServiceNaming,
-} from "./common/naming.ts";
+  modulePathParts,
+  servicePaths,
+  type ServicePaths,
+} from "./common/paths.ts";
 import {
   SpecificationParser,
   type CustomServiceEntry,
@@ -33,7 +34,7 @@ const docTokens = (settings: SettingsDict) => {
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: ServiceNaming;
+  naming: ServicePaths;
   simpleDoc: boolean;
   descriptionDoc: boolean;
   libraryReferenceMode: string | undefined;
@@ -41,7 +42,7 @@ type EmitOptions = {
 };
 
 const emitOptions = (settings: SettingsDict): EmitOptions => {
-  const naming = typescriptServiceNaming(settings);
+  const naming = servicePaths(settings);
   const createIndex = settingsStr(settings, "codegen.create_index");
   return {
     ds: datasourceSettings(settings),
@@ -57,15 +58,9 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
   };
 };
 
-const moduleParts = (mod: string): string[] => {
-  const parts = mod.split("/").filter((p) => p !== "" && p !== ".");
-  while (parts.length && parts[0] === "..") parts.shift();
-  return parts;
-};
-
-export const resolveCustomGeneratePath = (
+const resolveCustomGeneratePath = (
   entry: CustomServiceEntry,
-  naming: ServiceNaming,
+  naming: ServicePaths,
   byFeature: boolean,
 ): string => {
   const fileBase = naming.casedFileStem(entry.name);
@@ -76,7 +71,7 @@ export const resolveCustomGeneratePath = (
     if (mod.startsWith("./services/") || mod.startsWith("./routes/")) {
       return naming.customStubPath(entry.name);
     }
-    const parts = moduleParts(mod);
+    const parts = modulePathParts(mod);
     if (parts[0] !== "features") {
       const suggestion = naming.customStubPath(entry.name);
       throw new Error(
@@ -90,7 +85,7 @@ export const resolveCustomGeneratePath = (
   }
 
   if (!mod || !mod.startsWith(".")) return `../custom/${fileBase}.ts`;
-  const parts = moduleParts(mod);
+  const parts = modulePathParts(mod);
   if (parts[0] === "services") parts.shift();
   return `../${parts.join("/")}.ts`;
 };

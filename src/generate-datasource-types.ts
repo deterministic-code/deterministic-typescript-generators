@@ -7,7 +7,7 @@ import {
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
+import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
@@ -27,7 +27,7 @@ const docTokens = (settings: SettingsDict) => {
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: ArtifactNaming;
+  naming: ArtifactPaths;
   schemaVersion: string;
   simpleDoc: boolean;
   descriptionDoc: boolean;
@@ -37,7 +37,7 @@ type EmitOptions = {
 
 const emitOptions = (settings: SettingsDict): EmitOptions => {
   const ds = datasourceSettings(settings);
-  const naming = typescriptNaming(settings);
+  const naming = datasourcePaths(settings);
   return {
     ds,
     naming,
@@ -88,7 +88,7 @@ const renderType = (
 
 const renderIndex = (
   types: DatasourceType[],
-  naming: ArtifactNaming,
+  naming: ArtifactPaths,
 ): GenerateEntry =>
   content(
     "index.ts",

@@ -1,0 +1,9 @@
+  router.get("/{{byField}}/:{{byField}}", async (req, res, next) => {
+    try {
+      const value = req.params.{{byField}} ?? "";
+      const rows = await service.findBy([{ name: "{{byField}}", value }]);
+      sendItems(res, rows as unknown[]);
+    } catch (err) {
+      next(err);
+    }
+  });

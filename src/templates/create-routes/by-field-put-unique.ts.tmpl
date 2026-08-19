@@ -1,0 +1,23 @@
+  router.put("/{{byField}}/:{{byField}}", async (req, res, next) => {
+    try {
+      const value = req.params.{{byField}} ?? "";
+      const parsed = updateSchema.parse(req.body);
+      const count = await service.updateBy(
+        [{ name: "{{byField}}", value }],
+        parsed as Record<string, unknown>,
+      );
+      if (count === 0) {
+        sendError(res, 404, "NOT_FOUND", `{{entity}} with {{byField}} '${value}' not found`);
+        return;
+      }
+      if (count > 1) {
+        sendError(res, 409, "CONFLICT", `Multiple {{entity}} rows matched {{byField}}='${value}'`);
+        return;
+      }
+      const rows = await service.findBy([{ name: "{{byField}}", value }]);
+      sendItem(res, (rows[0] ?? null) as unknown as Record<string, unknown>);
+    } catch (err) {
+      if (handleZodError(err, res)) return;
+      next(err);
+    }
+  });

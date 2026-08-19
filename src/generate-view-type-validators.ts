@@ -1,4 +1,3 @@
-import { camelCase, pascalCase } from "change-case";
 import {
   datasourceSettings,
   type DatasourceSettings,
@@ -8,9 +7,9 @@ import type { GenerateContext, SettingsDict } from "./common/generate-context.ts
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { isFiniteInt } from "./common/yaml-entry.ts";
 import {
-  typescriptViewValidatorNaming,
-  type ViewValidatorNaming,
-} from "./common/naming.ts";
+  viewValidatorPaths,
+  type ViewValidatorPaths,
+} from "./common/paths.ts";
 import {
   SpecificationParser,
   type ShapedView,
@@ -19,11 +18,11 @@ import {
 } from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { toZod } from "./common/type-converter.ts";
-import { indexTmpl, typeTmpl } from "./resources/view-type-validators.ts";
+import { indexTmpl, schemaInheritTmpl, schemaStandaloneTmpl, schemaUnionTmpl, typeTmpl } from "./resources/view-type-validators.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: ViewValidatorNaming;
+  naming: ViewValidatorPaths;
   schemaVersion: string;
 };
 
@@ -31,26 +30,22 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
   const ds = datasourceSettings(settings);
   return {
     ds,
-    naming: typescriptViewValidatorNaming(settings),
+    naming: viewValidatorPaths(settings),
     schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
   };
 };
 
-const schemaIdent = (name: string) => `${camelCase(name)}Schema`;
-const dsAlias = (name: string) => `datasource${pascalCase(name)}Schema`;
-const trio = (name: string) => {
-  const p = pascalCase(name);
-  return {
-    create: `create${p}Schema`,
-    update: `update${p}Schema`,
-    patch: `patch${p}Schema`,
-  };
-};
-const omitObj = (keys: string[], naming: ViewValidatorNaming) =>
+const schemaIdent = (name: string) => `${name}Schema`;
+const dsAlias = (name: string) => `datasource_${name}Schema`;
+const trio = (name: string) => ({
+  create: `create_${name}Schema`,
+  update: `update_${name}Schema`,
+  patch: `patch_${name}Schema`,
+});
+const omitObj = (keys: string[], naming: ViewValidatorPaths) =>
   keys.map((k) => `${JSON.stringify(naming.fieldName(k))}: true`).join(", ");
 const viewOmits = (view: ShapedView, withUuid: boolean) =>
   view.omit.filter((k) => withUuid || k !== "uuid");
-const extend = (body: string) => (body === "" ? "" : `.extend({\n${body}\n})`);
 
 const tighten = (field: ViewField, datetimeRepr: string): string => {
   const base = toZod(field.base, datetimeRepr);
@@ -128,48 +123,60 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
     .sort((a, b) => a.fromPath.localeCompare(b.fromPath));
 };
 
+const fieldTokens = (view: ShapedView, opts: EmitOptions) =>
+  view.fields.map((f) => ({
+    ident: opts.naming.fieldIdent(f.name),
+    zodExpr: zodForField(f, opts),
+  }));
+
 const schemaBody = (view: ViewType, opts: EmitOptions): string => {
+  const schemaName = schemaIdent(view.name);
   if (view.kind === "union") {
-    const members = view.members
-      .map((m) => `z.lazy(() => ${schemaIdent(m)})`)
-      .join(",\n  ");
-    return `export const ${schemaIdent(view.name)} = z.union([\n  ${members},\n]);`;
+    return fill(schemaUnionTmpl, {
+      schemaName,
+      members: view.members.map((m) => ({ ident: schemaIdent(m) })),
+    }).trimEnd();
   }
-  const fields = view.fields
-    .map((f) => `  ${opts.naming.fieldIdent(f.name)}: ${zodForField(f, opts)},`)
-    .join("\n");
-  const omits = viewOmits(view, opts.ds.withUuidColumn);
-  let base: string;
-  if (view.inherits === null) {
-    base = fields === "" ? "z.object({})" : `z.object({\n${fields}\n})`;
-  } else {
-    const allOmits = [...view.enrichments.map((e) => e.fkColumn), ...omits];
-    base = dsAlias(view.inherits);
-    if (allOmits.length > 0) base += `.omit({ ${omitObj(allOmits, opts.naming)} })`;
-    if (omits.length > 0 && !omits.includes("id")) base += ".partial({ id: true })";
-    base += extend(fields);
-  }
-  const name = schemaIdent(view.name);
-  const decl = `export const ${name} = ${base};`;
-  if (omits.length > 0) return decl;
   const t = trio(view.name);
+  const fields = fieldTokens(view, opts);
+  const omits = viewOmits(view, opts.ds.withUuidColumn);
+  const hasTrio = omits.length === 0;
   if (view.inherits === null) {
-    return `${decl}\nexport const ${t.create} = ${name};\nexport const ${t.update} = ${name};\nexport const ${t.patch} = ${name}.partial();`;
+    return fill(schemaStandaloneTmpl, {
+      schemaName,
+      emptyObject: fields.length === 0,
+      fields,
+      hasTrio,
+      createName: t.create,
+      updateName: t.update,
+      patchName: t.patch,
+    }).trimEnd();
   }
+  const allOmits = [...view.enrichments.map((e) => e.fkColumn), ...omits];
   const stamp = opts.ds.withUuidColumn
     ? ["id", "uuid", "created", "updated"]
     : ["id", "created", "updated"];
-  const enrich = view.enrichments
-    .map(
-      (e) =>
-        `  ${JSON.stringify(opts.naming.fieldName(e.newField))}: z.string().trim(),`,
-    )
-    .join("\n");
-  const update = `${dsAlias(view.inherits)}.omit({ ${omitObj(
-    [...stamp, ...view.enrichments.map((e) => e.fkColumn)],
-    opts.naming,
-  )} })${extend(enrich)}`;
-  return `${decl}\nexport const ${t.update} = ${update};\nexport const ${t.create} = ${t.update};\nexport const ${t.patch} = ${t.update}.partial();`;
+  return fill(schemaInheritTmpl, {
+    schemaName,
+    dsAlias: dsAlias(view.inherits),
+    hasOmits: allOmits.length > 0,
+    omitObj: omitObj(allOmits, opts.naming),
+    partialId: omits.length > 0 && !omits.includes("id"),
+    hasFields: fields.length > 0,
+    fields,
+    hasTrio,
+    updateName: t.update,
+    createName: t.create,
+    patchName: t.patch,
+    updateOmitObj: omitObj(
+      [...stamp, ...view.enrichments.map((e) => e.fkColumn)],
+      opts.naming,
+    ),
+    hasEnrich: view.enrichments.length > 0,
+    enrichFields: view.enrichments.map((e) => ({
+      ident: JSON.stringify(opts.naming.fieldName(e.newField)),
+    })),
+  }).trimEnd();
 };
 
 const indexExports = (view: ViewType): string | undefined => {

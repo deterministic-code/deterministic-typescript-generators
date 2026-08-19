@@ -1,0 +1,14 @@
+  router.put("/{{byField}}/:{{byField}}", async (req, res, next) => {
+    try {
+      const value = req.params.{{byField}} ?? "";
+      const parsed = updateSchema.parse(req.body);
+      const count = await service.updateBy(
+        [{ name: "{{byField}}", value }],
+        parsed as Record<string, unknown>,
+      );
+      sendItem(res, { count });
+    } catch (err) {
+      if (handleZodError(err, res)) return;
+      next(err);
+    }
+  });

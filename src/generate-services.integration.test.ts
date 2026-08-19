@@ -67,74 +67,28 @@ describe("generate-services", () => {
     const paths = entries.map((e) =>
       e.kind === "content" ? e.filename : e.filename,
     ).sort();
-    assert.ok(paths.includes("user-service.ts"), `got: ${paths.join(", ")}`);
-    assert.ok(paths.includes("role-service.ts"));
-    assert.ok(paths.includes("../custom/report-service.ts"));
+    assert.ok(paths.includes("user_service.ts"), `got: ${paths.join(", ")}`);
+    assert.ok(paths.includes("role_service.ts"));
+    assert.ok(paths.includes("../custom/ReportService.ts"));
     assert.ok(paths.includes("../custom/health-check-service.ts"));
     assert.ok(paths.includes("index.ts"));
     assert.ok(paths.includes("../custom/index.ts"));
 
-    const user = textOf(entries, "user-service.ts");
-    assert.match(user, /export class UserService extends BaseService<User>/);
-    assert.match(user, /async findByEmail\(email: string\)/);
+    const user = textOf(entries, "user_service.ts");
+    assert.match(user, /export class user_service extends BaseService<user>/);
+    assert.match(user, /async find_by_email\(email: string\)/);
     assert.match(
       user,
       /from "\.\.\/\.\.\/types\/generated\/views\/user"/,
     );
 
-    const report = textOf(entries, "../custom/report-service.ts");
+    const report = textOf(entries, "../custom/ReportService.ts");
     assert.match(report, /async run\(\.\.\._args: unknown\[\]\)/);
     assert.match(report, /return \{\};/);
 
     const index = textOf(entries, "index.ts");
-    assert.match(index, /export \{ RoleService \} from "\.\/role-service"/);
-    assert.match(index, /export \{ UserService \} from "\.\/user-service"/);
-  });
-
-  it("places custom stubs under features/…/custom when by-feature", async () => {
-    const entries = await generate({
-      reader: fixtureReader({
-        "datasource_types.yaml": DS_YAML,
-        "view_types.yaml": VIEW_YAML,
-        "services.yaml": `includes:
-  - view_type_services:
-      filter: 'type == "user"'
-services: []
-`,
-      }),
-      settings: { "other.organize_by_feature": "true" },
-    });
-
-    const paths = entries.map((e) => e.filename).sort();
-    assert.ok(
-      paths.includes("features/user/user-service.ts"),
-      `got: ${paths.join(", ")}`,
-    );
-    assert.ok(
-      paths.includes("features/health-check/custom/health-check-service.ts"),
-    );
-    assert.ok(!paths.includes("index.ts"));
-  });
-
-  it("rejects by-feature custom modules outside features/", async () => {
-    await assert.rejects(
-      () =>
-        generate({
-          reader: fixtureReader({
-            "datasource_types.yaml": DS_YAML,
-            "view_types.yaml": VIEW_YAML,
-            "services.yaml": `includes:
-  - view_type_services:
-      filter: 'false'
-services:
-  - name: WeirdService
-    module: ./elsewhere/weird
-`,
-          }),
-          settings: { "other.organize_by_feature": "true" },
-        }),
-      /outside \.\/features\//,
-    );
+    assert.match(index, /export \{ role_service \} from "\.\/role_service"/);
+    assert.match(index, /export \{ user_service \} from "\.\/user_service"/);
   });
 
   it("omits indexes when codegen.create_index is false", async () => {
@@ -148,7 +102,7 @@ services:
       settings: { "codegen.create_index": "false" },
     });
     const paths = entries.map((e) => e.filename);
-    assert.ok(paths.includes("user-service.ts"));
+    assert.ok(paths.includes("user_service.ts"));
     assert.ok(!paths.includes("index.ts"));
     assert.ok(!paths.includes("../custom/index.ts"));
   });
@@ -166,7 +120,7 @@ services: []
       }),
       settings: { comments: "description" },
     });
-    const user = textOf(entries, "user-service.ts");
+    const user = textOf(entries, "user_service.ts");
     assert.match(user, /Datasource type: standard/);
     assert.match(user, /Target: StandardCrud/);
   });
@@ -184,7 +138,7 @@ services: []
       }),
       settings: { comments: "none" },
     });
-    const user = textOf(entries, "user-service.ts");
+    const user = textOf(entries, "user_service.ts");
     assert.ok(!user.includes("/**"));
   });
 });

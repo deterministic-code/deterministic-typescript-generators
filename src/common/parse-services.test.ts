@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { SpecificationParser } from "./specification-parser.ts";
-import { pascalCase } from "change-case";
 
-const serviceClassName = (entity: string) => pascalCase(`${entity}_service`);
+const serviceClassName = (entity: string) => `${entity}_service`;
 
 const DS_YAML = `types:
   - user:
@@ -90,14 +89,14 @@ describe("parseServices", () => {
   - view_type_services:
       filter: 'type == "user"'
 services:
-  - name: UserService
-    module: ./services/custom/user-service
+  - name: user_service
+    module: ./services/custom/user_service
 `,
       views,
       datasources,
       serviceClassName,
     });
     assert.equal(parsed.generics.length, 0);
-    assert.ok(parsed.customs.some((c) => c.name === "UserService"));
+    assert.ok(parsed.customs.some((c) => c.name === "user_service"));
   });
 });

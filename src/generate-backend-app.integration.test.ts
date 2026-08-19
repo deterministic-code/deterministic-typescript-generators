@@ -78,15 +78,15 @@ describe("generate", () => {
     assert.equal(entryBody(dockerignore), "node_modules");
   });
 
-  it("renders app.ts against the npm library and flat composeRouter", () => {
+  it("renders app.ts against the npm library", () => {
     const app = entryBody(requireEntry(byName, "app.ts"));
     assert.equal(requireEntry(byName, "app.ts").kind, "patch");
     assert.match(
       app,
       /from "@deterministic-code\/deterministic\/app"/,
     );
-    assert.match(app, /from "\.\/routes\/generated\/app-wiring\.js"/);
-    assert.doesNotMatch(app, /features\/app-wiring/);
+    assert.doesNotMatch(app, /app-wiring/);
+    assert.doesNotMatch(app, /composeRouter/);
     assert.doesNotMatch(app, /customModulePaths/);
     assert.doesNotMatch(app, /_deterministic\/app/);
     assert.match(app, /BEGIN APP_DB_IMPORTS/);

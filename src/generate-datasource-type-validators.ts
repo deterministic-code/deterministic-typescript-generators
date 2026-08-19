@@ -1,4 +1,3 @@
-import { camelCase } from "change-case";
 import {
   datasourceSettings,
   referenceIsUuid,
@@ -8,7 +7,7 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { isFiniteInt } from "./common/yaml-entry.ts";
-import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
+import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
@@ -17,11 +16,11 @@ import {
 import { settingsStr } from "./common/settings.ts";
 import { toZod } from "./common/type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
-import { FieldConverter, fieldConverter } from "./field-converter.ts";
+import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: ArtifactNaming;
+  naming: ArtifactPaths;
   schemaVersion: string;
   datetimeRepr: string;
   withTypeAnnotation: boolean;
@@ -51,7 +50,7 @@ const STANDARD_COLUMNS: ReadonlyArray<FieldShape> = [
 
 const emitOptions = (settings: SettingsDict): EmitOptions => {
   const ds = datasourceSettings(settings);
-  const naming = typescriptNaming(settings);
+  const naming = datasourcePaths(settings);
   return {
     ds,
     naming,
@@ -65,9 +64,9 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
   };
 };
 
-const schemaName = (entity: string): string => `${camelCase(entity)}Schema`;
+const schemaName = (entity: string): string => `${entity}Schema`;
 
-const validatorPath = (entity: string, naming: ArtifactNaming): string => {
+const validatorPath = (entity: string, naming: ArtifactPaths): string => {
   if (!naming.byFeature) return `${naming.fileBase(entity)}.ts`;
   return naming.filePath(entity).replace(/\.ts$/, ".validator.ts");
 };

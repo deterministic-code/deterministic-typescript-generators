@@ -9,7 +9,16 @@ const resource = (rel: string): Promise<string> =>
     "utf8",
   );
 
-export const [typeTmpl, indexTmpl] = await Promise.all([
+export const [
+  typeTmpl,
+  indexTmpl,
+  schemaUnionTmpl,
+  schemaStandaloneTmpl,
+  schemaInheritTmpl,
+] = await Promise.all([
   resource("type.ts.tmpl"),
   resource("index.ts.tmpl"),
+  resource("schema-union.ts.tmpl"),
+  resource("schema-standalone.ts.tmpl"),
+  resource("schema-inherit.ts.tmpl"),
 ]);

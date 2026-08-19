@@ -7,7 +7,7 @@ import {
 import { fill } from "./common/fill.ts";
 import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import { typescriptNaming, type ArtifactNaming } from "./common/naming.ts";
+import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
@@ -16,11 +16,11 @@ import {
 } from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
 import { typeTestTmpl } from "./resources/datasource-types-tests.ts";
-import { FieldConverter, fieldConverter } from "./field-converter.ts";
+import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
 
 type EmitOptions = {
   ds: DatasourceSettings;
-  naming: ArtifactNaming;
+  naming: ArtifactPaths;
   schemaVersion: string;
   converter: FieldConverter;
 };
@@ -29,7 +29,7 @@ const emitOptions = (settings: SettingsDict): EmitOptions => {
   const ds = datasourceSettings(settings);
   return {
     ds,
-    naming: typescriptNaming(settings),
+    naming: datasourcePaths(settings),
     schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
     converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
@@ -54,7 +54,7 @@ const fieldTokens = (field: DatasourceField, opts: EmitOptions) => {
   };
 };
 
-const testPath = (entity: string, naming: ArtifactNaming): string => {
+const testPath = (entity: string, naming: ArtifactPaths): string => {
   const file = `${naming.fileBase(entity)}.test.ts`;
   if (!naming.byFeature) return file;
   const typeFile = naming.filePath(entity);

@@ -1,4 +1,3 @@
-import { snakeCase } from "change-case";
 import pluralize from "pluralize";
 import { parse } from "yaml";
 import { compileRoutesFilter, compileServicesFilter } from "./compile-filter.ts";
@@ -805,28 +804,14 @@ export class SpecificationParser {
     return [...byName.values()];
   }
 
-  #snakeToCamel(name: string): string {
-    return name
-      .split(/[_-]/)
-      .map((part, i) =>
-        i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1),
-      )
-      .join("");
-  }
-
-  #kebabToSnake(value: string): string {
-    return value.replace(/-/g, "_");
-  }
-
-  #kebabPlural(name: string): string {
-    const kebab = name.replace(/_/g, "-");
-    const parts = kebab.split("-");
+  #pluralStem(name: string): string {
+    const parts = name.split("_");
     parts[parts.length - 1] = pluralize.plural(parts[parts.length - 1]!);
-    return parts.join("-");
+    return parts.join("_");
   }
 
   #parentParamName(parentName: string): string {
-    return `${this.#snakeToCamel(parentName)}Id`;
+    return `${parentName}Id`;
   }
 
   #rewriteParentPath(rawPath: string, parentName: string): string {
@@ -841,7 +826,7 @@ export class SpecificationParser {
 
   #defaultParentBasePath(parentName: string): string {
     return this.#rewriteParentPath(
-      `/api/${this.#kebabPlural(parentName)}/{id}`,
+      `/api/${this.#pluralStem(parentName)}/{id}`,
       parentName,
     );
   }
@@ -851,7 +836,7 @@ export class SpecificationParser {
   }
 
   #defaultChildSegment(name: string): string {
-    return `/${this.#kebabPlural(name)}`;
+    return `/${this.#pluralStem(name)}`;
   }
 
   #findHealthRouteIndex(routes: unknown[]): number {
@@ -934,7 +919,7 @@ export class SpecificationParser {
     }
     return {
       entity: this.#singularizeLastToken(pluralSnake),
-      byField: snakeCase(camelField),
+      byField: camelField,
     };
   }
 
@@ -1064,11 +1049,11 @@ export class SpecificationParser {
       for (const child of def?.combined_types ?? []) {
         let childName: string;
         if (typeof child === "string") {
-          childName = this.#kebabToSnake(child);
+          childName = child;
         } else {
           const [rawName, childDef] = Object.entries(child)[0]!;
           if (childDef && (childDef.via || childDef.target)) continue;
-          childName = this.#kebabToSnake(rawName);
+          childName = rawName;
         }
         if (parents.has(childName)) continue;
         const childDs = dsByName.get(childName);
@@ -1155,7 +1140,7 @@ export class SpecificationParser {
   ): NormalizedChild {
     if (typeof child === "string") {
       return {
-        name: this.#kebabToSnake(child),
+        name: child,
         via: null,
         target: null,
         route: null,
@@ -1163,7 +1148,7 @@ export class SpecificationParser {
     }
     const [rawName, def] = Object.entries(child)[0]!;
     return {
-      name: this.#kebabToSnake(rawName),
+      name: rawName,
       via: def && typeof def.via === "string" ? def.via : null,
       target: def && typeof def.target === "string" ? def.target : null,
       route: def && typeof def.route === "string" ? def.route : null,
@@ -1213,7 +1198,7 @@ export class SpecificationParser {
       parentParam: this.#parentParamName(parentName),
       junction: args.junction,
       target: args.target,
-      targetParam: `${this.#snakeToCamel(args.target)}Id`,
+      targetParam: `${args.target}Id`,
       parentFkField: args.parentFkField,
       childFkField: args.childFkField,
       segment,

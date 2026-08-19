@@ -2,7 +2,7 @@ import { fill } from "./common/fill.ts";
 import type { GenerateContext } from "./common/generate-context.ts";
 import { content, type GenerateEntry } from "./common/generate-entry.ts";
 import { datasourceSettings } from "./common/datasource-settings.ts";
-import { typescriptServiceNaming, type ServiceNaming } from "./common/naming.ts";
+import { servicePaths, type ServicePaths } from "./common/paths.ts";
 import {
   SpecificationParser,
   DATASOURCE_TYPES_YAML,
@@ -11,12 +11,12 @@ import {
   type ServiceCandidate,
 } from "./common/specification-parser.ts";
 import { settingsStr } from "./common/settings.ts";
-import { asIdType, fakeTestData, preludeSource } from "./fake-test-data.ts";
+import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import { genericTmpl } from "./resources/service-tests.ts";
 
 type EmitOptions = {
-  naming: ServiceNaming;
+  naming: ServicePaths;
   datasources: DatasourceType[];
   idType: string;
   libraryReferenceMode: string | undefined;
@@ -28,7 +28,7 @@ const emitOptions = async (
   const ds = datasourceSettings(ctx.settings);
   const hasDs = await ctx.reader.exists(DATASOURCE_TYPES_YAML);
   return {
-    naming: typescriptServiceNaming(ctx.settings),
+    naming: servicePaths(ctx.settings),
     idType: ds.idType,
     libraryReferenceMode: settingsStr(
       ctx.settings,

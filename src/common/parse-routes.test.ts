@@ -195,8 +195,8 @@ routes: []`);
     assert.equal(desc.parentBasePath, "/api/projects/:projectId");
     assert.equal(desc.child.name, "project_setting");
     assert.equal(desc.fkColumn, "project_id");
-    assert.equal(desc.segment, "/project-settings");
-    assert.equal(desc.segmentTail, "project-settings");
+    assert.equal(desc.segment, "/project_settings");
+    assert.equal(desc.segmentTail, "project_settings");
   });
 
   it("does not mark m2m via/target children as childrenOnly", () => {

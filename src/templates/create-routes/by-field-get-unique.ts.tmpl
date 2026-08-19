@@ -1,0 +1,17 @@
+  router.get("/{{byField}}/:{{byField}}", async (req, res, next) => {
+    try {
+      const value = req.params.{{byField}} ?? "";
+      const rows = await service.findBy([{ name: "{{byField}}", value }]);
+      if (rows.length === 0) {
+        sendError(res, 404, "NOT_FOUND", `{{entity}} with {{byField}} '${value}' not found`);
+        return;
+      }
+      if (rows.length > 1) {
+        sendError(res, 409, "CONFLICT", `Multiple {{entity}} rows matched {{byField}}='${value}'`);
+        return;
+      }
+      sendItem(res, rows[0] as unknown as Record<string, unknown>);
+    } catch (err) {
+      next(err);
+    }
+  });

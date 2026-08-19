@@ -173,48 +173,48 @@ types: []
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card-payment.ts",
-        "cash-payment.ts",
+        "card_payment.ts",
+        "cash_payment.ts",
         "index.ts",
         "payment.ts",
         "role.ts",
         "tag.ts",
-        "update-tag.ts",
-        "update-user-summary.ts",
-        "update-user.ts",
-        "user-summary.ts",
+        "update_tag.ts",
+        "update_user.ts",
+        "update_user_summary.ts",
         "user.ts",
+        "user_summary.ts",
       ],
     );
   });
 
   it("renders a shaped view with primitive, datasource, and view fields plus CRUD trio", async () => {
-    const card = await bodyOf("card-payment.ts");
+    const card = await bodyOf("card_payment.ts");
     assert.match(card, /schema-version: 1\.0/);
     assert.match(card, /import \{ z \} from "zod";/);
     assert.match(
       card,
-      /import \{ tagSchema as datasourceTagSchema \} from "\.\.\/\.\.\/datasource\/validators\/tag";/,
+      /import \{ tagSchema as datasource_tagSchema \} from "\.\.\/\.\.\/datasource\/validators\/tag";/,
     );
     assert.match(
       card,
-      /import \{ userSummarySchema \} from "\.\/user-summary";/,
+      /import \{ user_summarySchema \} from "\.\/user_summary";/,
     );
-    assert.match(card, /export const cardPaymentSchema = z\.object\(\{/);
+    assert.match(card, /export const card_paymentSchema = z\.object\(\{/);
     assert.match(card, /amount: z\.string\(\),/);
     assert.match(card, /paid_at: z\.date\(\),/);
-    assert.match(card, /tags: z\.array\(z\.lazy\(\(\) => datasourceTagSchema\)\),/);
-    assert.match(card, /owner: z\.lazy\(\(\) => userSummarySchema\),/);
+    assert.match(card, /tags: z\.array\(z\.lazy\(\(\) => datasource_tagSchema\)\),/);
+    assert.match(card, /owner: z\.lazy\(\(\) => user_summarySchema\),/);
     assert.match(card, /note: z\.string\(\)\.trim\(\)\.nullable\(\),/);
-    assert.match(card, /export const createCardPaymentSchema = cardPaymentSchema;/);
-    assert.match(card, /export const updateCardPaymentSchema = cardPaymentSchema;/);
+    assert.match(card, /export const create_card_paymentSchema = card_paymentSchema;/);
+    assert.match(card, /export const update_card_paymentSchema = card_paymentSchema;/);
     assert.match(
       card,
-      /export const patchCardPaymentSchema = cardPaymentSchema\.partial\(\);/,
+      /export const patch_card_paymentSchema = card_paymentSchema\.partial\(\);/,
     );
     assert.match(
       card,
-      /export type CardPaymentValidated = z\.infer<typeof cardPaymentSchema>;/,
+      /export type card_paymentValidated = z\.infer<typeof card_paymentSchema>;/,
     );
   });
 
@@ -222,80 +222,49 @@ types: []
     const payment = await bodyOf("payment.ts");
     assert.match(
       payment,
-      /import \{ cardPaymentSchema \} from "\.\/card-payment";/,
+      /import \{ card_paymentSchema \} from "\.\/card_payment";/,
     );
     assert.match(
       payment,
-      /import \{ cashPaymentSchema \} from "\.\/cash-payment";/,
+      /import \{ cash_paymentSchema \} from "\.\/cash_payment";/,
     );
     assert.match(
       payment,
-      /export const paymentSchema = z\.union\(\[\n  z\.lazy\(\(\) => cardPaymentSchema\),\n  z\.lazy\(\(\) => cashPaymentSchema\),\n\]\);/,
+      /export const paymentSchema = z\.union\(\[\n  z\.lazy\(\(\) => card_paymentSchema\),\n  z\.lazy\(\(\) => cash_paymentSchema\),\n\]\);/,
     );
     assert.doesNotMatch(payment, /createPaymentSchema/);
   });
 
   it("inherits a datasource schema with omit, enrich, and no CRUD trio for omit views", async () => {
-    const summary = await bodyOf("user-summary.ts");
+    const summary = await bodyOf("user_summary.ts");
     assert.match(
       summary,
-      /import \{ userSchema as datasourceUserSchema \} from "\.\.\/\.\.\/datasource\/validators\/user";/,
+      /import \{ userSchema as datasource_userSchema \} from "\.\.\/\.\.\/datasource\/validators\/user";/,
     );
     assert.match(
       summary,
-      /export const userSummarySchema = datasourceUserSchema\.omit\(\{ "role_id": true, "nick_name": true \}\)\.partial\(\{ id: true \}\)\.extend\(\{\n  display_name: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(64\),\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
+      /export const user_summarySchema = datasource_userSchema\.omit\(\{ "role_id": true, "nick_name": true \}\)\.partial\(\{ id: true \}\)\.extend\(\{\n  display_name: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(64\),\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
     );
-    assert.doesNotMatch(summary, /createUserSummarySchema/);
-    assert.doesNotMatch(summary, /updateUserSummarySchema/);
+    assert.doesNotMatch(summary, /create_user_summarySchema/);
+    assert.doesNotMatch(summary, /update_user_summarySchema/);
   });
 
   it("emits CRUD trio for inherited pass-through views", async () => {
     const user = await bodyOf("user.ts");
     assert.match(
       user,
-      /import \{ userSchema as datasourceUserSchema \} from "\.\.\/\.\.\/datasource\/validators\/user";/,
+      /import \{ userSchema as datasource_userSchema \} from "\.\.\/\.\.\/datasource\/validators\/user";/,
     );
     assert.match(
       user,
-      /export const userSchema = datasourceUserSchema\.omit\(\{ "role_id": true \}\)\.extend\(\{\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
+      /export const userSchema = datasource_userSchema\.omit\(\{ "role_id": true \}\)\.extend\(\{\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
     );
     assert.match(
       user,
-      /export const updateUserSchema = datasourceUserSchema\.omit\(\{ "id": true, "uuid": true, "created": true, "updated": true, "role_id": true \}\)\.extend\(\{\n  "role_name": z\.string\(\)\.trim\(\),\n\}\);/,
+      /export const update_userSchema = datasource_userSchema\.omit\(\{ "id": true, "uuid": true, "created": true, "updated": true, "role_id": true \}\)\.extend\(\{\n  "role_name": z\.string\(\)\.trim\(\),\n\}\);/,
     );
-    assert.match(user, /export const createUserSchema = updateUserSchema;/);
-    assert.match(user, /export const patchUserSchema = updateUserSchema\.partial\(\);/);
-  });
-
-  it("nests validators under features with .validator.ts when organize_by_feature is set", async () => {
-    const nested = await generateWith({
-      "other.organize_by_feature": "true",
-    });
-    const names = nested.map((e) => e.filename).sort();
-    assert.ok(names.includes("features/user/user-view.validator.ts"));
-    assert.ok(names.includes("features/user/update-user.validator.ts"));
-    assert.ok(
-      names.includes("features/user-summary/user-summary-view.validator.ts"),
-    );
-    assert.ok(
-      names.includes("features/card-payment/card-payment-view.validator.ts"),
-    );
-    assert.equal(
-      names.some((n) => n === "index.ts"),
-      false,
-    );
-  });
-
-  it("uses by-feature import specifiers", async () => {
-    const card = await bodyOf("card-payment-view.validator.ts", {
-      "other.organize_by_feature": "true",
-    });
-    assert.match(card, /from "\.\.\/tag\/tag\.validator"/);
-    assert.match(card, /from "\.\.\/user-summary\/user-summary-view\.validator"/);
-    const user = await bodyOf("user-view.validator.ts", {
-      "other.organize_by_feature": "true",
-    });
-    assert.match(user, /from "\.\/user\.validator"/);
+    assert.match(user, /export const create_userSchema = update_userSchema;/);
+    assert.match(user, /export const patch_userSchema = update_userSchema\.partial\(\);/);
   });
 
   it("skips the barrel when codegen.create_index is false", async () => {
@@ -310,25 +279,25 @@ types: []
     const index = await bodyOf("index.ts");
     assert.match(
       index,
-      /export \{ cardPaymentSchema, createCardPaymentSchema, updateCardPaymentSchema, patchCardPaymentSchema \} from "\.\/card-payment";/,
+      /export \{ card_paymentSchema, create_card_paymentSchema, update_card_paymentSchema, patch_card_paymentSchema \} from "\.\/card_payment";/,
     );
     assert.match(index, /export \{ paymentSchema \} from "\.\/payment";/);
     assert.match(
       index,
-      /export type \{ CardPaymentValidated \} from "\.\/card-payment";/,
+      /export type \{ card_paymentValidated \} from "\.\/card_payment";/,
     );
-    assert.doesNotMatch(index, /user-summary/);
+    assert.doesNotMatch(index, /user_summary/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
-    const card = await bodyOf("card-payment.ts", {
+    const card = await bodyOf("card_payment.ts", {
       "codegen.schema_version": "9.9",
     });
     assert.match(card, /schema-version: 9.9/);
   });
 
   it("datasource.datetime=string maps datetime fields to trimmed strings", async () => {
-    const card = await bodyOf("card-payment.ts", {
+    const card = await bodyOf("card_payment.ts", {
       "datasource.datetime": "string",
     });
     assert.match(card, /paid_at: z\.string\(\)\.trim\(\),/);
@@ -338,33 +307,12 @@ types: []
     const user = await bodyOf("user.ts", { "datasource.id_type": "uuid" });
     assert.match(
       user,
-      /export const updateUserSchema = datasourceUserSchema\.omit\(\{ "id": true, "created": true, "updated": true, "role_id": true \}\)/,
+      /export const update_userSchema = datasource_userSchema\.omit\(\{ "id": true, "created": true, "updated": true, "role_id": true \}\)/,
     );
     assert.doesNotMatch(
       user,
-      /updateUserSchema = datasourceUserSchema\.omit\(\{[^}]*"uuid"/,
+      /update_userSchema = datasource_userSchema\.omit\(\{[^}]*"uuid"/,
     );
   });
 
-  it("fields casing changes property identifiers and omit keys", async () => {
-    const summary = await bodyOf("user-summary.ts", {
-      "languages.typescript.casing.fields": "camel",
-    });
-    assert.match(summary, /"roleId": true/);
-    assert.match(summary, /"nickName": true/);
-    assert.match(summary, /displayName: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(64\),/);
-    assert.match(summary, /roleName: z\.string\(\)\.trim\(\),/);
-  });
-
-  it("file_names casing changes the emitted filename", async () => {
-    const emitted = await generateWith(
-      { "languages.typescript.casing.file_names": "pascal" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.equal(
-      emitted.some((e) => e.filename === "CardPayment.ts"),
-      true,
-    );
-  });
 });

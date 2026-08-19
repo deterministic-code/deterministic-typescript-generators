@@ -92,19 +92,6 @@ describe("generate datasource type validators tests", () => {
     assert.deepEqual([...byName.keys()].sort(), ["role.test.ts", "user.test.ts"]);
   });
 
-  it("nests tests under features/__tests__ when organize_by_feature is set", async () => {
-    const nested = await generateWith({
-      "other.organize_by_feature": "true",
-    });
-    assert.deepEqual(
-      nested.map((e) => e.filename).sort(),
-      [
-        "features/role/__tests__/role.test.ts",
-        "features/user/__tests__/user.test.ts",
-      ],
-    );
-  });
-
   it("imports the generated schema and covers parse, nullable, and reject cases", async () => {
     const user = await userBody();
     assert.match(user, /import \{ userSchema \} from "\.\.\/user";/);
@@ -132,11 +119,4 @@ describe("generate datasource type validators tests", () => {
     assert.match(user, /schema-version: 9.9/);
   });
 
-  it("fields casing changes fixture keys", async () => {
-    const camel = await userBody({
-      "languages.typescript.casing.fields": "camel",
-    });
-    assert.match(camel, /nickName: "sample"/);
-    assert.match(camel, /roleId: 1/);
-  });
 });
