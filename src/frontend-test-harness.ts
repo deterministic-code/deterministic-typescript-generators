@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { content, patch, type GenerateEntry } from "./common/generate-entry.ts";
+import { content, patch, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 
 const VITEST_VERSION = "^2.1.0";
 const ZOD_VERSION = "^3.23.8";

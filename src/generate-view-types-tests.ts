@@ -1,7 +1,6 @@
-import { datasourceSettings } from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   viewPaths,
   type ViewPaths,
@@ -10,9 +9,27 @@ import {
   SpecificationParser,
   type ViewField,
   type ViewType,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
+} from "@deterministic-code/generators-common/specification-parser";
+import { datetimeToNative } from "./common/type-converters/native-to-typescript.ts";
 import { typeTestTmpl } from "./resources/view-types-tests.ts";
+
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
 
 type EmitOptions = {
   naming: ViewPaths;
@@ -29,10 +46,10 @@ type FieldTok = {
   nullable: boolean;
 };
 
-const emitOptions = (settings: SettingsDict): EmitOptions => ({
+const emitOptions = (settings: Record<string, string>): EmitOptions => ({
   naming: viewPaths(settings),
-  schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
-  datetimeType: datasourceSettings(settings).datetimeType,
+  schemaVersion: settings["codegen.schema_version"] ?? "1.0",
+  datetimeType: datetimeToNative(datasource(settings).datetimeRepr),
 });
 
 const escapeTestName = (name: string): string =>

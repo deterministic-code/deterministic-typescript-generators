@@ -1,4 +1,4 @@
-import { parseDefaultToken, EMPTY_UUID } from "../common/default-token.ts";
+import { parseDefaultToken, EMPTY_UUID } from "@deterministic-code/generators-common/default-token";
 
 /** The `size` a field carries: a scalar length, a `[precision, scale]` tuple, the `"unlimited"` sentinel, or absent. */
 export type FieldSize = number | number[] | "unlimited" | null;

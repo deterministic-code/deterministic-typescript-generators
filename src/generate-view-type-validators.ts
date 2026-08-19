@@ -1,11 +1,7 @@
-import {
-  datasourceSettings,
-  type DatasourceSettings,
-} from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import { isFiniteInt } from "./common/yaml-entry.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { isFiniteInt } from "@deterministic-code/generators-common/yaml-entry";
 import {
   viewValidatorPaths,
   type ViewValidatorPaths,
@@ -15,23 +11,40 @@ import {
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
-import { toZod } from "./common/type-converter.ts";
+} from "@deterministic-code/generators-common/specification-parser";
+import { toZod } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, schemaInheritTmpl, schemaStandaloneTmpl, schemaUnionTmpl, typeTmpl } from "./resources/view-type-validators.ts";
 
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
+
 type EmitOptions = {
-  ds: DatasourceSettings;
+  ds: Datasource;
   naming: ViewValidatorPaths;
   schemaVersion: string;
 };
 
-const emitOptions = (settings: SettingsDict): EmitOptions => {
-  const ds = datasourceSettings(settings);
+const emitOptions = (settings: Record<string, string>): EmitOptions => {
+  const ds = datasource(settings);
   return {
     ds,
     naming: viewValidatorPaths(settings),
-    schemaVersion: settingsStr(settings, "codegen.schema_version") ?? "1.0",
+    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
 };
 
@@ -205,7 +218,7 @@ export const generate = async (
     ),
   );
   const createIndex =
-    settingsStr(ctx.settings, "codegen.create_index") !== "false" &&
+    ctx.settings["codegen.create_index"] !== "false" &&
     !opts.naming.byFeature;
   if (createIndex) {
     entries.push(

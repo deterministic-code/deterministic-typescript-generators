@@ -1,11 +1,7 @@
-import {
-  datasourceSettings,
-  nativeFieldType,
-  type DatasourceSettings,
-} from "./common/datasource-settings.ts";
-import { fill } from "./common/fill.ts";
-import type { GenerateContext, SettingsDict } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import { nativeFieldType } from "./common/type-converters/native-to-typescript.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   modulePathParts,
   servicePaths,
@@ -15,8 +11,7 @@ import {
   SpecificationParser,
   type CustomServiceEntry,
   type ServiceCandidate,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
+} from "@deterministic-code/generators-common/specification-parser";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   customStubTmpl,
@@ -24,16 +19,34 @@ import {
   indexTmpl,
 } from "./resources/services.ts";
 
-const docTokens = (settings: SettingsDict) => {
-  const comments = settingsStr(settings, "comments");
+const docTokens = (settings: Record<string, string>) => {
+  const comments = settings["comments"];
   return {
     simpleDoc: comments !== "none" && comments !== "description",
     descriptionDoc: comments === "description",
   };
 };
 
+type Datasource = {
+  idType: string;
+  datetimeRepr: string;
+  withUuidColumn: boolean;
+  useOptimisticConcurrency: boolean;
+};
+
+const datasource = (settings: Record<string, string>): Datasource => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  return {
+    idType,
+    datetimeRepr: settings["datasource.datetime"] ?? "native",
+    withUuidColumn: idType !== "uuid",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
+  };
+};
+
 type EmitOptions = {
-  ds: DatasourceSettings;
+  ds: Datasource;
   naming: ServicePaths;
   simpleDoc: boolean;
   descriptionDoc: boolean;
@@ -41,17 +54,14 @@ type EmitOptions = {
   createIndex: boolean;
 };
 
-const emitOptions = (settings: SettingsDict): EmitOptions => {
+const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = servicePaths(settings);
-  const createIndex = settingsStr(settings, "codegen.create_index");
+  const createIndex = settings["codegen.create_index"];
   return {
-    ds: datasourceSettings(settings),
+    ds: datasource(settings),
     naming,
     ...docTokens(settings),
-    libraryReferenceMode: settingsStr(
-      settings,
-      "languages.typescript.library_reference_mode",
-    ),
+    libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
     createIndex:
       !naming.byFeature &&
       (createIndex === undefined || createIndex === "true"),

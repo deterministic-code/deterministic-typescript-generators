@@ -1,6 +1,4 @@
 import { posix } from "node:path";
-import type { SettingsDict } from "./generate-context.ts";
-import { settingsBool } from "./settings.ts";
 
 const IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const VARIANT_PREFIXES = ["update_", "create_"] as const;
@@ -29,8 +27,8 @@ const featureEntity = (entity: string): string => {
   return prefix === undefined ? entity : entity.slice(prefix.length);
 };
 
-const organizeByFeature = (settings: SettingsDict): boolean =>
-  settingsBool(settings, "other.organize_by_feature");
+const organizeByFeature = (settings: Record<string, string>): boolean =>
+  settings["other.organize_by_feature"] === "true";
 
 export type ArtifactPaths = {
   byFeature: boolean;
@@ -96,7 +94,7 @@ const core = (
   fieldIdent: ident,
 });
 
-export const datasourcePaths = (settings: SettingsDict): ArtifactPaths => {
+export const datasourcePaths = (settings: Record<string, string>): ArtifactPaths => {
   const byFeature = organizeByFeature(settings);
   const fileBase = (entity: string) => entity;
   const filePath = (entity: string) => {
@@ -111,7 +109,7 @@ export const datasourcePaths = (settings: SettingsDict): ArtifactPaths => {
   };
 };
 
-export const viewPaths = (settings: SettingsDict): ViewPaths => {
+export const viewPaths = (settings: Record<string, string>): ViewPaths => {
   const byFeature = organizeByFeature(settings);
   const fileBase = (entity: string) => entity;
   const filePath = (entity: string) => {
@@ -139,7 +137,7 @@ export const viewPaths = (settings: SettingsDict): ViewPaths => {
 };
 
 export const viewValidatorPaths = (
-  settings: SettingsDict,
+  settings: Record<string, string>,
 ): ViewValidatorPaths => {
   const byFeature = organizeByFeature(settings);
   const fileBase = (entity: string) => entity;
@@ -167,7 +165,7 @@ export const viewValidatorPaths = (
   };
 };
 
-export const servicePaths = (settings: SettingsDict): ServicePaths => {
+export const servicePaths = (settings: Record<string, string>): ServicePaths => {
   const byFeature = organizeByFeature(settings);
   const fileBase = (entity: string) => `${entity}_service`;
   const filePath = (entity: string) => {
@@ -211,7 +209,7 @@ export const servicePaths = (settings: SettingsDict): ServicePaths => {
   };
 };
 
-export const routePaths = (settings: SettingsDict): RoutePaths => {
+export const routePaths = (settings: Record<string, string>): RoutePaths => {
   const byFeature = organizeByFeature(settings);
   const fileBase = (entity: string) => entity;
   const filePath = (entity: string) => {
@@ -235,7 +233,7 @@ export const routePaths = (settings: SettingsDict): RoutePaths => {
   };
 };
 
-export const frontendPaths = (_settings: SettingsDict) => ({
+export const frontendPaths = (_settings: Record<string, string>) => ({
   validatorFile: (
     ds: string,
     entity: string,

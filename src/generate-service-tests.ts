@@ -1,7 +1,6 @@
-import { fill } from "./common/fill.ts";
-import type { GenerateContext } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
-import { datasourceSettings } from "./common/datasource-settings.ts";
+import { fill } from "@deterministic-code/generators-common/fill";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { servicePaths, type ServicePaths } from "./common/paths.ts";
 import {
   SpecificationParser,
@@ -9,8 +8,7 @@ import {
   primaryKeyFor,
   type DatasourceType,
   type ServiceCandidate,
-} from "./common/specification-parser.ts";
-import { settingsStr } from "./common/settings.ts";
+} from "@deterministic-code/generators-common/specification-parser";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import { genericTmpl } from "./resources/service-tests.ts";
@@ -25,19 +23,16 @@ type EmitOptions = {
 const emitOptions = async (
   ctx: GenerateContext,
 ): Promise<EmitOptions> => {
-  const ds = datasourceSettings(ctx.settings);
+  const idType = ctx.settings["datasource.id_type"] ?? "integer";
   const hasDs = await ctx.reader.exists(DATASOURCE_TYPES_YAML);
   return {
     naming: servicePaths(ctx.settings),
-    idType: ds.idType,
-    libraryReferenceMode: settingsStr(
-      ctx.settings,
-      "languages.typescript.library_reference_mode",
-    ),
+    idType,
+    libraryReferenceMode: ctx.settings["languages.typescript.library_reference_mode"],
     datasources: hasDs
       ? new SpecificationParser().parseDatasourceTypes({
           yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-          idType: ds.idType,
+          idType,
         })
       : [],
   };

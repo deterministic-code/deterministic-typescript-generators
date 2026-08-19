@@ -1,8 +1,8 @@
 import { parse } from "yaml";
 import { generate as generateOpenApi } from "@deterministic-code/generators-openapi/generate-openapi";
-import type { IDeterministicReader } from "./common/deterministic-reader.ts";
-import type { GenerateContext } from "./common/generate-context.ts";
-import { content, type GenerateEntry } from "./common/generate-entry.ts";
+import type { IDeterministicReader } from "@deterministic-code/generators-common/deterministic-reader";
+import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { frontendPaths } from "./common/paths.ts";
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
