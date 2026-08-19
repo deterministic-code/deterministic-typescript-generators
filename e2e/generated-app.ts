@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execFile } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -74,14 +74,54 @@ export const waitForUrl = async (
     : new Error(`timed out waiting for ${url}`);
 };
 
-export const writeDeterministicYaml = async (appDir: string): Promise<void> => {
+export const writeDeterministicYaml = async (
+  appDir: string,
+  files: Record<string, string> = MINIMAL_DETERMINISTIC_YAML,
+): Promise<void> => {
   const dir = join(appDir, "deterministic");
   await mkdir(dir, { recursive: true });
   await Promise.all(
-    Object.entries(MINIMAL_DETERMINISTIC_YAML).map(([name, body]) =>
+    Object.entries(files).map(([name, body]) =>
       writeFile(join(dir, name), body, "utf8"),
     ),
   );
+};
+
+const SQLITE_HOOK = `    beforeCreateBackendApp: async () => ({
+      connection: await connectDatabase({
+        backend: "sqlite",
+        sqliteFile: ":memory:",
+        migrationsDir: resolve(process.cwd(), "sqlite/migrations"),
+      }),
+    }),
+`;
+
+export const patchSqliteMigrateHook = async (appDir: string): Promise<void> => {
+  const appPath = join(appDir, "app.ts");
+  const before = await readFile(appPath, "utf8");
+  const withImport = before.replace(
+    'import { createBackendApp as createDeterministicApp } from "@deterministic-code/deterministic/app";',
+    'import { connectDatabase, createBackendApp as createDeterministicApp } from "@deterministic-code/deterministic/app";',
+  );
+  const begin = "// === BEGIN APP_BEFORE_HOOK";
+  const end = "// === END APP_BEFORE_HOOK ===";
+  const start = withImport.indexOf(begin);
+  const stop = withImport.indexOf(end);
+  if (start < 0 || stop < 0 || stop <= start) {
+    throw new Error("generated app.ts is missing APP_BEFORE_HOOK markers");
+  }
+  const lineStart = withImport.lastIndexOf("\n", start) + 1;
+  const patched = `${withImport.slice(0, lineStart)}${SQLITE_HOOK}${withImport.slice(stop)}`;
+  await writeFile(appPath, patched, "utf8");
+};
+
+export const addBetterSqliteDependency = async (appDir: string): Promise<void> => {
+  const pkgPath = join(appDir, "package.json");
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
+    dependencies?: Record<string, string>;
+  };
+  pkg.dependencies = { ...pkg.dependencies, "better-sqlite3": "^12.10.0" };
+  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 };
 
 export type BootedApp = {
