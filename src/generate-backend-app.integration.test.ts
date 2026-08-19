@@ -4,66 +4,69 @@ import { memoryReader } from "@deterministic-code/generators-common/deterministi
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate } from "./generate-backend-app.ts";
 
-function entryBody(entry: GenerateEntry): string {
-  if ("contents" in entry) return String(entry.contents);
-  return entry.content;
-}
+const entryBody = (entry: GenerateEntry): string =>
+  "contents" in entry ? String(entry.contents) : entry.content;
 
-function indexEntries(entries: GenerateEntry[]): Map<string, GenerateEntry> {
+const lastByName = (entries: GenerateEntry[]): Map<string, GenerateEntry> => {
   const map = new Map<string, GenerateEntry>();
-  for (const entry of entries) {
-    assert.equal(
-      map.has(entry.filename),
-      false,
-      `duplicate generate entry: ${entry.filename}`,
-    );
-    map.set(entry.filename, entry);
-  }
+  for (const entry of entries) map.set(entry.filename, entry);
   return map;
-}
+};
 
-function requireEntry(
+const uniqueNames = (entries: GenerateEntry[]): string[] =>
+  [...new Set(entries.map((e) => e.filename))].sort();
+
+const kindsOf = (entries: GenerateEntry[], filename: string): string[] =>
+  entries.filter((e) => e.filename === filename).map((e) => e.kind);
+
+const requireEntry = (
   map: Map<string, GenerateEntry>,
   filename: string,
-): GenerateEntry {
+): GenerateEntry => {
   const entry = map.get(filename);
   assert.ok(entry, `missing generate entry: ${filename}`);
   return entry;
-}
+};
 
 describe("generate", () => {
+  let entries: GenerateEntry[] = [];
   let byName = new Map<string, GenerateEntry>();
 
   before(async () => {
-    byName = indexEntries(
-      await generate({
-        reader: memoryReader({}),
-        settings: { application_name: "catalog-api" },
-      }),
-    );
+    entries = await generate({
+      reader: memoryReader({}),
+      settings: { application_name: "catalog-api" },
+    });
+    byName = lastByName(entries);
   });
 
-  it("emits the flat single-language scaffold", () => {
-    assert.deepEqual(
-      [...byName.keys()].sort(),
-      [
-        ".dockerignore",
-        ".env",
-        ".env.example",
-        ".gitignore",
-        "Dockerfile",
-        "__tests__/app-boot.test.ts",
-        "__tests__/health.test.ts",
-        "app.ts",
-        "docker-compose.yml",
-        "package.json",
-        "scripts/entrypoint.sh",
-        "server.ts",
-        "tsconfig.json",
-        "vitest.config.ts",
-      ],
-    );
-    for (const filename of byName.keys()) {
+  it("starts from minimal content then patches and adds deterministic files", () => {
+    assert.deepEqual(uniqueNames(entries), [
+      ".dockerignore",
+      ".env",
+      ".env.example",
+      ".gitignore",
+      "Dockerfile",
+      "__tests__/app-boot.test.ts",
+      "__tests__/health.test.ts",
+      "app.ts",
+      "docker-compose.yml",
+      "package.json",
+      "scripts/entrypoint.sh",
+      "server.ts",
+      "tsconfig.json",
+      "vitest.config.ts",
+    ]);
+    assert.deepEqual(kindsOf(entries, "app.ts"), ["content", "patch"]);
+    assert.deepEqual(kindsOf(entries, "package.json"), ["content", "patch"]);
+    assert.deepEqual(kindsOf(entries, "server.ts"), ["content", "content"]);
+    assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content", "content"]);
+    assert.deepEqual(kindsOf(entries, "__tests__/health.test.ts"), [
+      "content",
+      "content",
+    ]);
+    assert.deepEqual(kindsOf(entries, "Dockerfile"), ["patch"]);
+    for (const filename of uniqueNames(entries)) {
       assert.equal(filename.startsWith("typescript/"), false, filename);
       assert.equal(filename.startsWith("backend/"), false, filename);
       assert.equal(filename.startsWith("features/"), false, filename);
@@ -102,6 +105,7 @@ describe("generate", () => {
     assert.match(server, /catalog-api listening on http:\/\/localhost:/);
     assert.match(server, /await createBackendApp\(\)/);
     assert.doesNotMatch(server, /\.then\(/);
+    assert.match(server, /app\.listen\(port\)/);
   });
 
   it("renders package.json for the npm library, not bundled runtime deps", () => {
@@ -156,8 +160,8 @@ describe("generate", () => {
       },
     });
     assert.deepEqual(
-      omitted.map((e) => e.filename).sort(),
-      explicit.map((e) => e.filename).sort(),
+      omitted.map((e) => `${e.kind}:${e.filename}`),
+      explicit.map((e) => `${e.kind}:${e.filename}`),
     );
   });
 
@@ -177,23 +181,23 @@ describe("generate", () => {
 });
 
 describe("generate minimal", () => {
+  let entries: GenerateEntry[] = [];
   let byName = new Map<string, GenerateEntry>();
 
   before(async () => {
-    byName = indexEntries(
-      await generate({
-        reader: memoryReader({}),
-        settings: {
-          application_name: "catalog-api",
-          app_generate_complexity: "minimal",
-        },
-      }),
-    );
+    entries = await generate({
+      reader: memoryReader({}),
+      settings: {
+        application_name: "catalog-api",
+        app_generate_complexity: "minimal",
+      },
+    });
+    byName = lastByName(entries);
   });
 
-  it("emits only the boot and health-check scaffold", () => {
+  it("emits only content files for the boot and health-check scaffold", () => {
     assert.deepEqual(
-      [...byName.keys()].sort(),
+      uniqueNames(entries),
       [
         "__tests__/health.test.ts",
         "app.ts",
@@ -202,6 +206,9 @@ describe("generate minimal", () => {
         "tsconfig.json",
       ],
     );
+    for (const entry of entries) {
+      assert.equal(entry.kind, "content", entry.filename);
+    }
   });
 
   it("omits docker, vitest, migrate hooks, and extra test tooling", () => {
@@ -233,4 +240,3 @@ describe("generate minimal", () => {
     assert.doesNotMatch(server, /\.then\(/);
   });
 });
-

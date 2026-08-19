@@ -26,8 +26,11 @@ type Datasource = {
   useOptimisticConcurrency: boolean;
 };
 
+const PROJECT_ID_TYPES = new Set(["integer", "biginteger", "uuid", "string"]);
+
 const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
+  const raw = settings["datasource.id_type"] ?? "integer";
+  const idType = PROJECT_ID_TYPES.has(raw) ? raw : "integer";
   return {
     idType,
     withUuidColumn: idType !== "uuid",

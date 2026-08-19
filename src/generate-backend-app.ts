@@ -25,9 +25,8 @@ import {
 
 const DEFAULT_APP_NAME = "generated-app";
 const DEFAULT_COMPLEXITY = "deterministic";
-const COMPLEXITIES = ["minimal", "deterministic"] as const;
 
-type AppGenerateComplexity = (typeof COMPLEXITIES)[number];
+type AppGenerateComplexity = "minimal" | "deterministic";
 
 const complexityOf = (settings: Record<string, string>): AppGenerateComplexity => {
   const raw = settings.app_generate_complexity;
@@ -38,9 +37,21 @@ const complexityOf = (settings: Record<string, string>): AppGenerateComplexity =
   );
 };
 
+const emitMinimal = (appName: string): GenerateEntry[] => {
+  const named = { appName };
+  return [
+    content("app.ts", fill(minimalAppTs, named)),
+    content("server.ts", fill(minimalServerTs, named)),
+    content("package.json", fill(minimalPackageJson, named)),
+    content("tsconfig.json", fill(minimalTsconfigJson, named)),
+    content("__tests__/health.test.ts", fill(minimalHealthTestTs, named)),
+  ];
+};
+
 const emitDeterministic = (appName: string): GenerateEntry[] => {
   const named = { appName };
   return [
+    ...emitMinimal(appName),
     patch("app.ts", appTs),
     content("server.ts", fill(serverTs, named)),
     patch("package.json", fill(packageJson, named)),
@@ -55,17 +66,6 @@ const emitDeterministic = (appName: string): GenerateEntry[] => {
     content("vitest.config.ts", vitestConfigTs),
     content("__tests__/health.test.ts", healthTestTs),
     content("__tests__/app-boot.test.ts", appBootTestTs),
-  ];
-};
-
-const emitMinimal = (appName: string): GenerateEntry[] => {
-  const named = { appName };
-  return [
-    patch("app.ts", fill(minimalAppTs, named)),
-    content("server.ts", fill(minimalServerTs, named)),
-    patch("package.json", fill(minimalPackageJson, named)),
-    content("tsconfig.json", fill(minimalTsconfigJson, named)),
-    content("__tests__/health.test.ts", fill(minimalHealthTestTs, named)),
   ];
 };
 
