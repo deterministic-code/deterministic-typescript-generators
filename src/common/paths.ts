@@ -3,7 +3,7 @@ import { posix } from "node:path";
 const IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const VARIANT_PREFIXES = ["update_", "create_"] as const;
 
-export const ident = (name: string): string =>
+const ident = (name: string): string =>
   IDENT_RE.test(name) ? name : JSON.stringify(name);
 
 export const importSpec = (fromFile: string, toFile: string): string => {
@@ -40,27 +40,22 @@ export type ArtifactPaths = {
   projectRelPath: (entity: string) => string;
 };
 
-export type ViewImportKind = "view" | "datasource";
-
 export type ViewPaths = ArtifactPaths & {
   importSpecifier: (
     fromEntity: string,
-    to: { entity: string; kind: ViewImportKind },
+    to: { entity: string; kind: "view" | "datasource" },
   ) => string;
 };
-
-export type ViewValidatorImportKind =
-  | "view-validator"
-  | "datasource-validator";
 
 export type ViewValidatorPaths = ArtifactPaths & {
   importSpecifier: (
     fromEntity: string,
-    to: { entity: string; kind: ViewValidatorImportKind },
+    to: {
+      entity: string;
+      kind: "view-validator" | "datasource-validator";
+    },
   ) => string;
 };
-
-export type ServiceImportKind = "view" | "datasource";
 
 export type ServicePaths = ArtifactPaths & {
   serviceClassName: (entity: string) => string;
@@ -71,7 +66,7 @@ export type ServicePaths = ArtifactPaths & {
   testPath: (entity: string) => string;
   importSpecifier: (
     fromEntity: string,
-    to: { entity: string; kind: ServiceImportKind },
+    to: { entity: string; kind: "view" | "datasource" },
   ) => string;
 };
 
