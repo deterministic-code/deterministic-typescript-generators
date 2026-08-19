@@ -296,13 +296,6 @@ types: []
     assert.match(card, /schema-version: 9.9/);
   });
 
-  it("datasource.datetime=string maps datetime fields to trimmed strings", async () => {
-    const card = await bodyOf("card_payment.ts", {
-      "datasource.datetime": "string",
-    });
-    assert.match(card, /paid_at: z\.string\(\)\.trim\(\),/);
-  });
-
   it("datasource.id_type=uuid drops uuid from inherited update omits", async () => {
     const user = await bodyOf("user.ts", { "datasource.id_type": "uuid" });
     assert.match(

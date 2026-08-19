@@ -1,4 +1,4 @@
-import { nativeFieldType } from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./common/type-converters/native-to-typescript.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
@@ -16,12 +16,15 @@ import {
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
-import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
+import {
+  fakeTestData,
+  fieldExpr,
+  preludeSource,
+} from "./common/fake-test-data.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 
 type Datasource = {
   idType: string;
-  datetimeRepr: string;
   withUuidColumn: boolean;
   useOptimisticConcurrency: boolean;
 };
@@ -30,7 +33,6 @@ const datasource = (settings: Record<string, string>): Datasource => {
   const idType = settings["datasource.id_type"] ?? "integer";
   return {
     idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
     withUuidColumn: idType !== "uuid",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] === "true",
@@ -41,7 +43,6 @@ type EmitOptions = {
   ds: Datasource;
   naming: ViewValidatorPaths;
   schemaVersion: string;
-  converter: FieldConverter;
   tables: Map<string, DatasourceType>;
   views: Map<string, ViewType>;
 };
@@ -76,7 +77,6 @@ const emitBase = (settings: Record<string, string>) => {
     ds,
     naming: viewValidatorPaths(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-    converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
 };
 
@@ -105,10 +105,13 @@ const wrongTypeExpr = (type: string): string | undefined => {
 };
 
 const primitiveSample = (
-  field: { name: string; type: string },
+  field: { name: string; type: string; size?: number },
   opts: EmitOptions,
 ): string =>
-  opts.converter.samples(field, nativeFieldType(opts.ds, field)).sample;
+  fieldExpr(fakeTestData, field.type, {
+    nativeType: toNative(field.type),
+    size: field.size,
+  });
 
 const wrapValue = (expr: string, field: ViewField): string =>
   field.isArray ? `[${expr}]` : expr;
@@ -131,7 +134,10 @@ const viewFieldSample = (
 ): string => {
   let expr: string;
   if (field.kind === "primitive") {
-    expr = primitiveSample({ name: field.name, type: field.base }, opts);
+    expr = primitiveSample(
+      { name: field.name, type: field.base, size: field.size },
+      opts,
+    );
   } else if (field.kind === "datasource") {
     expr = dsFixture(field.base, opts);
   } else {
@@ -337,6 +343,7 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry =>
   content(
     testPath(view.name, opts.naming),
     fill(typeTestTmpl, {
+      prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       schemaName: `${view.name}Schema`,
       viewName: view.name,

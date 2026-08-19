@@ -17,7 +17,6 @@ import { indexTmpl, schemaInheritTmpl, schemaStandaloneTmpl, schemaUnionTmpl, ty
 
 type Datasource = {
   idType: string;
-  datetimeRepr: string;
   withUuidColumn: boolean;
   useOptimisticConcurrency: boolean;
 };
@@ -26,7 +25,6 @@ const datasource = (settings: Record<string, string>): Datasource => {
   const idType = settings["datasource.id_type"] ?? "integer";
   return {
     idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
     withUuidColumn: idType !== "uuid",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] === "true",
@@ -60,8 +58,8 @@ const omitObj = (keys: string[], naming: ViewValidatorPaths) =>
 const viewOmits = (view: ShapedView, withUuid: boolean) =>
   view.omit.filter((k) => withUuid || k !== "uuid");
 
-const tighten = (field: ViewField, datetimeRepr: string): string => {
-  const base = toZod(field.base, datetimeRepr);
+const tighten = (field: ViewField): string => {
+  const base = toZod(field.base);
   switch (field.base) {
     case "string":
     case "character": {
@@ -70,8 +68,6 @@ const tighten = (field: ViewField, datetimeRepr: string): string => {
       if (isFiniteInt(field.size) && field.size! >= 0) expr += `.max(${field.size})`;
       return expr;
     }
-    case "datetime":
-      return datetimeRepr === "native" ? base : `${base}.trim()`;
     case "number":
     case "integer":
     case "biginteger":
@@ -93,7 +89,7 @@ const zodForField = (field: ViewField, opts: EmitOptions): string => {
     field.kind === "datasource" ? dsAlias(field.base) : schemaIdent(field.base);
   let expr =
     field.kind === "primitive"
-      ? tighten(field, opts.ds.datetimeRepr)
+      ? tighten(field)
       : `z.lazy(() => ${nested})`;
   if (field.isArray) expr = `z.array(${expr})`;
   if (field.isNullable) expr += ".nullable()";

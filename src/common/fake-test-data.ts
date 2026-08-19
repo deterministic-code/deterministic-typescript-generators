@@ -1,7 +1,7 @@
-export type LanguageTarget = "typescript" | "rust" | "csharp";
-export type SqlDialect = "postgres" | "sqlite" | "mysql" | "sqlserver" | "oracle";
-export type FakeTestTarget = LanguageTarget | SqlDialect;
-export type FakeTestStrategy = "faker" | "homegrown";
+type LanguageTarget = "typescript" | "rust" | "csharp";
+type SqlDialect = "postgres" | "sqlite" | "mysql" | "sqlserver" | "oracle";
+type FakeTestTarget = LanguageTarget | SqlDialect;
+type FakeTestStrategy = "faker" | "homegrown";
 
 export type IdType = "integer" | "biginteger" | "uuid" | "string";
 
@@ -35,7 +35,7 @@ const idExpr = (data: IFakeTestData, idType: IdType): string => {
   return data.integer();
 };
 
-export const typescriptFakerTestData: IFakeTestData = {
+const typescriptFakerTestData: IFakeTestData = {
   target: "typescript",
   strategy: "faker",
   prelude: () => [`import { faker } from "@faker-js/faker";`],
@@ -56,27 +56,6 @@ export const typescriptFakerTestData: IFakeTestData = {
   id: (idType) => idExpr(typescriptFakerTestData, idType),
 };
 
-export const typescriptHomegrownTestData: IFakeTestData = {
-  target: "typescript",
-  strategy: "homegrown",
-  prelude: () => [],
-  uuid: () => "crypto.randomUUID()",
-  string: (size) =>
-    size === undefined
-      ? "crypto.randomUUID()"
-      : `crypto.randomUUID().slice(0, ${size})`,
-  integer: () => "1",
-  biginteger: () => "1n",
-  float: () => "1.0",
-  decimal: () => `"0"`,
-  boolean: () => "false",
-  datetime: () => "new Date()",
-  date: () => "new Date().toISOString().slice(0, 10)",
-  email: () => "`${crypto.randomUUID()}@example.com`",
-  binary: () => `"AAAAAAAAAAAAAAAAAAAAAA=="`,
-  id: (idType) => idExpr(typescriptHomegrownTestData, idType),
-};
-
 export const fakeTestData: IFakeTestData = typescriptFakerTestData;
 
 export const asIdType = (idType: string): IdType => {
@@ -91,11 +70,43 @@ export const preludeSource = (data: IFakeTestData): string => {
   return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 };
 
-/** `datetime()` is a Date expression; string mode appends `.toISOString()` so the same impl covers native and wire shapes. */
-export const datetimeLiteral = (
+/** TypeScript source for one spec field in a generated test. `nativeType` is the id-column override (`bigint`). */
+export const fieldExpr = (
   data: IFakeTestData,
-  datetime: string,
-): string =>
-  datetime === "native"
-    ? data.datetime()
-    : `${data.datetime()}.toISOString()`;
+  type: string,
+  opts: { nativeType?: string; size?: number } = {},
+): string => {
+  if (opts.nativeType === "bigint") return data.biginteger();
+  switch (type) {
+    case "uuid":
+      return data.uuid();
+    case "string":
+    case "character":
+      return data.string(opts.size);
+    case "email":
+      return data.email();
+    case "binary":
+      return data.binary();
+    case "boolean":
+      return data.boolean();
+    case "decimal":
+      return data.decimal();
+    case "float":
+      return data.float();
+    case "datetime":
+      return data.datetime();
+    case "date":
+      return data.date();
+    case "number":
+    case "integer":
+    case "smallinteger":
+    case "biginteger":
+    case "unsignedinteger":
+    case "unsignedsmallinteger":
+    case "unsignedbiginteger":
+    case "reference":
+      return data.integer();
+    default:
+      return data.string(opts.size);
+  }
+};

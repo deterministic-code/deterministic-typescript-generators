@@ -312,11 +312,4 @@ types: []
     assert.doesNotMatch(card, /View card_payment/);
   });
 
-  it("datasource.datetime=string maps datetime fields to string", async () => {
-    const card = await bodyOf("card_payment.ts", {
-      "datasource.datetime": "string",
-    });
-    assert.match(card, /paid_at: string;/);
-  });
-
 });

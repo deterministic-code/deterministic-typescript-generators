@@ -120,12 +120,6 @@ describe("generate datasource type validators", () => {
     assert.match(user, /role_id: z\.string\(\)\.uuid\(\)/);
   });
 
-  it("maps datetime fields to z.string when datasource.datetime=string", async () => {
-    const user = await userBody({ "datasource.datetime": "string" });
-    assert.match(user, /created: z\.string\(\)\.trim\(\)/);
-    assert.match(user, /updated: z\.string\(\)\.trim\(\)/);
-  });
-
   it("skips the barrel when codegen.create_index is false", async () => {
     const byName = indexEntries(
       await generateWith({ "codegen.create_index": "false" }),

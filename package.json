@@ -8,10 +8,6 @@
       "types": "./dist/generate-context.d.ts",
       "import": "./dist/generate-context.js"
     },
-    "./field-converter": {
-      "types": "./dist/common/field-converter.d.ts",
-      "import": "./dist/common/field-converter.js"
-    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

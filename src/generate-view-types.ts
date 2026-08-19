@@ -11,10 +11,7 @@ import {
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
-import {
-  datetimeToNative,
-  toNative,
-} from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./common/type-converters/native-to-typescript.ts";
 import { indexTmpl, typeTmpl } from "./resources/view-types.ts";
 
 const docTokens = (settings: Record<string, string>) => {
@@ -22,24 +19,6 @@ const docTokens = (settings: Record<string, string>) => {
   return {
     simpleDoc: comments !== "none" && comments !== "description",
     descriptionDoc: comments === "description",
-  };
-};
-
-type Datasource = {
-  idType: string;
-  datetimeRepr: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
   };
 };
 
@@ -59,9 +38,7 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
-    datetimeType: datetimeToNative(
-      datasource(settings).datetimeRepr,
-    ),
+    datetimeType: toNative("datetime"),
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
   };

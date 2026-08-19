@@ -1,4 +1,4 @@
-import { nativeFieldType } from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./common/type-converters/native-to-typescript.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
@@ -11,11 +11,14 @@ import {
   type DatasourceType,
 } from "@deterministic-code/generators-common/specification-parser";
 import { typeTestTmpl } from "./resources/datasource-type-validators-tests.ts";
-import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
+import {
+  fakeTestData,
+  fieldExpr,
+  preludeSource,
+} from "./common/fake-test-data.ts";
 
 type Datasource = {
   idType: string;
-  datetimeRepr: string;
   withUuidColumn: boolean;
   useOptimisticConcurrency: boolean;
 };
@@ -24,7 +27,6 @@ const datasource = (settings: Record<string, string>): Datasource => {
   const idType = settings["datasource.id_type"] ?? "integer";
   return {
     idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
     withUuidColumn: idType !== "uuid",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] === "true",
@@ -35,7 +37,6 @@ type EmitOptions = {
   ds: Datasource;
   naming: ArtifactPaths;
   schemaVersion: string;
-  converter: FieldConverter;
 };
 
 type FieldTok = {
@@ -68,7 +69,6 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
     ds,
     naming: datasourcePaths(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-    converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
 };
 
@@ -101,14 +101,14 @@ const fieldTok = (
   opts: EmitOptions,
 ): FieldTok => {
   const ident = opts.naming.fieldIdent(field.name);
-  const { sample } = opts.converter.samples(
-    field,
-    nativeFieldType(opts.ds, field),
-  );
+  const sampleExpr = fieldExpr(fakeTestData, field.type, {
+    nativeType: toNative(field.type),
+    size: "size" in field ? field.size : undefined,
+  });
   return {
     name: field.name,
     ident,
-    sampleExpr: sample,
+    sampleExpr,
     isNullable: field.isNullable,
     hasDefault: "hasDefault" in field && field.hasDefault === true,
     type: field.type,
@@ -195,6 +195,7 @@ const renderTests = (
   return content(
     testPath(table.name, opts.naming),
     fill(typeTestTmpl, {
+      prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       schemaName: `${table.name}Schema`,
       tableName: table.name,

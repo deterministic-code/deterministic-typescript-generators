@@ -10,31 +10,16 @@ import {
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
-import { datetimeToNative } from "./common/type-converters/native-to-typescript.ts";
 import { typeTestTmpl } from "./resources/view-types-tests.ts";
-
-type Datasource = {
-  idType: string;
-  datetimeRepr: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
+import {
+  fakeTestData,
+  fieldExpr,
+  preludeSource,
+} from "./common/fake-test-data.ts";
 
 type EmitOptions = {
   naming: ViewPaths;
   schemaVersion: string;
-  datetimeType: string;
 };
 
 type FieldTok = {
@@ -49,53 +34,13 @@ type FieldTok = {
 const emitOptions = (settings: Record<string, string>): EmitOptions => ({
   naming: viewPaths(settings),
   schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-  datetimeType: datetimeToNative(datasource(settings).datetimeRepr),
 });
 
 const escapeTestName = (name: string): string =>
   name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-const primitivePair = (
-  base: string,
-  datetimeType: string,
-): { sample: string; next: string } => {
-  switch (base) {
-    case "number":
-    case "integer":
-    case "smallinteger":
-    case "biginteger":
-    case "reference":
-      return { sample: "1", next: "2" };
-    case "float":
-      return { sample: "1.0", next: "2.0" };
-    case "boolean":
-      return { sample: "false", next: "true" };
-    case "datetime":
-      return datetimeType === "string"
-        ? {
-            sample: `"2024-01-01T00:00:00.000Z"`,
-            next: `"2024-01-02T00:00:00.000Z"`,
-          }
-        : {
-            sample: `new Date("2024-01-01T00:00:00.000Z")`,
-            next: `new Date("2024-01-02T00:00:00.000Z")`,
-          };
-    case "decimal":
-      return { sample: `"0"`, next: `"1"` };
-    case "uuid":
-      return {
-        sample: `"00000000-0000-0000-0000-000000000000"`,
-        next: `"00000000-0000-0000-0000-000000000001"`,
-      };
-    case "binary":
-      return {
-        sample: `"AAAAAAAAAAAAAAAAAAAAAA=="`,
-        next: `"AQIDBAUGBwgJCgsMDQ4PEA=="`,
-      };
-    default:
-      return { sample: `"sample"`, next: `"sample-next"` };
-  }
-};
+const primitiveExpr = (base: string, size?: number): string =>
+  fieldExpr(fakeTestData, base, { size });
 
 const wrapArray = (expr: string, isArray: boolean): string =>
   isArray ? `[${expr}]` : expr;
@@ -103,16 +48,16 @@ const wrapArray = (expr: string, isArray: boolean): string =>
 const fieldTokens = (field: ViewField, opts: EmitOptions): FieldTok => {
   const ident = opts.naming.fieldIdent(field.name);
   const cls = opts.naming.className(field.base);
-  const pair =
+  const expr =
     field.kind === "primitive"
-      ? primitivePair(field.base, opts.datetimeType)
-      : { sample: `{} as ${cls}`, next: `{} as ${cls}` };
+      ? primitiveExpr(field.base, field.size)
+      : `{} as ${cls}`;
   return {
     ident,
     access: ident.startsWith('"') ? `[${ident}]` : `.${ident}`,
     testName: escapeTestName(opts.naming.fieldName(field.name)),
-    sampleExpr: wrapArray(pair.sample, field.isArray),
-    nextExpr: wrapArray(pair.next, field.isArray),
+    sampleExpr: wrapArray(expr, field.isArray),
+    nextExpr: wrapArray(expr, field.isArray),
     nullable: field.isNullable,
   };
 };
@@ -130,6 +75,7 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   return content(
     testPath(view.name, opts.naming),
     fill(typeTestTmpl, {
+      prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       className: opts.naming.className(view.name),
       viewName: view.name,

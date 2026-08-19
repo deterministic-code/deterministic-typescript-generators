@@ -190,16 +190,16 @@ describe("generate view type validators tests", () => {
       /it\("rejects when missing required field \\"note\\""/,
     );
     assert.match(card, /note: null/);
-    assert.match(card, /amount: "0"/);
-    assert.match(card, /paid_at: new Date\("2024-01-01T00:00:00.000Z"\)/);
+    assert.match(card, /amount: faker\.commerce\.price\(\)/);
+    assert.match(card, /paid_at: faker\.date\.recent\(\)/);
   });
 
   it("covers nested datasource and view fields on a shaped view", async () => {
     const card = await bodyOf("card_payment.test.ts");
     assert.match(card, /tags: \[\{ /);
-    assert.match(card, /label: "sample"/);
+    assert.match(card, /label: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
     assert.match(card, /owner: \{ /);
-    assert.match(card, /display_name: "sample"/);
+    assert.match(card, /display_name: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
   });
 
   it("emits union member accept cases and a neither-member reject", async () => {

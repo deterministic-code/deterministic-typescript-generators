@@ -212,9 +212,10 @@ types: []
     }
     assert.match(card, /it\("allows setting note to null"/);
     assert.doesNotMatch(card, /it\("allows setting amount to null"/);
-    assert.match(card, /amount: "0"/);
-    assert.match(card, /paid_at: new Date\("2024-01-01T00:00:00.000Z"\)/);
-    assert.match(card, /note: "sample"/);
+    assert.match(card, /import \{ faker \} from "@faker-js\/faker"/);
+    assert.match(card, /amount: faker\.commerce\.price\(\)/);
+    assert.match(card, /paid_at: faker\.date\.recent\(\)/);
+    assert.match(card, /note: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
   });
 
   it("covers nested datasource and view fields on a shaped view", async () => {
@@ -242,17 +243,6 @@ types: []
     assert.match(payment, /it\("accepts a cash_payment member"/);
     assert.doesNotMatch(payment, /const sample = /);
     assert.doesNotMatch(payment, /it\("gets /);
-  });
-
-  it("maps datetime fields to ISO strings when datasource.datetime=string", async () => {
-    const card = await bodyOf(
-      "card_payment.test.ts",
-      { "datasource.datetime": "string" },
-      SIMPLE_VIEW_YAML,
-      undefined,
-    );
-    assert.match(card, /paid_at: "2024-01-01T00:00:00.000Z"/);
-    assert.match(card, /const next = "2024-01-02T00:00:00.000Z";/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
@@ -297,15 +287,15 @@ types: []
 `,
       undefined,
     );
-    assert.match(card, /count: 1/);
-    assert.match(card, /rank: 1/);
-    assert.match(card, /score: 1\.0/);
-    assert.match(card, /active: false/);
-    assert.match(card, /token: "00000000-0000-0000-0000-000000000000"/);
-    assert.match(card, /avatar: "AAAAAAAAAAAAAAAAAAAAAA=="/);
-    assert.match(card, /initial: "sample"/);
-    assert.match(card, /ref_id: 1/);
-    assert.match(card, /flags: \[false\]/);
+    assert.match(card, /count: faker\.number\.int\(\{ min: 1 \}\)/);
+    assert.match(card, /rank: faker\.number\.int\(\{ min: 1 \}\)/);
+    assert.match(card, /score: faker\.number\.float\(\)/);
+    assert.match(card, /active: faker\.datatype\.boolean\(\)/);
+    assert.match(card, /token: faker\.string\.uuid\(\)/);
+    assert.match(card, /avatar: faker\.string\.alphanumeric\(\{ length: 24 \}\)/);
+    assert.match(card, /initial: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
+    assert.match(card, /ref_id: faker\.number\.int\(\{ min: 1 \}\)/);
+    assert.match(card, /flags: \[faker\.datatype\.boolean\(\)\]/);
   });
 
   it("renders empty shaped and union views", async () => {

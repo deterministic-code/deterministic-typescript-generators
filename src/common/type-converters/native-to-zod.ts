@@ -1,3 +1,10 @@
+import {
+  EMPTY_UUID,
+  GENERATIVE_TOKENS,
+  hexToBytes,
+  parseDefaultToken,
+} from "@deterministic-code/generators-common/default-token";
+
 /** Spec field type → base Zod expression (before size/nullability tighteners). */
 const ZOD: Record<string, string> = {
   string: "z.string()",
@@ -12,6 +19,7 @@ const ZOD: Record<string, string> = {
   boolean: "z.boolean()",
   binary: "z.string().base64()",
   uuid: "z.string().uuid()",
+  datetime: "z.date()",
 };
 
 /** `datasource.id_type` → Zod id expression. */
@@ -22,10 +30,26 @@ const ID_ZOD: Record<string, string> = {
   string: "z.string()",
 };
 
-export const toZod = (specType: string, datetimeRepr: string): string => {
-  if (specType === "datetime") {
-    return datetimeRepr === "native" ? "z.date()" : "z.string()";
-  }
+type DefaultArg = string | boolean | undefined;
+
+const dq = (value: DefaultArg): string => JSON.stringify(String(value));
+
+/** Default-token renderers: datasource_type token → JS expression for `.default(...)`. */
+const ZOD_DEFAULT: Record<string, (arg?: DefaultArg) => string> = {
+  NewId: () => "crypto.randomUUID()",
+  Empty: () => dq(EMPTY_UUID),
+  Uuid: (a) => dq(a),
+  DateTime: (a) => (a === undefined ? "new Date()" : `new Date(${dq(a)})`),
+  Now: () => "new Date()",
+  UtcNow: () => "new Date()",
+  Hex: (a) =>
+    `new Uint8Array([${hexToBytes(a as string).join(", ")}]).buffer`,
+  Boolean: (a) => (a ? "true" : "false"),
+  Numeric: (a) => a as string,
+  String: (a) => dq(a),
+};
+
+export const toZod = (specType: string): string => {
   const expr = ZOD[specType];
   if (expr === undefined) {
     throw new Error(`Unknown datasource field type: ${specType}`);
@@ -35,3 +59,20 @@ export const toZod = (specType: string, datetimeRepr: string): string => {
 
 export const idTypeToZod = (idType: string): string =>
   ID_ZOD[idType] ?? ID_ZOD.integer;
+
+/** JS expression for a spec field's `{ type, value }` default — `"null"` when absent. */
+export const toZodDefault = (
+  type: string,
+  value: string | boolean | number | null | undefined | object,
+): string => {
+  if (value !== null && typeof value === "object") return JSON.stringify(value);
+  const parsed = parseDefaultToken(type, value);
+  if (parsed.token === "None") return "null";
+  const render =
+    type === "decimal" ? ZOD_DEFAULT.String : ZOD_DEFAULT[parsed.token];
+  if (!render) {
+    throw new Error(`cannot render default token "${parsed.token}"`);
+  }
+  const literal = render(parsed.arg);
+  return GENERATIVE_TOKENS.has(parsed.token) ? `() => ${literal}` : literal;
+};
