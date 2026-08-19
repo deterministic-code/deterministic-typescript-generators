@@ -1,4 +1,4 @@
-import { nativeFieldType } from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./base-type-converter.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
@@ -29,7 +29,6 @@ const docTokens = (settings: Record<string, string>) => {
 
 type Datasource = {
   idType: string;
-  datetimeRepr: string;
   withUuidColumn: boolean;
   useOptimisticConcurrency: boolean;
 };
@@ -38,7 +37,6 @@ const datasource = (settings: Record<string, string>): Datasource => {
   const idType = settings["datasource.id_type"] ?? "integer";
   return {
     idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
     withUuidColumn: idType !== "uuid",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] === "true",
@@ -104,7 +102,7 @@ const renderGeneric = (
   candidate: ServiceCandidate,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, simpleDoc, descriptionDoc, ds, libraryReferenceMode } = opts;
+  const { naming, simpleDoc, descriptionDoc, libraryReferenceMode } = opts;
   const typeName = naming.className(candidate.name);
   const className = naming.serviceClassName(candidate.name);
   const interfaceName = `I${className}`;
@@ -133,7 +131,7 @@ const renderGeneric = (
       finders: candidate.byFields.map((bf) => ({
         method: naming.finderMethod(bf.field),
         param: naming.fieldIdent(bf.field),
-        paramType: nativeFieldType(ds, { type: bf.type }),
+        paramType: toNative(bf.type),
         field: bf.field,
         typeName,
       })),

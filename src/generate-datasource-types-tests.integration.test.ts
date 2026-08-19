@@ -127,10 +127,11 @@ describe("generate datasource types tests", () => {
     }
     assert.match(user, /it\("allows setting nick_name to null"/);
     assert.doesNotMatch(user, /it\("allows setting email to null"/);
-    assert.match(user, /created: new Date\("2024-01-01T00:00:00.000Z"\)/);
-    assert.match(user, /email: "sample"/);
-    assert.match(user, /active: false/);
-    assert.match(user, /balance: "0"/);
+    assert.match(user, /import \{ faker \} from "@faker-js\/faker"/);
+    assert.match(user, /created: faker\.date\.recent\(\)/);
+    assert.match(user, /email: faker\.string\.alphanumeric\(\{ length: 256 \}\)/);
+    assert.match(user, /active: faker\.datatype\.boolean\(\)/);
+    assert.match(user, /balance: faker\.commerce\.price\(\)/);
   });
 
   it("drops the uuid column and uses string ids when datasource.id_type=uuid", async () => {
@@ -139,28 +140,15 @@ describe("generate datasource types tests", () => {
     assert.match(user, /it\("sets id"/);
     assert.doesNotMatch(user, /it\("gets uuid"/);
     assert.doesNotMatch(user, /it\("sets uuid"/);
-    assert.match(
-      user,
-      /const initial = "00000000-0000-0000-0000-000000000000";/,
-    );
-    assert.match(
-      user,
-      /role_id: "00000000-0000-0000-0000-000000000000"/,
-    );
+    assert.match(user, /const initial = faker\.string\.uuid\(\);/);
+    assert.match(user, /role_id: faker\.string\.uuid\(\)/);
   });
 
-  it("uses bigint literals when datasource.id_type=biginteger", async () => {
+  it("uses integer literals when datasource.id_type=biginteger", async () => {
     const user = await userBody({ "datasource.id_type": "biginteger" });
-    assert.match(user, /id: 1n/);
-    assert.match(user, /const next = 2n;/);
+    assert.match(user, /id: faker\.number\.int\(\{ min: 1 \}\)/);
+    assert.match(user, /const next = faker\.number\.int\(\{ min: 1 \}\);/);
     assert.match(user, /const sample = \(\): user =>/);
-  });
-
-  it("maps datetime fields to ISO strings when datasource.datetime=string", async () => {
-    const user = await userBody({ "datasource.datetime": "string" });
-    assert.match(user, /created: "2024-01-01T00:00:00.000Z"/);
-    assert.match(user, /created_at: "2024-01-01T00:00:00.000Z"/);
-    assert.match(user, /const next = "2024-01-02T00:00:00.000Z";/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {

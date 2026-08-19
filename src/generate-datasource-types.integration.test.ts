@@ -223,11 +223,11 @@ describe("generate", () => {
     );
   });
 
-  it("datasource.id_type=biginteger uses bigint ids", async () => {
+  it("datasource.id_type=biginteger uses number ids", async () => {
     const user = await userBody({ "datasource.id_type": "biginteger" });
     assert.match(
       user,
-      /StandardDataSourceWithUuid<bigint, string, Date>/,
+      /StandardDataSourceWithUuid<number, string, Date>/,
     );
   });
 
@@ -253,15 +253,6 @@ describe("generate", () => {
       user,
       /StandardDataSourceWithUuid<number, string, Date>/,
     );
-  });
-
-  it("datasource.datetime=string maps datetime fields to string", async () => {
-    const user = await userBody({ "datasource.datetime": "string" });
-    assert.match(
-      user,
-      /StandardDataSourceWithUuid<number, string, string>/,
-    );
-    assert.match(user, /created_at: string;/);
   });
 
 });

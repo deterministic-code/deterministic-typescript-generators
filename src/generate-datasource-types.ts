@@ -8,11 +8,7 @@ import {
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
 } from "@deterministic-code/generators-common/specification-parser";
-import {
-  datetimeToNative,
-  idTypeToNative,
-  nativeFieldType,
-} from "./common/type-converters/native-to-typescript.ts";
+import { toNative } from "./base-type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 
@@ -26,7 +22,6 @@ const docTokens = (settings: Record<string, string>) => {
 
 type Datasource = {
   idType: string;
-  datetimeRepr: string;
   withUuidColumn: boolean;
   useOptimisticConcurrency: boolean;
 };
@@ -35,7 +30,6 @@ const datasource = (settings: Record<string, string>): Datasource => {
   const idType = settings["datasource.id_type"] ?? "integer";
   return {
     idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
     withUuidColumn: idType !== "uuid",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] === "true",
@@ -89,11 +83,11 @@ const renderType = (
       className,
       datasourceType: dsType.datasourceType,
       fieldCount: String(fields.length),
-      idType: idTypeToNative(ds.idType),
-      datetimeType: datetimeToNative(ds.datetimeRepr),
+      idType: toNative(ds.idType),
+      datetimeType: toNative("datetime"),
       fields: fields.map((f) => ({
         ident: naming.fieldIdent(f.name),
-        tsType: nativeFieldType(ds, f),
+        tsType: toNative(f.type),
         nullable: f.isNullable,
       })),
     }),

@@ -8,13 +8,11 @@ import {
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
 } from "@deterministic-code/generators-common/specification-parser";
-import { idTypeToZod, toZod } from "./common/type-converters/native-to-zod.ts";
+import { idTypeToZod, toZod, toZodDefault } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
-import { FieldConverter, fieldConverter } from "./common/field-converter.ts";
 
 type Datasource = {
   idType: string;
-  datetimeRepr: string;
   withUuidColumn: boolean;
   useOptimisticConcurrency: boolean;
 };
@@ -23,7 +21,6 @@ const datasource = (settings: Record<string, string>): Datasource => {
   const idType = settings["datasource.id_type"] ?? "integer";
   return {
     idType,
-    datetimeRepr: settings["datasource.datetime"] ?? "native",
     withUuidColumn: idType !== "uuid",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] === "true",
@@ -34,10 +31,8 @@ type EmitOptions = {
   ds: Datasource;
   naming: ArtifactPaths;
   schemaVersion: string;
-  datetimeRepr: string;
   withTypeAnnotation: boolean;
   createIndex: boolean;
-  converter: FieldConverter;
 };
 
 type FieldShape = {
@@ -50,8 +45,6 @@ type FieldShape = {
   hasDefault?: boolean;
   defaultValue?: string | number | boolean | null;
 };
-
-const GENERATIVE_DEFAULTS = new Set(["Now", "UtcNow", "NewId"]);
 
 const STANDARD_COLUMNS: ReadonlyArray<FieldShape> = [
   { name: "id", type: "number", isNullable: false },
@@ -67,12 +60,10 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
     ds,
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-    datetimeRepr: ds.datetimeRepr,
     withTypeAnnotation: true,
     createIndex:
       settings["codegen.create_index"] !== "false" &&
       !naming.byFeature,
-    converter: new FieldConverter(fieldConverter, ds.datetimeRepr),
   };
 };
 
@@ -106,11 +97,8 @@ const tightenInteger = (
   return expr;
 };
 
-const tightenExpr = (
-  field: FieldShape,
-  datetimeRepr: string,
-): string => {
-  const base = toZod(field.type, datetimeRepr);
+const tightenExpr = (field: FieldShape): string => {
+  const base = toZod(field.type);
   const isFk =
     typeof field.references === "string" && field.references.length > 0;
   const isIdLike = field.name === "id" || field.name.endsWith("_id");
@@ -119,8 +107,6 @@ const tightenExpr = (
     case "string":
     case "character":
       return tightenString(base, field);
-    case "datetime":
-      return datetimeRepr === "native" ? base : `${base}.trim()`;
     case "number":
     case "integer":
     case "biginteger":
@@ -136,21 +122,6 @@ const tightenExpr = (
   }
 };
 
-const zodDefaultArg = (
-  field: FieldShape,
-  converter: FieldConverter,
-): string => {
-  const value = field.defaultValue;
-  if (value === null) return "null";
-  if (typeof value === "object") return JSON.stringify(value);
-  const literal = converter.defaultLiteral(
-    field.type,
-    value as string | boolean | number | null,
-  );
-  if (literal === null) return "null";
-  return GENERATIVE_DEFAULTS.has(String(value)) ? `() => ${literal}` : literal;
-};
-
 const zodForField = (
   field: FieldShape,
   opts: EmitOptions,
@@ -159,10 +130,10 @@ const zodForField = (
   let expr =
     useZodId || field.references?.split(".")[1] === "id"
       ? idTypeToZod(opts.ds.idType)
-      : tightenExpr(field, opts.datetimeRepr);
+      : tightenExpr(field);
   if (field.isNullable) expr = `${expr}.nullable()`;
   if (field.hasDefault) {
-    expr = `${expr}.default(${zodDefaultArg(field, opts.converter)})`;
+    expr = `${expr}.default(${toZodDefault(field.type, field.defaultValue)})`;
   }
   return expr;
 };
