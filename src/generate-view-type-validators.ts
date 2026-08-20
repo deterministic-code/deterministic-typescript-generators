@@ -12,6 +12,7 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   VIEW_TYPES_YAML,
+  type ExpandedViewType,
   type ShapedView,
   type ViewField,
   type ViewType,
@@ -39,7 +40,6 @@ export type ViewValidatorEmitMode = {
 };
 
 type EmitOptions = {
-  idType: string;
   naming: ViewValidatorPaths;
   schemaVersion: string;
   referenceBackendType: boolean;
@@ -52,7 +52,6 @@ const emitOptions = (
   mode: ViewValidatorEmitMode,
 ): EmitOptions => {
   return {
-    idType: settings["datasource.id_type"] ?? "integer",
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     referenceBackendType: mode.referenceBackendType ?? true,
@@ -75,8 +74,8 @@ const trio = (name: string) => ({
 });
 const omitObj = (keys: string[], naming: ViewValidatorPaths) =>
   keys.map((k) => `${JSON.stringify(naming.fieldName(k))}: true`).join(", ");
-const viewOmits = (view: ShapedView, idType: string) =>
-  view.omit.filter((k) => idType !== "uuid" || k !== "uuid");
+const viewOmits = (view: ShapedView, hasUuidColumn: boolean) =>
+  view.omit.filter((k) => hasUuidColumn || k !== "uuid");
 
 const tighten = (field: ViewField): string => {
   const base = toZod(field.base);
@@ -170,7 +169,7 @@ const fieldTokens = (fields: ViewField[], opts: EmitOptions) =>
 
 const schemaBody = (
   view: ViewType,
-  expanded: ViewType | undefined,
+  expanded: ExpandedViewType | undefined,
   opts: EmitOptions,
 ): string => {
   const schemaName = schemaIdent(view.name);
@@ -188,7 +187,10 @@ const schemaBody = (
     inheritBackend ? view.fields : inlineFields,
     opts,
   );
-  const omits = viewOmits(view, opts.idType);
+  const hasUuidColumn =
+    expanded?.kind === "shaped" &&
+    expanded.fields.some((f) => f.name === "uuid");
+  const omits = viewOmits(view, hasUuidColumn);
   const hasTrio = omits.length === 0;
   if (!inheritBackend || view.inherits === null) {
     return fill(opts.templates.schemaStandaloneTmpl, {
@@ -203,7 +205,7 @@ const schemaBody = (
   }
   const parent = view.inherits;
   const allOmits = [...view.enrichments.map((e) => e.fkColumn), ...omits];
-  const stamp = opts.idType !== "uuid"
+  const stamp = hasUuidColumn
     ? ["id", "uuid", "created", "updated"]
     : ["id", "created", "updated"];
   return fill(opts.templates.schemaInheritTmpl, {

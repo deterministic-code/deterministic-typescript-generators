@@ -22,7 +22,7 @@ const ZOD: Record<string, string> = {
   datetime: "z.date()",
 };
 
-/** `datasource.id_type` → Zod id expression. */
+/** Spec PK / FK-to-id field type → Zod id expression. */
 const ID_ZOD: Record<string, string> = {
   integer: "z.number().int().nonnegative()",
   biginteger: "z.bigint()",

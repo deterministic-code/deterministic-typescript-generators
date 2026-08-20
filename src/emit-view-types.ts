@@ -44,7 +44,6 @@ type EmitOptions = {
   schemaVersion: string;
   simpleDoc: boolean;
   descriptionDoc: boolean;
-  datetimeType: string;
   createIndex: boolean;
   referenceBackendType: boolean;
   templates: ViewTypeTemplates;
@@ -60,7 +59,6 @@ const emitOptions = (
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
-    datetimeType: toNative("datetime"),
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
     referenceBackendType: mode.referenceBackendType ?? true,
@@ -76,9 +74,6 @@ const importKind = (
   opts: EmitOptions,
 ): "view" | "datasource" =>
   !opts.referenceBackendType && kind === "datasource" ? "view" : kind;
-
-const primitiveTs = (base: string, datetimeType: string): string =>
-  base === "datetime" ? datetimeType : toNative(base);
 
 const groupImports = (
   entries: Array<{ original: string; alias?: string; fromPath: string }>,
@@ -143,7 +138,7 @@ const fieldTs = (
 ): string => {
   const base =
     field.kind === "primitive"
-      ? primitiveTs(field.base, opts.datetimeType)
+      ? toNative(field.base)
       : (aliasByClass.get(opts.naming.className(field.base)) ??
         opts.naming.className(field.base));
   return field.isArray ? `${base}[]` : base;

@@ -32,7 +32,6 @@ const docTokens = (settings: Record<string, string>) => {
 };
 
 type EmitOptions = {
-  idType: string;
   naming: ServicePaths;
   simpleDoc: boolean;
   descriptionDoc: boolean;
@@ -44,7 +43,6 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = servicePaths(settings);
   const createIndex = settings["codegen.create_index"];
   return {
-    idType: settings["datasource.id_type"] ?? "integer",
     naming,
     ...docTokens(settings),
     libraryReferenceMode: settings["languages.typescript.library_reference_mode"],

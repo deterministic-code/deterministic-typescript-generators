@@ -8,8 +8,7 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   SERVICES_YAML,
-  primaryKeyFor,
-  type DatasourceType,
+  type ExpandedDatasourceType,
   type ServiceCandidate,
 } from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
@@ -18,17 +17,15 @@ import { genericTmpl } from "./resources/service-tests.ts";
 
 type EmitOptions = {
   naming: ServicePaths;
-  datasources: DatasourceType[];
-  idType: string;
+  datasources: ExpandedDatasourceType[];
   libraryReferenceMode: string | undefined;
 };
 
 const emitOptions = (
   settings: Record<string, string>,
-  datasources: DatasourceType[],
+  datasources: ExpandedDatasourceType[],
 ): EmitOptions => ({
   naming: servicePaths(settings),
-  idType: settings["datasource.id_type"] ?? "integer",
   libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
   datasources,
 });
@@ -38,7 +35,9 @@ const renderTest = (
   opts: EmitOptions,
 ): GenerateEntry => {
   const { naming } = opts;
-  const pk = primaryKeyFor(candidate.name, opts.datasources, opts.idType);
+  const table = opts.datasources.find((d) => d.name === candidate.name);
+  const column = table?.primaryKeyColumn ?? "id";
+  const idType = table?.idType ?? "integer";
   const path = naming.testPath(candidate.name);
   const fileBase = naming.fileBase(candidate.name);
   return content(
@@ -55,8 +54,8 @@ const renderTest = (
       className: naming.serviceClassName(candidate.name),
       importPath: joinImport("..", fileBase),
       entityNameJson: JSON.stringify(candidate.name),
-      pkExpr: `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`,
-      idExpr: fakeTestData.id(asIdType(pk.idType)),
+      pkExpr: `new PrimaryKey(${JSON.stringify(column)}, ${JSON.stringify(pkType)})`,
+      idExpr: fakeTestData.id(asIdType(pkType)),
     }),
   );
 };

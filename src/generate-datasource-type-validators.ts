@@ -9,13 +9,12 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   DATASOURCE_TYPES_YAML,
-  type DatasourceType,
+  type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { idTypeToZod, toZod, toZodDefault } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
 
 type EmitOptions = {
-  idType: string;
   naming: ArtifactPaths;
   schemaVersion: string;
   withTypeAnnotation: boolean;
@@ -36,7 +35,6 @@ type FieldShape = {
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = datasourcePaths(settings);
   return {
-    idType: settings["datasource.id_type"] ?? "integer",
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     withTypeAnnotation: true,
@@ -101,14 +99,10 @@ const tightenExpr = (field: FieldShape): string => {
   }
 };
 
-const zodForField = (
-  field: FieldShape,
-  opts: EmitOptions,
-  useZodId: boolean,
-): string => {
+const zodForField = (field: FieldShape, useZodId: boolean): string => {
   let expr =
     useZodId || field.references?.split(".")[1] === "id"
-      ? idTypeToZod(opts.idType)
+      ? idTypeToZod(field.type)
       : tightenExpr(field);
   if (field.isNullable) expr = `${expr}.nullable()`;
   if (field.hasDefault) {
@@ -118,12 +112,12 @@ const zodForField = (
 };
 
 const renderValidator = (
-  table: DatasourceType,
+  table: ExpandedDatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
   const fields = table.fields.map((field) => ({
     ident: opts.naming.fieldIdent(field.name),
-    zodExpr: zodForField(field, opts, field.name === "id"),
+    zodExpr: zodForField(field, field.name === "id"),
   }));
   return content(
     validatorPath(table.name, opts.naming),
@@ -138,7 +132,7 @@ const renderValidator = (
 };
 
 const renderIndex = (
-  types: DatasourceType[],
+  types: ExpandedDatasourceType[],
   opts: EmitOptions,
 ): GenerateEntry =>
   content(
