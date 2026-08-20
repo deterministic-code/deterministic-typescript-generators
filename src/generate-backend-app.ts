@@ -67,7 +67,7 @@ const emitDeterministic = (appName: string): GenerateEntry[] => {
     patch("package.json", fill(packageJson, named)),
     content("tsconfig.json", tsconfigJson),
     patch("Dockerfile", dockerfile),
-    patch(".dockerignore", "node_modules", "DOCKERIGNORE_TYPESCRIPT"),
+    patch(".dockerignore", "node_modules"),
     patch("scripts/entrypoint.sh", entrypointSh),
     patch("docker-compose.yml", dockerComposeYml),
     patch(".env", envFile),

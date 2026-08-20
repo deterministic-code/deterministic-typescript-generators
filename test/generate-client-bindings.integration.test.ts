@@ -200,10 +200,10 @@ describe("generate-client-bindings", () => {
 
     const fetchTask = textOf(entries, "frontend/src/client/fetch/task.ts");
     assert.match(fetchTask, /projectTasksList/);
-    assert.match(fetchTask, /projectId: string \| number/);
+    assert.match(fetchTask, /id: string \| number/);
     assert.match(
       fetchTask,
-      /\/api\/projects\/\$\{encodeURIComponent\(String\(projectId\)\)\}\/tasks/,
+      /\/api\/projects\/\$\{encodeURIComponent\(String\(id\)\)\}\/tasks/,
     );
 
     const fetchCard = textOf(entries, "frontend/src/client/fetch/card_payment.ts");
@@ -307,7 +307,7 @@ describe("generate-client-bindings-mock-tests", () => {
       entries,
       "frontend/src/client/tanstack/task.mock.test.ts",
     );
-    assert.match(nested, /projectId: 1, id: 1/);
+    assert.match(nested, /id: 1, id_2: 1/);
   });
 });
 
