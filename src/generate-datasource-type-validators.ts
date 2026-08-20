@@ -4,10 +4,13 @@ import { content, type GenerateEntry } from "@deterministic-code/generators-comm
 import { isFiniteInt } from "@deterministic-code/generators-common/yaml-entry";
 import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
-  SpecificationParser,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { idTypeToZod, toZod, toZodDefault } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
 
@@ -29,13 +32,6 @@ type FieldShape = {
   hasDefault?: boolean;
   defaultValue?: string | number | boolean | null;
 };
-
-const STANDARD_COLUMNS: ReadonlyArray<FieldShape> = [
-  { name: "id", type: "number", isNullable: false },
-  { name: "uuid", type: "string", isNullable: false },
-  { name: "created", type: "datetime", isNullable: false },
-  { name: "updated", type: "datetime", isNullable: false },
-];
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = datasourcePaths(settings);
@@ -121,31 +117,13 @@ const zodForField = (
   return expr;
 };
 
-const tableFields = (
-  table: DatasourceType,
-  opts: EmitOptions,
-): Array<{ field: FieldShape; useZodId: boolean }> => {
-  const userNames = new Set(
-    table.fields.map((f) => opts.naming.fieldName(f.name)),
-  );
-  const standard = STANDARD_COLUMNS.filter(
-    (col) =>
-      (opts.idType !== "uuid" || col.name !== "uuid") &&
-      !userNames.has(opts.naming.fieldName(col.name)),
-  ).map((field) => ({ field, useZodId: field.name === "id" }));
-  return [
-    ...standard,
-    ...table.fields.map((field) => ({ field, useZodId: false })),
-  ];
-};
-
 const renderValidator = (
   table: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const fields = tableFields(table, opts).map(({ field, useZodId }) => ({
+  const fields = table.fields.map((field) => ({
     ident: opts.naming.fieldIdent(field.name),
-    zodExpr: zodForField(field, opts, useZodId),
+    zodExpr: zodForField(field, opts, field.name === "id"),
   }));
   return content(
     validatorPath(table.name, opts.naming),
@@ -175,15 +153,23 @@ const renderIndex = (
     }),
   );
 
-export const generate = async (
-  ctx: GenerateContext,
-): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
-  const types = new SpecificationParser().parseDatasourceTypes({
-    yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-    idType: opts.idType,
-  });
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings);
+  const types = deterministic.expandedDatasourceTypes;
   const entries = types.map((table) => renderValidator(table, opts));
   if (opts.createIndex) entries.push(renderIndex(types, opts));
   return entries;
+};
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  await ctx.reader.read(DATASOURCE_TYPES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
+  );
 };

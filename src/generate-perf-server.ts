@@ -3,7 +3,7 @@ import type { GenerateContext } from "@deterministic-code/generators-common/gene
 import { content, patch, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   DATASOURCE_TYPES_YAML,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { serverTmpl, vitestPerfTmpl } from "./resources/perf-server.ts";
 

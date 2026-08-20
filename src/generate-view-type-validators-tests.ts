@@ -6,11 +6,14 @@ import {
   type ViewValidatorPaths,
 } from "./common/paths.ts";
 import {
-  SpecificationParser,
-  DATASOURCE_TYPES_YAML,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
+  VIEW_TYPES_YAML,
   type ShapedView,
   type ViewType,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { preludeSource, fakeTestData } from "./common/fake-test-data.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 import {
@@ -49,7 +52,6 @@ const emitBase = (
   naming: ViewValidatorPaths,
 ) => {
   return {
-    idType: settings["datasource.id_type"] ?? "integer",
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
@@ -202,24 +204,35 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry =>
     }),
   );
 
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+  naming: ViewValidatorPaths,
+  referenceBackendType: boolean,
+): GenerateEntry[] => {
+  const base = emitBase(settings, naming);
+  const views = deterministic.expandedViewTypes;
+  const opts: EmitOptions = {
+    ...base,
+    tables: new Map(
+      deterministic.expandedDatasourceTypes.map((t) => [t.name, t]),
+    ),
+    views: new Map(views.map((v) => [v.name, v])),
+    referenceBackendType,
+  };
+  return views.map((view) => renderTests(view, opts));
+};
+
 export const generate = async (
   ctx: GenerateContext,
   naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
   referenceBackendType = true,
 ): Promise<GenerateEntry[]> => {
-  const base = emitBase(ctx.settings, naming);
-  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
-  const tables = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
-    ? new SpecificationParser().parseDatasourceTypes({
-        yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-        idType: base.idType,
-      })
-    : [];
-  const opts: EmitOptions = {
-    ...base,
-    tables: new Map(tables.map((t) => [t.name, t])),
-    views: new Map(views.map((v) => [v.name, v])),
+  await ctx.reader.read(VIEW_TYPES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
+    naming,
     referenceBackendType,
-  };
-  return views.map((view) => renderTests(view, opts));
+  );
 };

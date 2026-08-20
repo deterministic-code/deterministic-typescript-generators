@@ -2,14 +2,18 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
-  SpecificationParser,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
   primaryKeyFor,
   entityUsesOptimisticConcurrency,
+  ROUTES_YAML,
   type DatasourceType,
   type RouteByField,
   type RouteCandidate,
   type ViewEnrichment,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
 import { routePaths, type RoutePaths } from "./common/paths.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
@@ -34,20 +38,19 @@ type EmitOptions = {
   enrichmentsByEntity: Map<string, ViewEnrichment[]>;
 };
 
-const emitOptions = async (ctx: GenerateContext): Promise<EmitOptions> => {
-  const idType = ctx.settings["datasource.id_type"] ?? "integer";
-  const views = (await ctx.reader.exists("view_types.yaml"))
-    ? await new SpecificationParser(ctx.reader).loadViewTypes()
-    : [];
+const emitOptions = (
+  settings: Record<string, string>,
+  datasources: DatasourceType[],
+  enrichmentsByEntity: Map<string, ViewEnrichment[]>,
+): EmitOptions => {
+  const idType = settings["datasource.id_type"] ?? "integer";
   return {
-    naming: routePaths(ctx.settings),
+    naming: routePaths(settings),
     idType,
-    libraryReferenceMode: ctx.settings["languages.typescript.library_reference_mode"],
-    useOcc: ctx.settings["datasource.use_optimistic_concurrency"] !== "false",
-    datasources: [],
-    enrichmentsByEntity: new Map(
-      views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
-    ),
+    libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
+    useOcc: settings["datasource.use_optimistic_concurrency"] !== "false",
+    datasources,
+    enrichmentsByEntity,
   };
 };
 
@@ -152,12 +155,28 @@ const renderTest = (
   );
 };
 
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const parsed = deterministic.routes;
+  const views = deterministic.viewTypes;
+  const opts = emitOptions(
+    settings,
+    parsed.datasources,
+    new Map(
+      views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
+    ),
+  );
+  return parsed.candidates.map((c) => renderTest(c, opts));
+};
+
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
-  const opts = await emitOptions(ctx);
-  const parsed = await new SpecificationParser(ctx.reader).loadRoutes({ idType: opts.idType });
-  return parsed.candidates.map((c) =>
-    renderTest(c, { ...opts, datasources: parsed.datasources }),
+  await ctx.reader.read(ROUTES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
   );
 };

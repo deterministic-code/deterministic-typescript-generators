@@ -4,12 +4,14 @@ import type { GenerateContext } from "@deterministic-code/generators-common/gene
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
 import {
-  tableFields,
-  SpecificationParser,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
   DATASOURCE_TYPES_YAML,
   type DatasourceField,
   type DatasourceType,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { typeTestTmpl } from "./resources/datasource-type-validators-tests.ts";
 import {
   fakeTestData,
@@ -18,7 +20,6 @@ import {
 } from "./common/fake-test-data.ts";
 
 type EmitOptions = {
-  idType: string;
   naming: ArtifactPaths;
   schemaVersion: string;
 };
@@ -49,7 +50,6 @@ const MUTABLE_SCALAR = new Set([
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
   return {
-    idType: settings["datasource.id_type"] ?? "integer",
     naming: datasourcePaths(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
@@ -105,14 +105,14 @@ const testPath = (entity: string, naming: ArtifactPaths): string => {
   return `${typeFile.slice(0, typeFile.lastIndexOf("/"))}/__tests__/${file}`;
 };
 
-const casesFor = (fields: FieldTok[], declared: FieldTok[]): CaseTok[] => {
+const casesFor = (fields: FieldTok[]): CaseTok[] => {
   const valid = objectLiteral(
     fields.map((f) => ({ ident: f.ident, expr: f.sampleExpr })),
   );
   const cases: CaseTok[] = [
     { name: "parses a valid payload", fixture: valid, assertion: "not.toThrow" },
   ];
-  if (declared.some((f) => f.isNullable)) {
+  if (fields.some((f) => f.isNullable)) {
     cases.push({
       name: "accepts null for nullable fields",
       fixture: objectLiteral(
@@ -124,7 +124,7 @@ const casesFor = (fields: FieldTok[], declared: FieldTok[]): CaseTok[] => {
       assertion: "not.toThrow",
     });
   }
-  for (const field of declared) {
+  for (const field of fields) {
     if (!field.isNullable && !field.hasDefault) {
       cases.push({
         name: escapeTestName(`rejects when missing required field "${field.name}"`),
@@ -171,10 +171,7 @@ const renderTests = (
   table: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const fields = tableFields(table.fields, opts.idType).map((f) =>
-    fieldTok(f, opts),
-  );
-  const declared = table.fields.map((f) => fieldTok(f, opts));
+  const fields = table.fields.map((f) => fieldTok(f, opts));
   return content(
     testPath(table.name, opts.naming),
     fill(typeTestTmpl, {
@@ -183,18 +180,27 @@ const renderTests = (
       schemaName: `${table.name}Schema`,
       tableName: table.name,
       schemaImport: `../${opts.naming.fileBase(table.name)}`,
-      cases: casesFor(fields, declared),
+      cases: casesFor(fields),
     }),
+  );
+};
+
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings);
+  return deterministic.expandedDatasourceTypes.map((table) =>
+    renderTests(table, opts),
   );
 };
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
-  const types = new SpecificationParser().parseDatasourceTypes({
-    yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-    idType: opts.idType,
-  });
-  return types.map((table) => renderTests(table, opts));
+  await ctx.reader.read(DATASOURCE_TYPES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
+  );
 };

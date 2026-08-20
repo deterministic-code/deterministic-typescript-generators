@@ -6,14 +6,16 @@ import {
   type ViewPaths,
 } from "./common/paths.ts";
 import {
-  SpecificationParser,
-  type DatasourceType,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
+  VIEW_TYPES_YAML,
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
-import { inheritedColumns, loadTables } from "./inline-inherited.ts";
 import {
   indexTmpl as defaultIndexTmpl,
   typeTmpl as defaultTypeTmpl,
@@ -44,9 +46,7 @@ type EmitOptions = {
   descriptionDoc: boolean;
   datetimeType: string;
   createIndex: boolean;
-  idType: string;
   referenceBackendType: boolean;
-  tables: Map<string, DatasourceType>;
   templates: ViewTypeTemplates;
 };
 
@@ -54,7 +54,6 @@ const emitOptions = (
   settings: Record<string, string>,
   naming: ViewPaths,
   mode: ViewEmitMode,
-  tables: Map<string, DatasourceType>,
 ): EmitOptions => {
   const createIndex = settings["codegen.create_index"];
   return {
@@ -64,40 +63,13 @@ const emitOptions = (
     datetimeType: toNative("datetime"),
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
-    idType: settings["datasource.id_type"] ?? "integer",
     referenceBackendType: mode.referenceBackendType ?? true,
-    tables,
     templates: mode.templates ?? {
       typeTmpl: defaultTypeTmpl,
       indexTmpl: defaultIndexTmpl,
     },
   };
 };
-
-const columnField = (column: {
-  name: string;
-  type: string;
-  isNullable: boolean;
-  size?: number;
-  minSize?: number;
-}): ViewField => ({
-  name: column.name,
-  type: column.type,
-  kind: "primitive",
-  base: column.type,
-  isArray: false,
-  isNullable: column.isNullable,
-  size: column.size,
-  minSize: column.minSize,
-});
-
-const shapedFields = (view: ShapedView, opts: EmitOptions): ViewField[] =>
-  opts.referenceBackendType
-    ? view.fields
-    : [
-        ...inheritedColumns(view, opts.tables, opts.idType).map(columnField),
-        ...view.fields,
-      ];
 
 const importKind = (
   kind: "view" | "datasource",
@@ -193,13 +165,23 @@ const extendsType = (
   return `Omit<${parent}, ${omitKeys.map((k) => JSON.stringify(opts.naming.fieldName(k))).join(" | ")}>`;
 };
 
-const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
+const renderView = (
+  view: ViewType,
+  expanded: ViewType | undefined,
+  opts: EmitOptions,
+): GenerateEntry => {
   const { naming, schemaVersion, simpleDoc, descriptionDoc } = opts;
   const className = naming.className(view.name);
   const { imports, aliasByClass } = collectImports(view, opts);
   const isUnion = view.kind === "union";
   const parent = isUnion ? undefined : extendsType(view, opts, aliasByClass);
-  const fields = isUnion ? [] : shapedFields(view, opts);
+  const fields = isUnion
+    ? []
+    : opts.referenceBackendType
+      ? view.fields
+      : expanded?.kind === "shaped"
+        ? expanded.fields
+        : view.fields;
   return content(
     naming.filePath(view.name),
     fill(opts.templates.typeTmpl, {
@@ -229,19 +211,20 @@ const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   );
 };
 
-export const generateViewTypes = async (
-  ctx: GenerateContext,
-  naming: ViewPaths = viewPaths(ctx.settings),
-  mode: ViewEmitMode = {},
-): Promise<GenerateEntry[]> => {
-  const idType = ctx.settings["datasource.id_type"] ?? "integer";
-  const tables =
-    (mode.referenceBackendType ?? true)
-      ? new Map<string, DatasourceType>()
-      : await loadTables(ctx, idType);
-  const opts = emitOptions(ctx.settings, naming, mode, tables);
-  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
-  const entries = views.map((v) => renderView(v, opts));
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+  naming: ViewPaths,
+  mode: ViewEmitMode,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings, naming, mode);
+  const expandedByName = new Map(
+    deterministic.expandedViewTypes.map((v) => [v.name, v]),
+  );
+  const views = deterministic.viewTypes;
+  const entries = views.map((v) =>
+    renderView(v, expandedByName.get(v.name), opts),
+  );
   if (opts.createIndex) {
     entries.push(
       content(
@@ -256,4 +239,18 @@ export const generateViewTypes = async (
     );
   }
   return entries;
+};
+
+export const generateViewTypes = async (
+  ctx: GenerateContext,
+  naming: ViewPaths = viewPaths(ctx.settings),
+  mode: ViewEmitMode = {},
+): Promise<GenerateEntry[]> => {
+  await ctx.reader.read(VIEW_TYPES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
+    naming,
+    mode,
+  );
 };

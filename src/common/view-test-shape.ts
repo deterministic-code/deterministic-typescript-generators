@@ -1,11 +1,10 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import {
-  tableFields,
   type DatasourceType,
   type ShapedView,
   type ViewField,
   type ViewType,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { toNative } from "../base-type-converter.ts";
 import { valueTmpl } from "../resources/view-types-tests.ts";
 import { fakeTestData, fieldExpr } from "./fake-test-data.ts";
@@ -16,7 +15,6 @@ export type ShapeNaming = {
 };
 
 export type ShapeOpts = {
-  idType: string;
   naming: ShapeNaming;
   tables: Map<string, DatasourceType>;
   views: Map<string, ViewType>;
@@ -126,28 +124,9 @@ const dsNodes = (
 ): ShapeNode[] => {
   const table = opts.tables.get(name);
   if (table === undefined) return [];
-  return tableFields(table.fields, opts.idType).map((f) =>
+  return table.fields.map((f) =>
     scalarNode(f, opts, accessPrefix, pathPrefix, false),
   );
-};
-
-const parentNodes = (
-  view: ShapedView,
-  opts: ShapeOpts,
-  accessPrefix: string,
-  pathPrefix: string,
-  isRoot: boolean,
-): ShapeNode[] => {
-  if (view.inherits === null) return [];
-  const table = opts.tables.get(view.inherits);
-  if (table === undefined) return [];
-  const omit = new Set([
-    ...view.omit,
-    ...view.enrichments.map((e) => e.fkColumn),
-  ]);
-  return tableFields(table.fields, opts.idType)
-    .filter((f) => !omit.has(f.name))
-    .map((f) => scalarNode(f, opts, accessPrefix, pathPrefix, isRoot));
 };
 
 const viewFieldNode = (
@@ -214,12 +193,10 @@ const shapedNodes = (
   accessPrefix: string,
   pathPrefix: string,
   isRoot: boolean,
-): ShapeNode[] => [
-  ...parentNodes(view, opts, accessPrefix, pathPrefix, isRoot),
-  ...view.fields.map((f) =>
+): ShapeNode[] =>
+  view.fields.map((f) =>
     viewFieldNode(f, opts, visited, accessPrefix, pathPrefix, isRoot),
-  ),
-];
+  );
 
 export const viewNodes = (
   name: string,

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { access, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,11 +15,11 @@ import {
   type FullstackSampleName,
 } from "./fullstack-sample-yaml.ts";
 import {
-  addBetterSqliteDependency,
-  freePort,
-  npm,
-  patchSqliteMigrateHook,
-  waitForUrl,
+  generateBundledMigrate,
+  installBuildAndMigrateSqlite,
+  sqliteAppEnv,
+  startGeneratedServer,
+  withSqlRoot,
   writeDeterministicYaml,
   type BootedApp,
 } from "./generated-app.ts";
@@ -49,17 +48,26 @@ export const bootFullstackSample = async (
   const settings = fullstackSampleSettings(name);
   const ctx = { reader: memoryReader(yaml), settings };
 
-  const [appEntries, frontendEntries, typeEntries, bindingEntries, sqlEntries] =
-    await Promise.all([
-      generateBackendApp(ctx),
-      generateFrontendApp(ctx),
-      generateFrontendTypes(ctx),
-      generateClientBindings(ctx),
-      generateSql(ctx),
-    ]);
+  const [
+    appEntries,
+    frontendEntries,
+    typeEntries,
+    bindingEntries,
+    sqlEntries,
+    migrateEntries,
+  ] = await Promise.all([
+    generateBackendApp(ctx),
+    generateFrontendApp(ctx),
+    generateFrontendTypes(ctx),
+    generateClientBindings(ctx),
+    generateSql(ctx),
+    generateBundledMigrate(settings),
+  ]);
   requireNamed(frontendEntries, "frontend/src/App.tsx");
   requireNamed(bindingEntries, "frontend/src/client/fetch/http.ts");
   requireNamed(bindingEntries, "frontend/src/client/fetch/");
+  requireNamed(migrateEntries, "migraters/typescript/package.json");
+  requireNamed(migrateEntries, "migraters/typescript/src/bin/migrate-up.ts");
 
   await removeE2eTempDirs([tempPrefix]);
   const appDir = await mkdtemp(join(tmpdir(), tempPrefix));
@@ -68,45 +76,19 @@ export const bootFullstackSample = async (
     ...frontendEntries,
     ...typeEntries,
     ...bindingEntries,
-    ...sqlEntries,
+    ...withSqlRoot(sqlEntries),
+    ...migrateEntries,
   ];
   if (verboseOutputEnabled()) dumpCodegenEntries(entries);
   await writeGenerateEntries(appDir, entries);
   await writeDeterministicYaml(appDir, yaml);
-  await patchSqliteMigrateHook(appDir, { enableTrace: true });
-  await addBetterSqliteDependency(appDir);
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
-  await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir);
-  await npm(["run", "build"], appDir);
-
-  const port = await freePort();
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  const child = spawn(process.execPath, ["dist/server.js"], {
-    cwd: appDir,
-    env: {
-      ...process.env,
-      PORT: String(port),
-      DETERMINISTIC_TRACE: "route,service,datasource",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
+  await installBuildAndMigrateSqlite(appDir);
+  return startGeneratedServer(appDir, {
+    ...sqliteAppEnv(appDir),
+    DETERMINISTIC_TRACE: "route,service,datasource",
   });
-  child.stdout?.on("data", (chunk: Buffer) => {
-    stdoutChunks.push(chunk);
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    stderrChunks.push(chunk);
-  });
-  try {
-    await waitForUrl(`http://127.0.0.1:${port}/api/health`, 30_000);
-  } catch (err) {
-    const dumped = Buffer.concat(stderrChunks).toString();
-    throw new Error(
-      `health check did not come up (exitCode=${child.exitCode})\n${dumped}\n${err}`,
-    );
-  }
-  return { appDir, port, child, stdoutChunks, stderrChunks };
 };
 
 export const requireFrontendBinding = async (

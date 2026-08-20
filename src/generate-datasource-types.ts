@@ -1,13 +1,15 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
+import { createCasing, type PackCasing } from "./common/default-casing.ts";
 import {
-  declaredFields,
-  SpecificationParser,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
   DATASOURCE_TYPES_YAML,
   type DatasourceType,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
@@ -29,7 +31,7 @@ const projectIdType = (settings: Record<string, string>): string => {
 
 type EmitOptions = {
   idType: string;
-  naming: ArtifactPaths;
+  casing: PackCasing;
   schemaVersion: string;
   simpleDoc: boolean;
   descriptionDoc: boolean;
@@ -37,16 +39,21 @@ type EmitOptions = {
   createIndex: boolean;
 };
 
+const projectRelPath = (casing: PackCasing, entity: string): string =>
+  casing.byFeature
+    ? casing.filePath(entity)
+    : `types/generated/datasource/${casing.filePath(entity)}`;
+
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const naming = datasourcePaths(settings);
+  const casing = createCasing(settings);
   return {
     idType: projectIdType(settings),
-    naming,
+    casing,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
     libraryMode: settings["languages.typescript.library_reference_mode"],
     createIndex:
-      settings["codegen.create_index"] === "true" && !naming.byFeature,
+      settings["codegen.create_index"] === "true" && !casing.byFeature,
   };
 };
 
@@ -54,18 +61,18 @@ const renderType = (
   dsType: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { idType, naming, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
+  const { idType, casing, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
     opts;
-  const className = naming.className(dsType.name);
-  const fields = declaredFields(dsType.fields, idType);
+  const className = casing.convertTypes(dsType.name);
+  const fields = dsType.fields;
   return content(
-    naming.filePath(dsType.name),
+    casing.filePath(dsType.name),
     fill(typeTmpl, {
       schemaVersion,
       libraryImport: libraryImportSpecifier(
         "types",
         libraryMode,
-        naming.projectRelPath(dsType.name),
+        projectRelPath(casing, dsType.name),
       ),
       simpleDoc,
       descriptionDoc,
@@ -75,7 +82,7 @@ const renderType = (
       idType: toNative(idType),
       datetimeType: toNative("datetime"),
       fields: fields.map((f) => ({
-        ident: naming.fieldIdent(f.name),
+        ident: casing.fieldIdent(f.name),
         tsType: toNative(f.type),
         nullable: f.isNullable,
       })),
@@ -85,27 +92,35 @@ const renderType = (
 
 const renderIndex = (
   types: DatasourceType[],
-  naming: ArtifactPaths,
+  casing: PackCasing,
 ): GenerateEntry =>
   content(
     "index.ts",
     fill(indexTmpl, {
       types: types.map((t) => ({
-        className: naming.className(t.name),
-        fileBase: naming.fileBase(t.name),
+        className: casing.convertTypes(t.name),
+        fileBase: casing.fileBase(t.name),
       })),
     }),
   );
 
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings);
+  const types = deterministic.expandedDatasourceTypes;
+  const entries = types.map((dsType) => renderType(dsType, opts));
+  if (opts.createIndex) entries.push(renderIndex(types, opts.casing));
+  return entries;
+};
+
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
-  const types = new SpecificationParser().parseDatasourceTypes({
-    yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-    idType: opts.idType,
-  });
-  const entries = types.map((dsType) => renderType(dsType, opts));
-  if (opts.createIndex) entries.push(renderIndex(types, opts.naming));
-  return entries;
+  await ctx.reader.read(DATASOURCE_TYPES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
+  );
 };

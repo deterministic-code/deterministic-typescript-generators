@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,11 +11,11 @@ import { generate as generateServices } from "../src/generate-services.ts";
 import { generate as generateViewTypes } from "../src/generate-view-types.ts";
 import { removeE2eTempDirs } from "./cleanup-temp.ts";
 import {
-  addBetterSqliteDependency,
-  freePort,
-  npm,
-  patchSqliteMigrateHook,
-  waitForUrl,
+  generateBundledMigrate,
+  installBuildAndMigrateSqlite,
+  sqliteAppEnv,
+  startGeneratedServer,
+  withSqlRoot,
   writeDeterministicYaml,
   type BootedApp,
 } from "./generated-app.ts";
@@ -68,54 +67,32 @@ export const bootParentChildEagerApp = async (
   await assertParentChildGenerators();
   await removeE2eTempDirs([tempPrefix]);
   const appDir = await mkdtemp(join(tmpdir(), tempPrefix));
-  const appEntries = await generateBackendApp({
-    reader: memoryReader({}),
-    settings: PARENT_CHILD_SETTINGS,
-  });
-  if (verboseOutputEnabled()) dumpCodegenEntries(appEntries);
-  await writeGenerateEntries(appDir, appEntries);
+  const reader = memoryReader(PARENT_CHILD_EAGER_YAML);
+  const [appEntries, sqlEntries, migrateEntries] = await Promise.all([
+    generateBackendApp({
+      reader: memoryReader({}),
+      settings: PARENT_CHILD_SETTINGS,
+    }),
+    generateSql({ reader, settings: PARENT_CHILD_SETTINGS }),
+    generateBundledMigrate(PARENT_CHILD_SETTINGS),
+  ]);
+  requireNamed(migrateEntries, "migraters/typescript/package.json");
+  requireNamed(migrateEntries, "migraters/typescript/src/bin/migrate-up.ts");
+  const entries = [
+    ...appEntries,
+    ...withSqlRoot(sqlEntries),
+    ...migrateEntries,
+  ];
+  if (verboseOutputEnabled()) dumpCodegenEntries(entries);
+  await writeGenerateEntries(appDir, entries);
   await writeDeterministicYaml(appDir, PARENT_CHILD_EAGER_YAML);
-
-  const sqlEntries = await generateSql({
-    reader: memoryReader(PARENT_CHILD_EAGER_YAML),
-    settings: PARENT_CHILD_SETTINGS,
-  });
-  if (verboseOutputEnabled()) dumpCodegenEntries(sqlEntries);
-  await writeGenerateEntries(appDir, sqlEntries);
-  await patchSqliteMigrateHook(appDir, { enableTrace: true });
-  await addBetterSqliteDependency(appDir);
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
-  await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir);
-  await npm(["run", "build"], appDir);
-
-  const port = await freePort();
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  const child = spawn(process.execPath, ["dist/server.js"], {
-    cwd: appDir,
-    env: {
-      ...process.env,
-      PORT: String(port),
-      DETERMINISTIC_TRACE: "route,service,datasource",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
+  await installBuildAndMigrateSqlite(appDir);
+  return startGeneratedServer(appDir, {
+    ...sqliteAppEnv(appDir),
+    DETERMINISTIC_TRACE: "route,service,datasource",
   });
-  child.stdout?.on("data", (chunk: Buffer) => {
-    stdoutChunks.push(chunk);
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    stderrChunks.push(chunk);
-  });
-  try {
-    await waitForUrl(`http://127.0.0.1:${port}/api/health`, 30_000);
-  } catch (err) {
-    const dumped = Buffer.concat(stderrChunks).toString();
-    throw new Error(
-      `health check did not come up (exitCode=${child.exitCode})\n${dumped}\n${err}`,
-    );
-  }
-  return { appDir, port, child, stdoutChunks, stderrChunks };
 };
 
 export const dumpParentChildTrace = (booted: BootedApp): void => {

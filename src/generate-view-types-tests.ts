@@ -6,10 +6,13 @@ import {
   type ViewPaths,
 } from "./common/paths.ts";
 import {
-  SpecificationParser,
-  DATASOURCE_TYPES_YAML,
-  type ViewType,
+  DeterministicParser,
+  type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
+import {
+  VIEW_TYPES_YAML,
+  type ViewType,
+} from "@deterministic-code/generators-common/specification";
 import {
   fieldTestsTmpl,
   typeTestTmpl,
@@ -38,7 +41,6 @@ const emitOptions = (
 ): EmitOptions => ({
   naming,
   schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-  idType: settings["datasource.id_type"] ?? "integer",
   tables,
   views,
   referenceBackendType,
@@ -96,25 +98,33 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   );
 };
 
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+  naming: ViewPaths,
+  referenceBackendType: boolean,
+): GenerateEntry[] => {
+  const views = deterministic.expandedViewTypes;
+  const opts = emitOptions(
+    settings,
+    naming,
+    new Map(deterministic.expandedDatasourceTypes.map((t) => [t.name, t])),
+    new Map(views.map((v) => [v.name, v])),
+    referenceBackendType,
+  );
+  return views.map((view) => renderTests(view, opts));
+};
+
 export const generate = async (
   ctx: GenerateContext,
   naming: ViewPaths = viewPaths(ctx.settings),
   referenceBackendType = true,
 ): Promise<GenerateEntry[]> => {
-  const views = await new SpecificationParser(ctx.reader).loadViewTypes();
-  const idType = ctx.settings["datasource.id_type"] ?? "integer";
-  const tables = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
-    ? new SpecificationParser().parseDatasourceTypes({
-        yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-        idType,
-      })
-    : [];
-  const opts = emitOptions(
+  await ctx.reader.read(VIEW_TYPES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
     ctx.settings,
     naming,
-    new Map(tables.map((t) => [t.name, t])),
-    new Map(views.map((v) => [v.name, v])),
     referenceBackendType,
   );
-  return views.map((view) => renderTests(view, opts));
 };
