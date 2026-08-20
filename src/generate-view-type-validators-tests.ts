@@ -55,10 +55,13 @@ const MUTABLE_SCALAR = new Set([
   "binary",
 ]);
 
-const emitBase = (settings: Record<string, string>) => {
+const emitBase = (
+  settings: Record<string, string>,
+  naming: ViewValidatorPaths,
+) => {
   return {
     idType: settings["datasource.id_type"] ?? "integer",
-    naming: viewValidatorPaths(settings),
+    naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
 };
@@ -191,13 +194,6 @@ const viewFixture = (
   );
 };
 
-const testPath = (entity: string, naming: ViewValidatorPaths): string => {
-  const file = `${naming.fileBase(entity)}.test.ts`;
-  if (!naming.byFeature) return file;
-  const typeFile = naming.filePath(entity);
-  return `${typeFile.slice(0, typeFile.lastIndexOf("/"))}/__tests__/${file}`;
-};
-
 const mutationCases = (
   fields: FieldTok[],
   targets: FieldTok[],
@@ -324,21 +320,22 @@ const unionCases = (
 
 const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry =>
   content(
-    testPath(view.name, opts.naming),
+    opts.naming.testPath(view.name),
     fill(typeTestTmpl, {
       prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       schemaName: `${view.name}Schema`,
       viewName: view.name,
-      schemaImport: `../${opts.naming.fileBase(view.name)}`,
+      schemaImport: opts.naming.testImport(view.name),
       cases: view.kind === "union" ? unionCases(view, opts) : shapedCases(view, opts),
     }),
   );
 
 export const generate = async (
   ctx: GenerateContext,
+  naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
 ): Promise<GenerateEntry[]> => {
-  const base = emitBase(ctx.settings);
+  const base = emitBase(ctx.settings, naming);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const tables = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
     ? new SpecificationParser().parseDatasourceTypes({

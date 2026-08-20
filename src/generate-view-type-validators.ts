@@ -21,10 +21,13 @@ type EmitOptions = {
   schemaVersion: string;
 };
 
-const emitOptions = (settings: Record<string, string>): EmitOptions => {
+const emitOptions = (
+  settings: Record<string, string>,
+  naming: ViewValidatorPaths,
+): EmitOptions => {
   return {
     idType: settings["datasource.id_type"] ?? "integer",
-    naming: viewValidatorPaths(settings),
+    naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
 };
@@ -180,8 +183,9 @@ const indexExports = (view: ViewType): string | undefined => {
 
 export const generate = async (
   ctx: GenerateContext,
+  naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
+  const opts = emitOptions(ctx.settings, naming);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const entries = views.map((view) =>
     content(
@@ -202,7 +206,7 @@ export const generate = async (
   if (createIndex) {
     entries.push(
       content(
-        "index.ts",
+        opts.naming.indexPath,
         fill(indexTmpl, {
           withTypeAnnotation: true,
           types: views.flatMap((view) => {
