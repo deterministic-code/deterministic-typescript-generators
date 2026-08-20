@@ -205,6 +205,7 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry =>
 export const generate = async (
   ctx: GenerateContext,
   naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
+  referenceBackendType = true,
 ): Promise<GenerateEntry[]> => {
   const base = emitBase(ctx.settings, naming);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
@@ -218,6 +219,7 @@ export const generate = async (
     ...base,
     tables: new Map(tables.map((t) => [t.name, t])),
     views: new Map(views.map((v) => [v.name, v])),
+    referenceBackendType,
   };
   return views.map((view) => renderTests(view, opts));
 };

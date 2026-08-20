@@ -20,6 +20,7 @@ export type ShapeOpts = {
   naming: ShapeNaming;
   tables: Map<string, DatasourceType>;
   views: Map<string, ViewType>;
+  referenceBackendType: boolean;
 };
 
 export type ShapeNode = {
@@ -184,7 +185,8 @@ const viewFieldNode = (
   const access = `${accessPrefix}${fieldAccess(ident)}`;
   const childPrefix = field.isArray ? `${access}[0]` : access;
   const nested =
-    field.kind === "datasource"
+    field.kind === "datasource" &&
+    (opts.referenceBackendType || !opts.views.has(field.base))
       ? dsNodes(field.base, opts, childPrefix, path)
       : viewNodes(field.base, opts, visited, childPrefix, path);
   return {

@@ -6,8 +6,11 @@ import { referencesBackend } from "./inline-inherited.ts";
 
 export const generate = async (
   ctx: GenerateContext,
-): Promise<GenerateEntry[]> =>
-  generateViewTypesTests(
+): Promise<GenerateEntry[]> => {
+  const referenceBackendType = referencesBackend(ctx.settings);
+  return generateViewTypesTests(
     ctx,
-    frontendViewPaths(ctx.settings, referencesBackend(ctx.settings)),
+    frontendViewPaths(ctx.settings, referenceBackendType),
+    referenceBackendType,
   );
+};
