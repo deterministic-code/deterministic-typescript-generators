@@ -59,12 +59,9 @@ describe("generate", () => {
     ]);
     assert.deepEqual(kindsOf(entries, "app.ts"), ["content", "patch"]);
     assert.deepEqual(kindsOf(entries, "package.json"), ["content", "patch"]);
-    assert.deepEqual(kindsOf(entries, "server.ts"), ["content", "content"]);
-    assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content", "content"]);
-    assert.deepEqual(kindsOf(entries, "__tests__/health.test.ts"), [
-      "content",
-      "content",
-    ]);
+    assert.deepEqual(kindsOf(entries, "server.ts"), ["content"]);
+    assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content"]);
+    assert.deepEqual(kindsOf(entries, "__tests__/health.test.ts"), ["content"]);
     assert.deepEqual(kindsOf(entries, "Dockerfile"), ["patch"]);
     for (const filename of uniqueNames(entries)) {
       assert.equal(filename.startsWith("typescript/"), false, filename);
@@ -76,7 +73,7 @@ describe("generate", () => {
     assert.equal(dockerignore.kind, "patch");
     assert.equal(
       "section" in dockerignore ? dockerignore.section : undefined,
-      "DOCKERIGNORE_TYPESCRIPT",
+      undefined,
     );
     assert.equal(entryBody(dockerignore), "node_modules");
   });
