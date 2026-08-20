@@ -43,7 +43,7 @@ const emitOptions = async (ctx: GenerateContext): Promise<EmitOptions> => {
     naming: routePaths(ctx.settings),
     idType,
     libraryReferenceMode: ctx.settings["languages.typescript.library_reference_mode"],
-    useOcc: ctx.settings["datasource.use_optimistic_concurrency"] === "true",
+    useOcc: ctx.settings["datasource.use_optimistic_concurrency"] !== "false",
     datasources: [],
     enrichmentsByEntity: new Map(
       views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),

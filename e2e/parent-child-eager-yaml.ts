@@ -71,5 +71,5 @@ export const PARENT_CHILD_SETTINGS: Record<string, string> = {
   app_generate_complexity: "deterministic",
   "datasource.id_type": "integer",
   "datasource.pluralize_datatable_names": "true",
-  "datasource.dialects": "sqlite",
+  "backend.datasources": "sqlite",
 };

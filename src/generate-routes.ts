@@ -58,7 +58,7 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
   return {
     idType: settings["datasource.id_type"] ?? "integer",
     useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
+      settings["datasource.use_optimistic_concurrency"] !== "false",
     naming,
     services: servicePaths(settings),
     ...docTokens(settings),
