@@ -8,27 +8,62 @@ import {
 } from "./common/paths.ts";
 import {
   SpecificationParser,
+  type DatasourceType,
   type ShapedView,
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
 import { toZod } from "./common/type-converters/native-to-zod.ts";
-import { indexTmpl, schemaInheritTmpl, schemaStandaloneTmpl, schemaUnionTmpl, typeTmpl } from "./resources/view-type-validators.ts";
+import { inheritedColumns, loadTables } from "./inline-inherited.ts";
+import {
+  indexTmpl as defaultIndexTmpl,
+  schemaInheritTmpl as defaultSchemaInheritTmpl,
+  schemaStandaloneTmpl as defaultSchemaStandaloneTmpl,
+  schemaUnionTmpl as defaultSchemaUnionTmpl,
+  typeTmpl as defaultTypeTmpl,
+} from "./resources/view-type-validators.ts";
+
+export type ViewValidatorTemplates = {
+  typeTmpl: string;
+  indexTmpl: string;
+  schemaUnionTmpl: string;
+  schemaStandaloneTmpl: string;
+  schemaInheritTmpl: string;
+};
+
+export type ViewValidatorEmitMode = {
+  referenceBackendType?: boolean;
+  templates?: ViewValidatorTemplates;
+};
 
 type EmitOptions = {
   idType: string;
   naming: ViewValidatorPaths;
   schemaVersion: string;
+  referenceBackendType: boolean;
+  tables: Map<string, DatasourceType>;
+  templates: ViewValidatorTemplates;
 };
 
 const emitOptions = (
   settings: Record<string, string>,
   naming: ViewValidatorPaths,
+  mode: ViewValidatorEmitMode,
+  tables: Map<string, DatasourceType>,
 ): EmitOptions => {
   return {
     idType: settings["datasource.id_type"] ?? "integer",
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
+    referenceBackendType: mode.referenceBackendType ?? true,
+    tables,
+    templates: mode.templates ?? {
+      typeTmpl: defaultTypeTmpl,
+      indexTmpl: defaultIndexTmpl,
+      schemaUnionTmpl: defaultSchemaUnionTmpl,
+      schemaStandaloneTmpl: defaultSchemaStandaloneTmpl,
+      schemaInheritTmpl: defaultSchemaInheritTmpl,
+    },
   };
 };
 
@@ -70,9 +105,36 @@ const tighten = (field: ViewField): string => {
   }
 };
 
+const columnField = (column: {
+  name: string;
+  type: string;
+  isNullable: boolean;
+  size?: number;
+  minSize?: number;
+}): ViewField => ({
+  name: column.name,
+  type: column.type,
+  kind: "primitive",
+  base: column.type,
+  isArray: false,
+  isNullable: column.isNullable,
+  size: column.size,
+  minSize: column.minSize,
+});
+
+const shapedFields = (view: ShapedView, opts: EmitOptions): ViewField[] =>
+  opts.referenceBackendType
+    ? view.fields
+    : [
+        ...inheritedColumns(view, opts.tables, opts.idType).map(columnField),
+        ...view.fields,
+      ];
+
 const zodForField = (field: ViewField, opts: EmitOptions): string => {
   const nested =
-    field.kind === "datasource" ? dsAlias(field.base) : schemaIdent(field.base);
+    field.kind === "datasource" && opts.referenceBackendType
+      ? dsAlias(field.base)
+      : schemaIdent(field.base);
   let expr =
     field.kind === "primitive"
       ? tighten(field)
@@ -87,10 +149,18 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
   const byPath = new Map<string, Set<string>>();
   const refs: Array<{ entity: string; kind: "view" | "datasource" }> = [];
   if (view.kind === "shaped") {
-    if (view.inherits !== null) refs.push({ entity: view.inherits, kind: "datasource" });
+    if (opts.referenceBackendType && view.inherits !== null) {
+      refs.push({ entity: view.inherits, kind: "datasource" });
+    }
     for (const f of view.fields) {
       if (f.kind === "datasource" || f.kind === "view") {
-        refs.push({ entity: f.base, kind: f.kind });
+        refs.push({
+          entity: f.base,
+          kind:
+            !opts.referenceBackendType && f.kind === "datasource"
+              ? "view"
+              : f.kind,
+        });
       }
     }
   } else {
@@ -118,8 +188,8 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
     .sort((a, b) => a.fromPath.localeCompare(b.fromPath));
 };
 
-const fieldTokens = (view: ShapedView, opts: EmitOptions) =>
-  view.fields.map((f) => ({
+const fieldTokens = (fields: ViewField[], opts: EmitOptions) =>
+  fields.map((f) => ({
     ident: opts.naming.fieldIdent(f.name),
     zodExpr: zodForField(f, opts),
   }));
@@ -127,17 +197,21 @@ const fieldTokens = (view: ShapedView, opts: EmitOptions) =>
 const schemaBody = (view: ViewType, opts: EmitOptions): string => {
   const schemaName = schemaIdent(view.name);
   if (view.kind === "union") {
-    return fill(schemaUnionTmpl, {
+    return fill(opts.templates.schemaUnionTmpl, {
       schemaName,
       members: view.members.map((m) => ({ ident: schemaIdent(m) })),
     }).trimEnd();
   }
   const t = trio(view.name);
-  const fields = fieldTokens(view, opts);
+  const inheritBackend = opts.referenceBackendType && view.inherits !== null;
+  const fields = fieldTokens(
+    inheritBackend ? view.fields : shapedFields(view, opts),
+    opts,
+  );
   const omits = viewOmits(view, opts.idType);
   const hasTrio = omits.length === 0;
-  if (view.inherits === null) {
-    return fill(schemaStandaloneTmpl, {
+  if (!inheritBackend || view.inherits === null) {
+    return fill(opts.templates.schemaStandaloneTmpl, {
       schemaName,
       emptyObject: fields.length === 0,
       fields,
@@ -147,13 +221,14 @@ const schemaBody = (view: ViewType, opts: EmitOptions): string => {
       patchName: t.patch,
     }).trimEnd();
   }
+  const parent = view.inherits;
   const allOmits = [...view.enrichments.map((e) => e.fkColumn), ...omits];
   const stamp = opts.idType !== "uuid"
     ? ["id", "uuid", "created", "updated"]
     : ["id", "created", "updated"];
-  return fill(schemaInheritTmpl, {
+  return fill(opts.templates.schemaInheritTmpl, {
     schemaName,
-    dsAlias: dsAlias(view.inherits),
+    dsAlias: dsAlias(parent),
     hasOmits: allOmits.length > 0,
     omitObj: omitObj(allOmits, opts.naming),
     partialId: omits.length > 0 && !omits.includes("id"),
@@ -184,13 +259,19 @@ const indexExports = (view: ViewType): string | undefined => {
 export const generate = async (
   ctx: GenerateContext,
   naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
+  mode: ViewValidatorEmitMode = {},
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings, naming);
+  const idType = ctx.settings["datasource.id_type"] ?? "integer";
+  const tables =
+    (mode.referenceBackendType ?? true)
+      ? new Map<string, DatasourceType>()
+      : await loadTables(ctx, idType);
+  const opts = emitOptions(ctx.settings, naming, mode, tables);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const entries = views.map((view) =>
     content(
       opts.naming.filePath(view.name),
-      fill(typeTmpl, {
+      fill(opts.templates.typeTmpl, {
         schemaVersion: opts.schemaVersion,
         imports: collectImports(view, opts),
         schemaBody: schemaBody(view, opts),
@@ -207,7 +288,7 @@ export const generate = async (
     entries.push(
       content(
         opts.naming.indexPath,
-        fill(indexTmpl, {
+        fill(opts.templates.indexTmpl, {
           withTypeAnnotation: true,
           types: views.flatMap((view) => {
             const exports = indexExports(view);

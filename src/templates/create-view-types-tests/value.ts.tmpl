@@ -1,0 +1,1 @@
+{{#isArray}}[{{/isArray}}{{#isObject}}{ {{#nested}}{{ident}}: {{&value}}{{^last}}, {{/last}}{{/nested}} }{{/isObject}}{{#isPrimitive}}{{&expr}}{{/isPrimitive}}{{#isArray}}]{{/isArray}}

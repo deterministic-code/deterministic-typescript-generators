@@ -6,6 +6,8 @@ const resource = (rel: string): Promise<string> =>
     "utf8",
   );
 
-export const [typeTestTmpl] = await Promise.all([
+export const [typeTestTmpl, fieldTestsTmpl, valueTmpl] = await Promise.all([
   resource("type.test.ts.tmpl"),
+  resource("field-tests.ts.tmpl"),
+  resource("value.ts.tmpl"),
 ]);

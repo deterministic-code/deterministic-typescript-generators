@@ -222,10 +222,17 @@ types: []
     const card = await bodyOf("card_payment.test.ts");
     assert.match(card, /it\("gets tags"/);
     assert.match(card, /it\("sets tags"/);
+    assert.match(card, /it\("gets tags.label"/);
+    assert.match(card, /it\("sets tags.label"/);
     assert.match(card, /it\("gets owner"/);
-    assert.match(card, /tags: \[\{\} as tag\]/);
-    assert.match(card, /owner: \{\} as user_summary/);
-    assert.match(card, /const next = \{\} as user_summary;/);
+    assert.match(card, /it\("gets owner.display_name"/);
+    assert.match(card, /it\("sets owner.display_name"/);
+    assert.match(card, /tags: \[\{ /);
+    assert.match(card, /label: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
+    assert.match(card, /owner: \{ /);
+    assert.match(card, /display_name: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
+    assert.doesNotMatch(card, /\{\} as tag/);
+    assert.doesNotMatch(card, /\{\} as user_summary/);
   });
 
   it("emits union member accept cases instead of field accessors", async () => {

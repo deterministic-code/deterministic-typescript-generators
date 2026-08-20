@@ -7,67 +7,59 @@ import {
 } from "./common/paths.ts";
 import {
   SpecificationParser,
-  type ViewField,
+  DATASOURCE_TYPES_YAML,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
-import { typeTestTmpl } from "./resources/view-types-tests.ts";
 import {
-  fakeTestData,
-  fieldExpr,
-  preludeSource,
-} from "./common/fake-test-data.ts";
+  fieldTestsTmpl,
+  typeTestTmpl,
+} from "./resources/view-types-tests.ts";
+import { preludeSource, fakeTestData } from "./common/fake-test-data.ts";
+import {
+  renderObject,
+  renderValue,
+  shapedViewNodes,
+  viewNodes,
+  type ShapeNode,
+  type ShapeOpts,
+} from "./common/view-test-shape.ts";
 
-type EmitOptions = {
+type EmitOptions = ShapeOpts & {
   naming: ViewPaths;
   schemaVersion: string;
-};
-
-type FieldTok = {
-  ident: string;
-  access: string;
-  testName: string;
-  sampleExpr: string;
-  nextExpr: string;
-  nullable: boolean;
 };
 
 const emitOptions = (
   settings: Record<string, string>,
   naming: ViewPaths,
+  tables: ShapeOpts["tables"],
+  views: ShapeOpts["views"],
 ): EmitOptions => ({
   naming,
   schemaVersion: settings["codegen.schema_version"] ?? "1.0",
+  idType: settings["datasource.id_type"] ?? "integer",
+  tables,
+  views,
 });
 
-const escapeTestName = (name: string): string =>
-  name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-
-const primitiveExpr = (base: string, size?: number): string =>
-  fieldExpr(fakeTestData, base, { size });
-
-const wrapArray = (expr: string, isArray: boolean): string =>
-  isArray ? `[${expr}]` : expr;
-
-const fieldTokens = (field: ViewField, opts: EmitOptions): FieldTok => {
-  const ident = opts.naming.fieldIdent(field.name);
-  const cls = opts.naming.className(field.base);
-  const expr =
-    field.kind === "primitive"
-      ? primitiveExpr(field.base, field.size)
-      : `{} as ${cls}`;
-  return {
-    ident,
-    access: ident.startsWith('"') ? `[${ident}]` : `.${ident}`,
-    testName: escapeTestName(opts.naming.fieldName(field.name)),
-    sampleExpr: wrapArray(expr, field.isArray),
-    nextExpr: wrapArray(expr, field.isArray),
-    nullable: field.isNullable,
-  };
-};
+const renderFieldTests = (node: ShapeNode, className: string): string =>
+  fill(fieldTestsTmpl, {
+    className,
+    testName: node.testName,
+    ident: node.ident,
+    access: node.access,
+    sampleExpr: renderValue(node),
+    nextExpr: renderValue(node),
+    nullable: node.nullable,
+    isRoot: node.isRoot,
+    nestedTests: node.nested
+      .map((child) => renderFieldTests(child, className))
+      .join(""),
+  }).trimEnd() + "\n\n";
 
 const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   const fields =
-    view.kind === "shaped" ? view.fields.map((f) => fieldTokens(f, opts)) : [];
+    view.kind === "shaped" ? shapedViewNodes(view, opts) : [];
   return content(
     opts.naming.testPath(view.name),
     fill(typeTestTmpl, {
@@ -78,11 +70,12 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
       typeImport: opts.naming.testImport(view.name),
       isShaped: view.kind === "shaped",
       isUnion: view.kind === "union",
-      fixture:
-        fields.length === 0
-          ? "{}"
-          : `{ ${fields.map((f) => `${f.ident}: ${f.sampleExpr}`).join(", ")} }`,
-      fields,
+      fixture: fields.length === 0 ? "{}" : renderObject(fields),
+      fieldTests: fields
+        .map((field) =>
+          renderFieldTests(field, opts.naming.className(view.name)),
+        )
+        .join(""),
       members:
         view.kind === "union"
           ? view.members.map((name) => ({
@@ -92,6 +85,9 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
                 entity: name,
                 kind: "view",
               }),
+              memberFixture: renderObject(
+                viewNodes(name, opts, new Set([view.name])),
+              ),
             }))
           : [],
     }),
@@ -102,7 +98,19 @@ export const generate = async (
   ctx: GenerateContext,
   naming: ViewPaths = viewPaths(ctx.settings),
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings, naming);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
+  const idType = ctx.settings["datasource.id_type"] ?? "integer";
+  const tables = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
+    ? new SpecificationParser().parseDatasourceTypes({
+        yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
+        idType,
+      })
+    : [];
+  const opts = emitOptions(
+    ctx.settings,
+    naming,
+    new Map(tables.map((t) => [t.name, t])),
+    new Map(views.map((v) => [v.name, v])),
+  );
   return views.map((view) => renderTests(view, opts));
 };

@@ -1,0 +1,4 @@
+export const {{schemaName}} = z.union([
+{{#members}}  z.lazy(() => {{ident}}),
+{{/members}}
+]);
