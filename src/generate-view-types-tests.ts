@@ -34,12 +34,14 @@ const emitOptions = (
   naming: ViewPaths,
   tables: ShapeOpts["tables"],
   views: ShapeOpts["views"],
+  referenceBackendType: boolean,
 ): EmitOptions => ({
   naming,
   schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   idType: settings["datasource.id_type"] ?? "integer",
   tables,
   views,
+  referenceBackendType,
 });
 
 const renderFieldTests = (node: ShapeNode, className: string): string =>
@@ -97,6 +99,7 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
 export const generate = async (
   ctx: GenerateContext,
   naming: ViewPaths = viewPaths(ctx.settings),
+  referenceBackendType = true,
 ): Promise<GenerateEntry[]> => {
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const idType = ctx.settings["datasource.id_type"] ?? "integer";
@@ -111,6 +114,7 @@ export const generate = async (
     naming,
     new Map(tables.map((t) => [t.name, t])),
     new Map(views.map((v) => [v.name, v])),
+    referenceBackendType,
   );
   return views.map((view) => renderTests(view, opts));
 };
