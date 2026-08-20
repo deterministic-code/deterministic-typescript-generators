@@ -177,6 +177,109 @@ describe("generate frontend app", () => {
     );
   });
 
+  it("scaffolds a Svelte app under frontend/", async () => {
+    const byName = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: {
+          application_name: "catalog-ui",
+          frontend_generate_framework: "svelte",
+        },
+      }),
+    );
+    assert.deepEqual(
+      [...byName.keys()].sort(),
+      [
+        "frontend/.gitignore",
+        "frontend/index.html",
+        "frontend/package.json",
+        "frontend/src/App.svelte",
+        "frontend/src/main.ts",
+        "frontend/src/vite-env.d.ts",
+        "frontend/svelte.config.js",
+        "frontend/tsconfig.json",
+        "frontend/vite.config.ts",
+      ],
+    );
+    assert.equal(
+      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
+      "catalog-ui",
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/App.svelte")),
+      /<h1>catalog-ui<\/h1>/,
+    );
+  });
+
+  it("scaffolds an Angular app under frontend/", async () => {
+    const byName = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: {
+          application_name: "catalog-ui",
+          frontend_generate_framework: "angular",
+        },
+      }),
+    );
+    assert.deepEqual(
+      [...byName.keys()].sort(),
+      [
+        "frontend/.gitignore",
+        "frontend/angular.json",
+        "frontend/package.json",
+        "frontend/src/app/app.config.ts",
+        "frontend/src/app/app.ts",
+        "frontend/src/index.html",
+        "frontend/src/main.ts",
+        "frontend/src/styles.css",
+        "frontend/tsconfig.app.json",
+        "frontend/tsconfig.json",
+      ],
+    );
+    assert.equal(
+      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
+      "catalog-ui",
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/app/app.ts")),
+      /<h1>catalog-ui<\/h1>/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/index.html")),
+      /<title>catalog-ui<\/title>/,
+    );
+  });
+
+  it("adds Svelte and Angular compose + Dockerfile for full-stack", async () => {
+    const svelte = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: {
+          frontend_generate_framework: "svelte",
+          application_tier: "full-stack",
+        },
+      }),
+    );
+    assert.match(
+      entryBody(requireEntry(svelte, "frontend/Dockerfile")),
+      /EXPOSE 5173/,
+    );
+    const ng = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: {
+          frontend_generate_framework: "angular",
+          application_tier: "full-stack",
+        },
+      }),
+    );
+    assert.match(entryBody(requireEntry(ng, "docker-compose.yml")), /:4200/);
+    assert.match(
+      entryBody(requireEntry(ng, "frontend/Dockerfile")),
+      /EXPOSE 4200/,
+    );
+  });
+
   it("rejects an unknown frontend_generate_framework", async () => {
     await assert.rejects(
       () =>
@@ -184,7 +287,7 @@ describe("generate frontend app", () => {
           reader: memoryReader({}),
           settings: { frontend_generate_framework: "remix" },
         }),
-      /settings\.frontend_generate_framework must be "vite" or "next"/,
+      /settings\.frontend_generate_framework must be "vite", "next", "svelte", "angular"/,
     );
   });
 });

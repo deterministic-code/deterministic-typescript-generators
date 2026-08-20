@@ -5,73 +5,171 @@ import {
   DATASOURCE_TYPES_YAML,
   VIEW_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification-parser";
+import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate as generateFrontendTypes } from "../src/generate-frontend-types.ts";
+import { generate as generateFrontendTypesTests } from "../src/generate-frontend-types-tests.ts";
+import { generate as generateFrontendValidators } from "../src/generate-frontend-validators.ts";
+import { generate as generateFrontendValidatorsTests } from "../src/generate-frontend-validators-tests.ts";
 import { generate as generateViewTypes } from "../src/generate-view-types.ts";
+import { generate as generateViewTypesTests } from "../src/generate-view-types-tests.ts";
+import { generate as generateViewTypeValidators } from "../src/generate-view-type-validators.ts";
+import { generate as generateViewTypeValidatorsTests } from "../src/generate-view-type-validators-tests.ts";
 
-const VIEW_YAML = `types:
+const DS_YAML = `types:
+  - tag:
+      fields:
+        - label:
+            type: string
+  - user:
+      fields:
+        - email:
+            type: string
+        - role_id:
+            type: number
+            references: role.id
+  - role:
+      datasource_type: readonly-lookup
+      fields:
+        - name:
+            type: string
+            is_unique: true
+`;
+
+const VIEW_YAML = `includes:
+  - datasource_types:
+      include: "*"
+      auto_enrich: true
+types:
   - card_payment:
       fields:
         - amount:
             type: decimal
         - paid_at:
             type: datetime
+        - tags:
+            type: datasource_types.tag[]
+        - owner:
+            type: user
         - note:
             type: string
             is_nullable: true
+  - payment:
+      one_of:
+        - card_payment
+        - cash_payment
+  - cash_payment:
+      fields:
+        - amount:
+            type: decimal
 `;
+
+const ctx = {
+  reader: memoryReader({
+    [VIEW_TYPES_YAML]: VIEW_YAML,
+    [DATASOURCE_TYPES_YAML]: DS_YAML,
+  }),
+  settings: {},
+};
+
+const entryBody = (entry: GenerateEntry): string =>
+  "contents" in entry ? String(entry.contents) : entry.content;
+
+const fileBase = (filename: string): string =>
+  filename.slice(filename.lastIndexOf("/") + 1);
+
+const withoutImports = (body: string): string =>
+  body
+    .split("\n")
+    .filter((line) => !line.startsWith("import "))
+    .join("\n");
+
+const byBase = (entries: GenerateEntry[]): Map<string, string> => {
+  const map = new Map<string, string>();
+  for (const entry of entries) {
+    map.set(fileBase(entry.filename), entryBody(entry));
+  }
+  return map;
+};
+
+const assertSharedBodies = (
+  frontend: GenerateEntry[],
+  backend: GenerateEntry[],
+) => {
+  assert.deepEqual(
+    frontend.map((e) => fileBase(e.filename)).sort(),
+    backend.map((e) => fileBase(e.filename)).sort(),
+  );
+  const front = byBase(frontend);
+  const back = byBase(backend);
+  for (const [name, body] of back) {
+    assert.equal(withoutImports(front.get(name) ?? ""), withoutImports(body), name);
+  }
+};
 
 describe("generate-frontend-types", () => {
   it("rejects a missing view_types.yaml", async () => {
     await assert.rejects(
-      () =>
-        generateFrontendTypes({
-          reader: memoryReader({}),
-          settings: {},
-        }),
+      () => generateFrontendTypes({ reader: memoryReader({}), settings: {} }),
       /missing view_types\.yaml/,
     );
   });
 
-  it("emits the same entries as generate-view-types", async () => {
-    const ctx = {
-      reader: memoryReader({
-        [VIEW_TYPES_YAML]: VIEW_YAML,
-        [DATASOURCE_TYPES_YAML]: `types: []
-`,
-      }),
-      settings: {},
-    };
-    assert.deepEqual(
-      await generateFrontendTypes(ctx),
-      await generateViewTypes(ctx),
+  it("shares view-type bodies and rewrites datasource imports", async () => {
+    const frontend = await generateFrontendTypes(ctx);
+    assertSharedBodies(frontend, await generateViewTypes(ctx));
+    const card = byBase(frontend).get("card_payment.ts") ?? "";
+    assert.match(
+      card,
+      /from "\.\.\/\.\.\/\.\.\/types\/generated\/datasource\/tag"/,
+    );
+    assert.match(card, /from "\.\/user"/);
+    assert.equal(
+      frontend.some((e) => e.filename === "frontend/src/types/index.ts"),
+      true,
     );
   });
+});
 
-  it("emits a singular nested datasource field without []", async () => {
-    const [entry] = await generateFrontendTypes({
-      reader: memoryReader({
-        [VIEW_TYPES_YAML]: `types:
-  - contact:
-      fields:
-        - address:
-            type: datasource_types.tag
-`,
-        [DATASOURCE_TYPES_YAML]: `types:
-  - tag:
-      fields:
-        - label:
-            type: string
-`,
-      }),
-      settings: { "codegen.create_index": "false" },
-    });
-    const body =
-      entry !== undefined && "contents" in entry
-        ? String(entry.contents)
-        : entry !== undefined && "content" in entry
-          ? entry.content
-          : "";
-    assert.match(body, /address: tag;/);
-    assert.doesNotMatch(body, /address: tag\[\];/);
+describe("generate-frontend-types-tests", () => {
+  it("shares view-type-test bodies and colocates the type import", async () => {
+    const frontend = await generateFrontendTypesTests(ctx);
+    assertSharedBodies(frontend, await generateViewTypesTests(ctx));
+    const card = byBase(frontend).get("card_payment.test.ts") ?? "";
+    assert.match(card, /from "\.\/card_payment"/);
+    assert.doesNotMatch(card, /from "\.\.\/card_payment"/);
+    assert.equal(
+      frontend[0]?.filename.startsWith("frontend/src/types/"),
+      true,
+    );
+  });
+});
+
+describe("generate-frontend-validators", () => {
+  it("shares view-validator bodies and rewrites datasource imports", async () => {
+    const frontend = await generateFrontendValidators(ctx);
+    assertSharedBodies(frontend, await generateViewTypeValidators(ctx));
+    const card = byBase(frontend).get("card_payment.ts") ?? "";
+    assert.match(
+      card,
+      /from "\.\.\/\.\.\/\.\.\/types\/generated\/datasource\/validators\/tag"/,
+    );
+    assert.match(card, /from "\.\/user"/);
+    assert.equal(
+      frontend.some((e) => e.filename === "frontend/src/validators/index.ts"),
+      true,
+    );
+  });
+});
+
+describe("generate-frontend-validators-tests", () => {
+  it("shares view-validator-test bodies and colocates the schema import", async () => {
+    const frontend = await generateFrontendValidatorsTests(ctx);
+    assertSharedBodies(frontend, await generateViewTypeValidatorsTests(ctx));
+    const card = byBase(frontend).get("card_payment.test.ts") ?? "";
+    assert.match(card, /from "\.\/card_payment"/);
+    assert.equal(
+      frontend[0]?.filename.startsWith("frontend/src/validators/"),
+      true,
+    );
   });
 });

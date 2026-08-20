@@ -1,10 +1,17 @@
 import { spawn } from "node:child_process";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
-import { generate } from "../src/generate-frontend-app.ts";
+import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { generate as generateDatasourceTypeValidators } from "../src/generate-datasource-type-validators.ts";
+import { generate as generateDatasourceTypes } from "../src/generate-datasource-types.ts";
+import { generate as generateFrontendApp } from "../src/generate-frontend-app.ts";
+import { generate as generateFrontendTypesTests } from "../src/generate-frontend-types-tests.ts";
+import { generate as generateFrontendTypes } from "../src/generate-frontend-types.ts";
+import { generate as generateFrontendValidatorsTests } from "../src/generate-frontend-validators-tests.ts";
+import { generate as generateFrontendValidators } from "../src/generate-frontend-validators.ts";
 import { removeE2eTempDirs } from "./cleanup-temp.ts";
 import {
   freePort,
@@ -19,31 +26,157 @@ import {
 } from "./verbose-output.ts";
 import { writeGenerateEntries } from "./write-generate-entries.ts";
 
+const nestUnder = (dir: string, entries: GenerateEntry[]): GenerateEntry[] =>
+  entries.map((entry) => ({ ...entry, filename: `${dir}/${entry.filename}` }));
+
+const writeVitestConfig = async (frontendDir: string): Promise<void> => {
+  await writeFile(
+    join(frontendDir, "vitest.config.ts"),
+    `import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+  },
+});
+`,
+    "utf8",
+  );
+};
+
+const addFrontendSampleDeps = async (frontendDir: string): Promise<void> => {
+  const pkgPath = join(frontendDir, "package.json");
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
+    scripts?: Record<string, string>;
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  pkg.scripts = { ...pkg.scripts, test: "vitest run" };
+  pkg.dependencies = {
+    ...pkg.dependencies,
+    "@deterministic-code/deterministic": "^0.0.6",
+    zod: "^3.23.8",
+  };
+  pkg.devDependencies = {
+    ...pkg.devDependencies,
+    "@faker-js/faker": "^9.9.0",
+    vitest: "^2.1.8",
+  };
+  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
+};
+
+const excludeFrontendTestsFromBuild = async (
+  frontendDir: string,
+): Promise<void> => {
+  const tsconfigPath = join(frontendDir, "tsconfig.json");
+  const tsconfig = JSON.parse(await readFile(tsconfigPath, "utf8")) as {
+    exclude?: string[];
+  };
+  tsconfig.exclude = [...(tsconfig.exclude ?? []), "src/**/*.test.ts"];
+  await writeFile(
+    tsconfigPath,
+    `${JSON.stringify(tsconfig, null, 2)}\n`,
+    "utf8",
+  );
+};
+
+export const generateFrontendSampleEntries = async (args: {
+  yaml: Record<string, string>;
+  settings: GenerateContext["settings"];
+}): Promise<GenerateEntry[]> => {
+  const ctx = { reader: memoryReader(args.yaml), settings: args.settings };
+  const [
+    types,
+    typeTests,
+    validators,
+    validatorTests,
+    datasourceTypes,
+    datasourceValidators,
+  ] = await Promise.all([
+    generateFrontendTypes(ctx),
+    generateFrontendTypesTests(ctx),
+    generateFrontendValidators(ctx),
+    generateFrontendValidatorsTests(ctx),
+    generateDatasourceTypes(ctx),
+    generateDatasourceTypeValidators(ctx),
+  ]);
+  return [
+    ...types,
+    ...typeTests,
+    ...validators,
+    ...validatorTests,
+    ...nestUnder("types/generated/datasource", datasourceTypes),
+    ...nestUnder("types/generated/datasource/validators", datasourceValidators),
+  ];
+};
+
 export const bootGeneratedFrontend = async (args: {
   tempPrefix: string;
   settings: GenerateContext["settings"];
+  yaml?: Record<string, string>;
 }): Promise<BootedApp> => {
   await removeE2eTempDirs([args.tempPrefix]);
   const appDir = await mkdtemp(join(tmpdir(), args.tempPrefix));
-  const entries = await generate({
+  const appEntries = await generateFrontendApp({
     reader: memoryReader({}),
     settings: args.settings,
   });
+  const sampleEntries =
+    args.yaml === undefined
+      ? []
+      : await generateFrontendSampleEntries({
+          yaml: args.yaml,
+          settings: args.settings,
+        });
+  const entries = [...appEntries, ...sampleEntries];
   if (verboseOutputEnabled()) dumpCodegenEntries(entries);
   await writeGenerateEntries(appDir, entries);
+  const frontendDir = join(appDir, "frontend");
+  if (args.yaml !== undefined) {
+    await addFrontendSampleDeps(frontendDir);
+    await excludeFrontendTestsFromBuild(frontendDir);
+    await writeVitestConfig(frontendDir);
+    await writeFile(
+      join(appDir, "package.json"),
+      `${JSON.stringify(
+        {
+          name: "frontend-e2e-root",
+          private: true,
+          dependencies: {
+            "@deterministic-code/deterministic": "^0.0.6",
+            zod: "^3.23.8",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+  }
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
-  const frontendDir = join(appDir, "frontend");
-  await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], frontendDir);
+  if (args.yaml !== undefined) {
+    await Promise.all([
+      npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], frontendDir),
+      npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir),
+    ]);
+    await npm(["test"], frontendDir);
+  } else {
+    await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], frontendDir);
+  }
   await npm(["run", "build"], frontendDir);
 
   const port = await freePort();
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
+  const framework = args.settings.frontend_generate_framework;
   const serveArgs =
-    args.settings.frontend_generate_framework === "next"
+    framework === "next"
       ? ["run", "start", "--", "--hostname", "127.0.0.1", "--port", String(port)]
-      : ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port)];
+      : framework === "angular"
+        ? ["run", "preview", "--", "-l", `tcp://127.0.0.1:${port}`]
+        : ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port)];
   const child = spawn("npm", serveArgs, {
     cwd: frontendDir,
     env: process.env,

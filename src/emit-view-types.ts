@@ -31,8 +31,10 @@ type EmitOptions = {
   createIndex: boolean;
 };
 
-const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const naming = viewPaths(settings);
+const emitOptions = (
+  settings: Record<string, string>,
+  naming: ViewPaths,
+): EmitOptions => {
   const createIndex = settings["codegen.create_index"];
   return {
     naming,
@@ -168,14 +170,15 @@ const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
 
 export const generateViewTypes = async (
   ctx: GenerateContext,
+  naming: ViewPaths = viewPaths(ctx.settings),
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
+  const opts = emitOptions(ctx.settings, naming);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const entries = views.map((v) => renderView(v, opts));
   if (opts.createIndex) {
     entries.push(
       content(
-        "index.ts",
+        naming.indexPath,
         fill(indexTmpl, {
           types: views.map((v) => ({
             className: opts.naming.className(v.name),

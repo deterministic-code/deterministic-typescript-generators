@@ -40,22 +40,30 @@ export type ArtifactPaths = {
   projectRelPath: (entity: string) => string;
 };
 
-export type ViewPaths = ArtifactPaths & {
-  importSpecifier: (
-    fromEntity: string,
-    to: { entity: string; kind: "view" | "datasource" },
-  ) => string;
+type TestLayout = {
+  indexPath: string;
+  testPath: (entity: string) => string;
+  testImport: (entity: string) => string;
 };
 
-export type ViewValidatorPaths = ArtifactPaths & {
-  importSpecifier: (
-    fromEntity: string,
-    to: {
-      entity: string;
-      kind: "view-validator" | "datasource-validator";
-    },
-  ) => string;
-};
+export type ViewPaths = ArtifactPaths &
+  TestLayout & {
+    importSpecifier: (
+      fromEntity: string,
+      to: { entity: string; kind: "view" | "datasource" },
+    ) => string;
+  };
+
+export type ViewValidatorPaths = ArtifactPaths &
+  TestLayout & {
+    importSpecifier: (
+      fromEntity: string,
+      to: {
+        entity: string;
+        kind: "view-validator" | "datasource-validator";
+      },
+    ) => string;
+  };
 
 export type ServicePaths = ArtifactPaths & {
   serviceClassName: (entity: string) => string;
@@ -119,10 +127,22 @@ export const viewPaths = (settings: Record<string, string>): ViewPaths => {
     byFeature
       ? `features/${entity}/${entity}.ts`
       : `types/generated/datasource/${entity}.ts`;
+  const testPath = (entity: string) => {
+    const file = `${fileBase(entity)}.test.ts`;
+    return byFeature
+      ? `features/${featureEntity(entity)}/__tests__/${file}`
+      : file;
+  };
   return {
     ...core(byFeature, fileBase),
     filePath,
     projectRelPath: viewSrc,
+    indexPath: "index.ts",
+    testPath,
+    testImport: (entity) =>
+      byFeature
+        ? importSpec(testPath(entity), filePath(entity))
+        : `../${fileBase(entity)}`,
     importSpecifier: (from, to) =>
       importSpec(
         viewSrc(from),
@@ -148,10 +168,22 @@ export const viewValidatorPaths = (
     byFeature
       ? `features/${entity}/${entity}.validator.ts`
       : `types/generated/datasource/validators/${entity}.ts`;
+  const testPath = (entity: string) => {
+    const file = `${fileBase(entity)}.test.ts`;
+    return byFeature
+      ? `features/${featureEntity(entity)}/__tests__/${file}`
+      : file;
+  };
   return {
     ...core(byFeature, fileBase),
     filePath,
     projectRelPath: viewSrc,
+    indexPath: "index.ts",
+    testPath,
+    testImport: (entity) =>
+      byFeature
+        ? importSpec(testPath(entity), filePath(entity))
+        : `../${fileBase(entity)}`,
     importSpecifier: (from, to) =>
       importSpec(
         viewSrc(from),
@@ -228,13 +260,51 @@ export const routePaths = (settings: Record<string, string>): RoutePaths => {
   };
 };
 
-export const frontendPaths = (_settings: Record<string, string>) => ({
-  validatorFile: (
-    ds: string,
-    entity: string,
-    { test = false }: { test?: boolean },
-  ): string => {
-    const file = test ? "validators.test.ts" : "validators.ts";
-    return `${ds}/${entity}/${file}`;
-  },
-});
+export const frontendViewPaths = (
+  _settings: Record<string, string>,
+): ViewPaths => {
+  const fileBase = (entity: string) => entity;
+  const filePath = (entity: string) => `frontend/src/types/${fileBase(entity)}.ts`;
+  const testPath = (entity: string) =>
+    `frontend/src/types/${fileBase(entity)}.test.ts`;
+  const dsSrc = (entity: string) =>
+    `types/generated/datasource/${entity}.ts`;
+  return {
+    ...core(false, fileBase),
+    filePath,
+    projectRelPath: filePath,
+    indexPath: "frontend/src/types/index.ts",
+    testPath,
+    testImport: (entity) => importSpec(testPath(entity), filePath(entity)),
+    importSpecifier: (from, to) =>
+      importSpec(
+        filePath(from),
+        to.kind === "view" ? filePath(to.entity) : dsSrc(to.entity),
+      ),
+  };
+};
+
+export const frontendViewValidatorPaths = (
+  _settings: Record<string, string>,
+): ViewValidatorPaths => {
+  const fileBase = (entity: string) => entity;
+  const filePath = (entity: string) =>
+    `frontend/src/validators/${fileBase(entity)}.ts`;
+  const testPath = (entity: string) =>
+    `frontend/src/validators/${fileBase(entity)}.test.ts`;
+  const dsSrc = (entity: string) =>
+    `types/generated/datasource/validators/${entity}.ts`;
+  return {
+    ...core(false, fileBase),
+    filePath,
+    projectRelPath: filePath,
+    indexPath: "frontend/src/validators/index.ts",
+    testPath,
+    testImport: (entity) => importSpec(testPath(entity), filePath(entity)),
+    importSpecifier: (from, to) =>
+      importSpec(
+        filePath(from),
+        to.kind === "view-validator" ? filePath(to.entity) : dsSrc(to.entity),
+      ),
+  };
+};

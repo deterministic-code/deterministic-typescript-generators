@@ -31,8 +31,11 @@ type FieldTok = {
   nullable: boolean;
 };
 
-const emitOptions = (settings: Record<string, string>): EmitOptions => ({
-  naming: viewPaths(settings),
+const emitOptions = (
+  settings: Record<string, string>,
+  naming: ViewPaths,
+): EmitOptions => ({
+  naming,
   schemaVersion: settings["codegen.schema_version"] ?? "1.0",
 });
 
@@ -62,24 +65,17 @@ const fieldTokens = (field: ViewField, opts: EmitOptions): FieldTok => {
   };
 };
 
-const testPath = (entity: string, naming: ViewPaths): string => {
-  const file = `${naming.fileBase(entity)}.test.ts`;
-  if (!naming.byFeature) return file;
-  const typeFile = naming.filePath(entity);
-  return `${typeFile.slice(0, typeFile.lastIndexOf("/"))}/__tests__/${file}`;
-};
-
 const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   const fields =
     view.kind === "shaped" ? view.fields.map((f) => fieldTokens(f, opts)) : [];
   return content(
-    testPath(view.name, opts.naming),
+    opts.naming.testPath(view.name),
     fill(typeTestTmpl, {
       prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       className: opts.naming.className(view.name),
       viewName: view.name,
-      typeImport: `../${opts.naming.fileBase(view.name)}`,
+      typeImport: opts.naming.testImport(view.name),
       isShaped: view.kind === "shaped",
       isUnion: view.kind === "union",
       fixture:
@@ -104,8 +100,9 @@ const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
 
 export const generate = async (
   ctx: GenerateContext,
+  naming: ViewPaths = viewPaths(ctx.settings),
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
+  const opts = emitOptions(ctx.settings, naming);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   return views.map((view) => renderTests(view, opts));
 };

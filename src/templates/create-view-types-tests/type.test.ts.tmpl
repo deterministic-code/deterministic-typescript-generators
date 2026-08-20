@@ -11,6 +11,10 @@ describe("{{className}} field accessors (view_types.{{viewName}})", () => {
 {{#isShaped}}
   const sample = (): {{className}} => ({{&fixture}});
 
+  it("constructs a sample", () => {
+    expect(sample()).toBeDefined();
+  });
+
 {{#fields}}
   it("gets {{testName}}", () => {
     const initial = {{&sampleExpr}};
