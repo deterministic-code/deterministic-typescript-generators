@@ -1,0 +1,7 @@
+{{#entities}}export {
+  {{clientName}}QueryOptions,
+  {{clientName}}MutationOptions,{{#queries}}
+  use{{pascalEntity}}{{pascalName}},{{/queries}}{{#mutations}}
+  use{{pascalEntity}}{{pascalName}},{{/mutations}}
+} from "./{{fileBase}}.ts";
+{{/entities}}

@@ -1,0 +1,28 @@
+import axios, { type AxiosInstance } from "axios";
+
+export type HttpRequest = {
+  method: string;
+  path: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+};
+
+export type Http = {
+  request: <T>(input: HttpRequest) => Promise<T>;
+};
+
+export const createHttp = (
+  baseUrl: string,
+  client: AxiosInstance = axios.create({ baseURL: baseUrl }),
+): Http => ({
+  request: async <T>({ method, path, body, headers }: HttpRequest): Promise<T> => {
+    const res = await client.request<T>({
+      baseURL: baseUrl,
+      url: path,
+      method,
+      data: body,
+      headers,
+    });
+    return res.data;
+  },
+});

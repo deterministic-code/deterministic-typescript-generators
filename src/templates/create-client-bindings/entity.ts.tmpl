@@ -1,0 +1,13 @@
+{{#typeImports}}import type { {{typeName}} } from "{{importPath}}";
+{{/typeImports}}import type { Http } from "./http.ts";
+
+export const {{clientName}} = (http: Http) => ({
+{{#methods}}
+  {{methodName}}: ({{&args}}) =>
+    http.request<{{returnType}}>({
+      method: "{{httpMethod}}",
+      path: {{&pathExpr}},{{#hasBody}}
+      body,{{/hasBody}}
+    }),
+{{/methods}}
+});
