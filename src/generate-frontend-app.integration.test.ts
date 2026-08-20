@@ -62,6 +62,27 @@ describe("generate frontend app", () => {
     assert.equal(byName.has("docker-compose.yml"), false);
   });
 
+  it("defaults package.json name and the frontend heading from application_name", async () => {
+    const byName = indexEntries(
+      await generate({
+        reader: memoryReader({}),
+        settings: {},
+      }),
+    );
+    assert.equal(
+      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
+      "generated-frontend",
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/App.tsx")),
+      /<h1>generated-frontend<\/h1>/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/index.html")),
+      /<title>generated-frontend<\/title>/,
+    );
+  });
+
   it("adds compose + Dockerfile for full-stack", async () => {
     const byName = indexEntries(
       await generate({
