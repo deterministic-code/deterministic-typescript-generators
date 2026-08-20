@@ -15,32 +15,10 @@ describe("{{className}} field accessors (view_types.{{viewName}})", () => {
     expect(sample()).toBeDefined();
   });
 
-{{#fields}}
-  it("gets {{testName}}", () => {
-    const initial = {{&sampleExpr}};
-    const value: {{className}} = { ...sample(), {{ident}}: initial };
-    expect(value{{&access}}).toEqual(initial);
-  });
-
-  it("sets {{testName}}", () => {
-    const value: {{className}} = sample();
-    const next = {{&nextExpr}};
-    value{{&access}} = next;
-    expect(value{{&access}}).toEqual(next);
-  });
-{{#nullable}}
-  it("allows setting {{testName}} to null", () => {
-    const value: {{className}} = sample();
-    value{{&access}} = null;
-    expect(value{{&access}}).toBeNull();
-  });
-{{/nullable}}
-{{/fields}}
-{{/isShaped}}
-{{#isUnion}}
+{{&fieldTests}}{{/isShaped}}{{#isUnion}}
 {{#members}}
   it("accepts a {{name}} member", () => {
-    const value: {{className}} = {} as {{memberClass}};
+    const value: {{className}} = {{&memberFixture}} as {{memberClass}};
     expect(value).toBeDefined();
   });
 {{/members}}

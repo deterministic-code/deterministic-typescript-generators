@@ -106,6 +106,11 @@ const assertSharedBodies = (
   }
 };
 
+const referenced = {
+  ...ctx,
+  settings: { reference_backend_type: "true" },
+};
+
 describe("generate-frontend-types", () => {
   it("rejects a missing view_types.yaml", async () => {
     await assert.rejects(
@@ -114,8 +119,42 @@ describe("generate-frontend-types", () => {
     );
   });
 
-  it("shares view-type bodies and rewrites datasource imports", async () => {
+  it("emits a standalone type by default", async () => {
     const frontend = await generateFrontendTypes(ctx);
+    const files = byBase(frontend);
+    const user = files.get("user.ts") ?? "";
+    const card = files.get("card_payment.ts") ?? "";
+    assert.doesNotMatch(user, /extends /);
+    assert.match(user, /email: string;/);
+    assert.match(user, /role_name: string;/);
+    assert.match(card, /from "\.\/tag"/);
+    assert.doesNotMatch(card, /types\/generated\/datasource/);
+    assert.equal(
+      frontend.some((e) => e.filename === "frontend/src/types/index.ts"),
+      true,
+    );
+  });
+
+  it("inlines nothing when datasource_types.yaml is absent", async () => {
+    const frontend = await generateFrontendTypes({
+      reader: memoryReader({
+        [VIEW_TYPES_YAML]: `types:
+  - cash_payment:
+      fields:
+        - amount:
+            type: decimal
+`,
+      }),
+      settings: {},
+    });
+    const cash = byBase(frontend).get("cash_payment.ts") ?? "";
+    assert.match(cash, /export interface cash_payment/);
+    assert.match(cash, /amount: string;/);
+    assert.doesNotMatch(cash, /extends /);
+  });
+
+  it("shares view-type bodies when reference_backend_type is true", async () => {
+    const frontend = await generateFrontendTypes(referenced);
     assertSharedBodies(frontend, await generateViewTypes(ctx));
     const card = byBase(frontend).get("card_payment.ts") ?? "";
     assert.match(
@@ -123,10 +162,6 @@ describe("generate-frontend-types", () => {
       /from "\.\.\/\.\.\/\.\.\/types\/generated\/datasource\/tag"/,
     );
     assert.match(card, /from "\.\/user"/);
-    assert.equal(
-      frontend.some((e) => e.filename === "frontend/src/types/index.ts"),
-      true,
-    );
   });
 });
 
@@ -145,8 +180,24 @@ describe("generate-frontend-types-tests", () => {
 });
 
 describe("generate-frontend-validators", () => {
-  it("shares view-validator bodies and rewrites datasource imports", async () => {
+  it("emits a standalone schema by default", async () => {
     const frontend = await generateFrontendValidators(ctx);
+    const files = byBase(frontend);
+    const user = files.get("user.ts") ?? "";
+    const card = files.get("card_payment.ts") ?? "";
+    assert.match(user, /export const userSchema = z\.object\(/);
+    assert.match(user, /email:/);
+    assert.doesNotMatch(user, /datasource_userSchema/);
+    assert.match(card, /from "\.\/tag"/);
+    assert.doesNotMatch(card, /types\/generated\/datasource/);
+    assert.equal(
+      frontend.some((e) => e.filename === "frontend/src/validators/index.ts"),
+      true,
+    );
+  });
+
+  it("shares view-validator bodies when reference_backend_type is true", async () => {
+    const frontend = await generateFrontendValidators(referenced);
     assertSharedBodies(frontend, await generateViewTypeValidators(ctx));
     const card = byBase(frontend).get("card_payment.ts") ?? "";
     assert.match(
@@ -154,10 +205,6 @@ describe("generate-frontend-validators", () => {
       /from "\.\.\/\.\.\/\.\.\/types\/generated\/datasource\/validators\/tag"/,
     );
     assert.match(card, /from "\.\/user"/);
-    assert.equal(
-      frontend.some((e) => e.filename === "frontend/src/validators/index.ts"),
-      true,
-    );
   });
 });
 

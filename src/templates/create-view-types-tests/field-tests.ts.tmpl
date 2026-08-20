@@ -1,0 +1,26 @@
+  it("gets {{testName}}", () => {
+    const initial = {{&sampleExpr}};
+{{#isRoot}}
+    const value: {{className}} = { ...sample(), {{ident}}: initial };
+{{/isRoot}}
+{{^isRoot}}
+    const value: {{className}} = sample();
+    value{{&access}} = initial;
+{{/isRoot}}
+    expect(value{{&access}}).toEqual(initial);
+  });
+
+  it("sets {{testName}}", () => {
+    const value: {{className}} = sample();
+    const next = {{&nextExpr}};
+    value{{&access}} = next;
+    expect(value{{&access}}).toEqual(next);
+  });
+{{#nullable}}
+  it("allows setting {{testName}} to null", () => {
+    const value: {{className}} = sample();
+    value{{&access}} = null;
+    expect(value{{&access}}).toBeNull();
+  });
+{{/nullable}}
+{{&nestedTests}}

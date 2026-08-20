@@ -1,0 +1,11 @@
+// schema-version: {{schemaVersion}}
+import { z } from "zod";
+{{#imports}}
+import { {{names}} } from "{{fromPath}}";
+{{/imports}}
+
+{{&schemaBody}}
+{{#withTypeAnnotation}}
+
+export type {{className}}Validated = z.infer<typeof {{schemaName}}>;
+{{/withTypeAnnotation}}

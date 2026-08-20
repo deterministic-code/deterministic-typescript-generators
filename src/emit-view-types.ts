@@ -7,12 +7,27 @@ import {
 } from "./common/paths.ts";
 import {
   SpecificationParser,
+  type DatasourceType,
   type ShapedView,
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification-parser";
 import { toNative } from "./base-type-converter.ts";
-import { indexTmpl, typeTmpl } from "./resources/view-types.ts";
+import { inheritedColumns, loadTables } from "./inline-inherited.ts";
+import {
+  indexTmpl as defaultIndexTmpl,
+  typeTmpl as defaultTypeTmpl,
+} from "./resources/view-types.ts";
+
+export type ViewTypeTemplates = {
+  typeTmpl: string;
+  indexTmpl: string;
+};
+
+export type ViewEmitMode = {
+  referenceBackendType?: boolean;
+  templates?: ViewTypeTemplates;
+};
 
 const docTokens = (settings: Record<string, string>) => {
   const comments = settings["comments"];
@@ -29,11 +44,17 @@ type EmitOptions = {
   descriptionDoc: boolean;
   datetimeType: string;
   createIndex: boolean;
+  idType: string;
+  referenceBackendType: boolean;
+  tables: Map<string, DatasourceType>;
+  templates: ViewTypeTemplates;
 };
 
 const emitOptions = (
   settings: Record<string, string>,
   naming: ViewPaths,
+  mode: ViewEmitMode,
+  tables: Map<string, DatasourceType>,
 ): EmitOptions => {
   const createIndex = settings["codegen.create_index"];
   return {
@@ -43,8 +64,46 @@ const emitOptions = (
     datetimeType: toNative("datetime"),
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
+    idType: settings["datasource.id_type"] ?? "integer",
+    referenceBackendType: mode.referenceBackendType ?? true,
+    tables,
+    templates: mode.templates ?? {
+      typeTmpl: defaultTypeTmpl,
+      indexTmpl: defaultIndexTmpl,
+    },
   };
 };
+
+const columnField = (column: {
+  name: string;
+  type: string;
+  isNullable: boolean;
+  size?: number;
+  minSize?: number;
+}): ViewField => ({
+  name: column.name,
+  type: column.type,
+  kind: "primitive",
+  base: column.type,
+  isArray: false,
+  isNullable: column.isNullable,
+  size: column.size,
+  minSize: column.minSize,
+});
+
+const shapedFields = (view: ShapedView, opts: EmitOptions): ViewField[] =>
+  opts.referenceBackendType
+    ? view.fields
+    : [
+        ...inheritedColumns(view, opts.tables, opts.idType).map(columnField),
+        ...view.fields,
+      ];
+
+const importKind = (
+  kind: "view" | "datasource",
+  opts: EmitOptions,
+): "view" | "datasource" =>
+  !opts.referenceBackendType && kind === "datasource" ? "view" : kind;
 
 const primitiveTs = (base: string, datetimeType: string): string =>
   base === "datetime" ? datetimeType : toNative(base);
@@ -81,12 +140,12 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
   };
   const refs: Array<{ entity: string; kind: "view" | "datasource" }> = [];
   if (view.kind === "shaped") {
-    if (view.inherits !== null) {
+    if (opts.referenceBackendType && view.inherits !== null) {
       refs.push({ entity: view.inherits, kind: "datasource" });
     }
     for (const f of view.fields) {
       if (f.kind === "datasource" || f.kind === "view") {
-        refs.push({ entity: f.base, kind: f.kind });
+        refs.push({ entity: f.base, kind: importKind(f.kind, opts) });
       }
     }
   } else {
@@ -95,7 +154,10 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
   for (const { entity, kind } of refs) {
     const cls = naming.className(entity);
     if (kind === "view" && cls === self) continue;
-    const alias = kind === "datasource" && cls === self ? `${cls}Base` : undefined;
+    const alias =
+      opts.referenceBackendType && kind === "datasource" && cls === self
+        ? `${cls}Base`
+        : undefined;
     if (alias !== undefined) aliasByClass.set(cls, alias);
     add(cls, alias, naming.importSpecifier(view.name, { entity, kind }));
   }
@@ -120,7 +182,7 @@ const extendsType = (
   opts: EmitOptions,
   aliasByClass: Map<string, string>,
 ): string | undefined => {
-  if (view.inherits === null) return undefined;
+  if (!opts.referenceBackendType || view.inherits === null) return undefined;
   const inheritCls = opts.naming.className(view.inherits);
   const parent = aliasByClass.get(inheritCls) ?? inheritCls;
   const omitKeys = [
@@ -137,9 +199,10 @@ const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
   const { imports, aliasByClass } = collectImports(view, opts);
   const isUnion = view.kind === "union";
   const parent = isUnion ? undefined : extendsType(view, opts, aliasByClass);
+  const fields = isUnion ? [] : shapedFields(view, opts);
   return content(
     naming.filePath(view.name),
-    fill(typeTmpl, {
+    fill(opts.templates.typeTmpl, {
       schemaVersion,
       imports,
       hasImports: imports.length > 0,
@@ -148,19 +211,17 @@ const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
       className,
       datasourceType: isUnion ? "standard" : (view.inherits ?? "standard"),
       target: isUnion ? "UnionView" : "ShapedView",
-      fieldCount: String(isUnion ? view.members.length : view.fields.length),
+      fieldCount: String(isUnion ? view.members.length : fields.length),
       isUnion,
       isShaped: !isUnion,
       hasExtends: parent !== undefined,
       extendsType: parent ?? "",
-      hasFields: !isUnion && view.fields.length > 0,
-      fields: isUnion
-        ? []
-        : view.fields.map((f) => ({
-            ident: naming.fieldIdent(f.name),
-            tsType: fieldTs(f, opts, aliasByClass),
-            nullable: f.isNullable,
-          })),
+      hasFields: fields.length > 0,
+      fields: fields.map((f) => ({
+        ident: naming.fieldIdent(f.name),
+        tsType: fieldTs(f, opts, aliasByClass),
+        nullable: f.isNullable,
+      })),
       unionMembers: isUnion
         ? view.members.map((m) => naming.className(m)).join(" | ")
         : "",
@@ -171,15 +232,21 @@ const renderView = (view: ViewType, opts: EmitOptions): GenerateEntry => {
 export const generateViewTypes = async (
   ctx: GenerateContext,
   naming: ViewPaths = viewPaths(ctx.settings),
+  mode: ViewEmitMode = {},
 ): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings, naming);
+  const idType = ctx.settings["datasource.id_type"] ?? "integer";
+  const tables =
+    (mode.referenceBackendType ?? true)
+      ? new Map<string, DatasourceType>()
+      : await loadTables(ctx, idType);
+  const opts = emitOptions(ctx.settings, naming, mode, tables);
   const views = await new SpecificationParser(ctx.reader).loadViewTypes();
   const entries = views.map((v) => renderView(v, opts));
   if (opts.createIndex) {
     entries.push(
       content(
         naming.indexPath,
-        fill(indexTmpl, {
+        fill(opts.templates.indexTmpl, {
           types: views.map((v) => ({
             className: opts.naming.className(v.name),
             fileBase: opts.naming.fileBase(v.name),

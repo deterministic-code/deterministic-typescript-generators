@@ -1,0 +1,10 @@
+export const {{schemaName}} = {{#emptyObject}}z.object({}){{/emptyObject}}{{^emptyObject}}z.object({
+{{#fields}}
+  {{ident}}: {{&zodExpr}},
+{{/fields}}
+}){{/emptyObject}};
+{{#hasTrio}}
+export const {{createName}} = {{schemaName}};
+export const {{updateName}} = {{schemaName}};
+export const {{patchName}} = {{schemaName}}.partial();
+{{/hasTrio}}

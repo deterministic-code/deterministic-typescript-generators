@@ -200,6 +200,14 @@ describe("generate view type validators tests", () => {
     assert.match(card, /label: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
     assert.match(card, /owner: \{ /);
     assert.match(card, /display_name: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
+    assert.match(
+      card,
+      /it\("rejects when missing required field \\"owner.display_name\\""/,
+    );
+    assert.match(
+      card,
+      /it\("rejects when missing required field \\"tags.label\\""/,
+    );
   });
 
   it("emits union member accept cases and a neither-member reject", async () => {

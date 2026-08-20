@@ -262,13 +262,16 @@ export const routePaths = (settings: Record<string, string>): RoutePaths => {
 
 export const frontendViewPaths = (
   _settings: Record<string, string>,
+  referenceBackendType: boolean,
 ): ViewPaths => {
   const fileBase = (entity: string) => entity;
   const filePath = (entity: string) => `frontend/src/types/${fileBase(entity)}.ts`;
   const testPath = (entity: string) =>
     `frontend/src/types/${fileBase(entity)}.test.ts`;
   const dsSrc = (entity: string) =>
-    `types/generated/datasource/${entity}.ts`;
+    referenceBackendType
+      ? `types/generated/datasource/${entity}.ts`
+      : filePath(entity);
   return {
     ...core(false, fileBase),
     filePath,
@@ -286,6 +289,7 @@ export const frontendViewPaths = (
 
 export const frontendViewValidatorPaths = (
   _settings: Record<string, string>,
+  referenceBackendType: boolean,
 ): ViewValidatorPaths => {
   const fileBase = (entity: string) => entity;
   const filePath = (entity: string) =>
@@ -293,7 +297,9 @@ export const frontendViewValidatorPaths = (
   const testPath = (entity: string) =>
     `frontend/src/validators/${fileBase(entity)}.test.ts`;
   const dsSrc = (entity: string) =>
-    `types/generated/datasource/validators/${entity}.ts`;
+    referenceBackendType
+      ? `types/generated/datasource/validators/${entity}.ts`
+      : filePath(entity);
   return {
     ...core(false, fileBase),
     filePath,
