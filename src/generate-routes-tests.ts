@@ -6,10 +6,9 @@ import {
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
 import {
-  primaryKeyFor,
   entityUsesOptimisticConcurrency,
   ROUTES_YAML,
-  type DatasourceType,
+  type ExpandedDatasourceType,
   type RouteByField,
   type RouteCandidate,
   type ViewEnrichment,
@@ -31,8 +30,7 @@ import {
 
 type EmitOptions = {
   naming: RoutePaths;
-  datasources: DatasourceType[];
-  idType: string;
+  datasources: ExpandedDatasourceType[];
   libraryReferenceMode: string | undefined;
   useOcc: boolean;
   enrichmentsByEntity: Map<string, ViewEnrichment[]>;
@@ -40,13 +38,11 @@ type EmitOptions = {
 
 const emitOptions = (
   settings: Record<string, string>,
-  datasources: DatasourceType[],
+  datasources: ExpandedDatasourceType[],
   enrichmentsByEntity: Map<string, ViewEnrichment[]>,
 ): EmitOptions => {
-  const idType = settings["datasource.id_type"] ?? "integer";
   return {
     naming: routePaths(settings),
-    idType,
     libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
     useOcc: settings["datasource.use_optimistic_concurrency"] !== "false",
     datasources,
@@ -115,7 +111,10 @@ const renderTest = (
   candidate: RouteCandidate,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const pk = primaryKeyFor(candidate.name, opts.datasources, opts.idType);
+  const table = opts.datasources.find((d) => d.name === candidate.name);
+  const column = table?.primaryKeyColumn ?? "id";
+  const pkType =
+    table?.fields.find((f) => f.name === column)?.type ?? "integer";
   const path = opts.naming.testPath(candidate.name);
   const fileBase = opts.naming.fileBase(candidate.name);
   const mountPath = `/api/${candidate.name}`;
@@ -132,10 +131,10 @@ const renderTest = (
     fnName: `${candidate.name}Router`,
     fileBase,
     mockFactory: mockFactoryTmpl,
-    pkExpr: `new PrimaryKey(${JSON.stringify(pk.column)}, ${JSON.stringify(pk.idType)})`,
+    pkExpr: `new PrimaryKey(${JSON.stringify(column)}, ${JSON.stringify(pkType)})`,
     mountPath,
-    idFieldName: pk.column,
-    idExpr: fakeTestData.id(asIdType(pk.idType)),
+    idFieldName: column,
+    idExpr: fakeTestData.id(asIdType(pkType)),
     fkSuffix: fkMockSuffix(enrichments),
     byFieldsBlock: byFieldsBlock(mountPath, candidate.byFields, ifMatch),
   };
@@ -163,7 +162,7 @@ const generateFrom = (
   const views = deterministic.viewTypes;
   const opts = emitOptions(
     settings,
-    parsed.datasources,
+    deterministic.expandedDatasourceTypes,
     new Map(
       views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
     ),

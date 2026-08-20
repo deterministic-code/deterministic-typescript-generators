@@ -8,7 +8,7 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   DATASOURCE_TYPES_YAML,
-  type DatasourceType,
+  type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
@@ -22,15 +22,7 @@ const docTokens = (settings: Record<string, string>) => {
   };
 };
 
-const PROJECT_ID_TYPES = new Set(["integer", "biginteger", "uuid", "string"]);
-
-const projectIdType = (settings: Record<string, string>): string => {
-  const raw = settings["datasource.id_type"] ?? "integer";
-  return PROJECT_ID_TYPES.has(raw) ? raw : "integer";
-};
-
 type EmitOptions = {
-  idType: string;
   casing: PackCasing;
   schemaVersion: string;
   simpleDoc: boolean;
@@ -47,7 +39,6 @@ const projectRelPath = (casing: PackCasing, entity: string): string =>
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const casing = createCasing(settings);
   return {
-    idType: projectIdType(settings),
     casing,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
@@ -58,13 +49,24 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
 };
 
 const renderType = (
-  dsType: DatasourceType,
+  dsType: ExpandedDatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { idType, casing, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
+  const { casing, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
     opts;
   const className = casing.convertTypes(dsType.name);
-  const fields = dsType.fields;
+  const fields = dsType.fields.map((f) => ({
+    name: f.name,
+    ident: casing.fieldIdent(f.name),
+    tsType: toNative(f.type),
+    nullable: f.isNullable,
+    isPrimaryKey: f.isPrimaryKey === true,
+  }));
+  const idField =
+    fields.find((f) => f.isPrimaryKey) ?? fields.find((f) => f.name === "id");
+  const datetimeField =
+    fields.find((f) => f.name === "created") ??
+    fields.find((f) => f.name === "updated");
   return content(
     casing.filePath(dsType.name),
     fill(typeTmpl, {
@@ -79,19 +81,15 @@ const renderType = (
       className,
       datasourceType: dsType.datasourceType,
       fieldCount: String(fields.length),
-      idType: toNative(idType),
-      datetimeType: toNative("datetime"),
-      fields: fields.map((f) => ({
-        ident: casing.fieldIdent(f.name),
-        tsType: toNative(f.type),
-        nullable: f.isNullable,
-      })),
+      idType: idField?.tsType,
+      datetimeType: datetimeField?.tsType,
+      fields,
     }),
   );
 };
 
 const renderIndex = (
-  types: DatasourceType[],
+  types: ExpandedDatasourceType[],
   casing: PackCasing,
 ): GenerateEntry =>
   content(

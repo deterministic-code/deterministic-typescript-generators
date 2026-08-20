@@ -44,7 +44,6 @@ const docTokens = (settings: Record<string, string>) => {
 };
 
 type EmitOptions = {
-  idType: string;
   useOptimisticConcurrency: boolean;
   naming: RoutePaths;
   services: ServicePaths;
@@ -58,7 +57,6 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = routePaths(settings);
   const createIndex = settings["codegen.create_index"];
   return {
-    idType: settings["datasource.id_type"] ?? "integer",
     useOptimisticConcurrency:
       settings["datasource.use_optimistic_concurrency"] !== "false",
     naming,
