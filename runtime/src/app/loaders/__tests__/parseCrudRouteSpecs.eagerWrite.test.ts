@@ -299,4 +299,65 @@ describe('parseCrudRouteSpecs with eager-write', () => {
   it('buildBodySchema with verb="patch" still accepts optional id on child rows (regression)', () => {
     expectAccepts(contactVerbSchema('patch'), ALICE_WITH_ID_ADDRESS);
   });
+
+  it('resolves a singular nested object field and accepts an object body', () => {
+    const viewTypes: ViewTypesDoc = {
+      types: [
+        {
+          contact: {
+            inherits: 'datasource_types.contact',
+            fields: [
+              {
+                address: {
+                  type: 'datasource_types.address',
+                  references: 'datasource_types.address.contact_id',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const routes = {
+      includes: [
+        {
+          view_type_routes: {
+            eager_write_path: ['contact.address'],
+          },
+        },
+      ],
+    };
+    const specs = parseSpecs(DATASOURCE_DOC, routes, viewTypes);
+    const contactSpec = specs.find((s) => s.entityName === 'contact');
+    expect(contactSpec?.eagerWriteChildren).toEqual([
+      expect.objectContaining({
+        fieldName: 'address',
+        childTable: 'address',
+        fkColumn: 'contact_id',
+        isArray: false,
+      }),
+    ]);
+    const schema = buildBodySchema(contactSpec!, 'create');
+    expect(
+      schema.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        address: { line1: '123 Main St', city: 'Springfield' },
+      }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        address: [{ line1: '123 Main St', city: 'Springfield' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        name: 'Alice',
+        email: 'alice@example.com',
+        address: null,
+      }).success,
+    ).toBe(true);
+  });
 });

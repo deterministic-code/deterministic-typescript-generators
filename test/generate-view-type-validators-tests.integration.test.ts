@@ -6,7 +6,7 @@ import {
   VIEW_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification-parser";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { generate } from "./generate-view-type-validators-tests.ts";
+import { generate } from "../src/generate-view-type-validators-tests.ts";
 
 const DS_YAML = `types:
   - user:

@@ -61,6 +61,17 @@ export const dumpCodegenEntries = (entries: GenerateEntry[]): void => {
   logSection("codegen output", blocks.join("\n\n"));
 };
 
+const TRACE_LINE =
+  /^\[[^\]]+\]-\[(route|service|datasource)\]\[(Start|Finish|Error)\]-/;
+
+export const dumpServerTrace = (stdout: string): void => {
+  const lines = stdout.split(/\r?\n/).filter((line) => TRACE_LINE.test(line));
+  logSection(
+    "server trace",
+    lines.length === 0 ? "(no route/service/datasource trace lines)\n" : `${lines.join("\n")}\n`,
+  );
+};
+
 export const dumpFinalFiles = async (rootDir: string): Promise<void> => {
   const listed = await readdir(rootDir, { recursive: true, withFileTypes: true });
   const files = listed

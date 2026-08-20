@@ -17,32 +17,15 @@ import {
   preludeSource,
 } from "./common/fake-test-data.ts";
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
-
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
   naming: ArtifactPaths;
   schemaVersion: string;
 };
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const ds = datasource(settings);
   return {
-    ds,
+    idType: settings["datasource.id_type"] ?? "integer",
     naming: datasourcePaths(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
@@ -78,7 +61,7 @@ const renderTests = (
   table: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const fields = tableFields(table.fields, opts.ds.idType).map((f) =>
+  const fields = tableFields(table.fields, opts.idType).map((f) =>
     fieldTokens(f, opts),
   );
   return content(
@@ -101,7 +84,7 @@ export const generate = async (
   const opts = emitOptions(ctx.settings);
   const types = new SpecificationParser().parseDatasourceTypes({
     yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-    idType: opts.ds.idType,
+    idType: opts.idType,
   });
   return types.map((table) => renderTests(table, opts));
 };

@@ -15,32 +15,15 @@ import {
 import { toZod } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, schemaInheritTmpl, schemaStandaloneTmpl, schemaUnionTmpl, typeTmpl } from "./resources/view-type-validators.ts";
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
-
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
   naming: ViewValidatorPaths;
   schemaVersion: string;
 };
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const ds = datasource(settings);
   return {
-    ds,
+    idType: settings["datasource.id_type"] ?? "integer",
     naming: viewValidatorPaths(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
@@ -55,8 +38,8 @@ const trio = (name: string) => ({
 });
 const omitObj = (keys: string[], naming: ViewValidatorPaths) =>
   keys.map((k) => `${JSON.stringify(naming.fieldName(k))}: true`).join(", ");
-const viewOmits = (view: ShapedView, withUuid: boolean) =>
-  view.omit.filter((k) => withUuid || k !== "uuid");
+const viewOmits = (view: ShapedView, idType: string) =>
+  view.omit.filter((k) => idType !== "uuid" || k !== "uuid");
 
 const tighten = (field: ViewField): string => {
   const base = toZod(field.base);
@@ -148,7 +131,7 @@ const schemaBody = (view: ViewType, opts: EmitOptions): string => {
   }
   const t = trio(view.name);
   const fields = fieldTokens(view, opts);
-  const omits = viewOmits(view, opts.ds.withUuidColumn);
+  const omits = viewOmits(view, opts.idType);
   const hasTrio = omits.length === 0;
   if (view.inherits === null) {
     return fill(schemaStandaloneTmpl, {
@@ -162,7 +145,7 @@ const schemaBody = (view: ViewType, opts: EmitOptions): string => {
     }).trimEnd();
   }
   const allOmits = [...view.enrichments.map((e) => e.fkColumn), ...omits];
-  const stamp = opts.ds.withUuidColumn
+  const stamp = opts.idType !== "uuid"
     ? ["id", "uuid", "created", "updated"]
     : ["id", "created", "updated"];
   return fill(schemaInheritTmpl, {

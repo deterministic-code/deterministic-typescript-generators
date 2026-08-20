@@ -356,4 +356,122 @@ describe('computeEagerChildren', () => {
     expect(computeEagerChildren('user', null, '*')).toEqual([]);
     expect(computeEagerChildren('user', undefined, '*')).toEqual([]);
   });
+
+  it('matches a singular nested datasource object (no [])', () => {
+    const doc: ViewTypesDoc = {
+      types: [
+        {
+          contact: {
+            inherits: 'datasource_types.contact',
+            fields: [
+              {
+                address: {
+                  type: 'datasource_types.address',
+                  references: 'datasource_types.address.contact_id',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(computeEagerChildren('contact', doc, '*')).toEqual([
+      { fieldName: 'address', childTable: 'address', refColumn: 'contact_id', isArray: false },
+    ]);
+  });
+
+  it('keeps collection and singular flags when both fields are present', () => {
+    const doc: ViewTypesDoc = {
+      types: [
+        {
+          contact: {
+            inherits: 'datasource_types.contact',
+            fields: [
+              {
+                address: {
+                  type: 'datasource_types.address',
+                  references: 'datasource_types.address.contact_id',
+                },
+              },
+              {
+                phones: {
+                  type: 'datasource_types.phone[]',
+                  references: 'datasource_types.phone.contact_id',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(computeEagerChildren('contact', doc, '*')).toEqual([
+      { fieldName: 'address', childTable: 'address', refColumn: 'contact_id', isArray: false },
+      { fieldName: 'phones', childTable: 'phone', refColumn: 'contact_id' },
+    ]);
+  });
+
+  it('skips primitives and dotted type strings that are not a relation', () => {
+    const doc: ViewTypesDoc = {
+      types: [
+        {
+          contact: {
+            inherits: 'datasource_types.contact',
+            fields: [
+              { display_name: { type: 'string' } },
+              {
+                bogus: {
+                  type: 'datasource_types.address.contact_id',
+                  references: 'datasource_types.address.contact_id',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(computeEagerChildren('contact', doc, '*')).toEqual([]);
+  });
+
+  it('flags a singular M2M field', () => {
+    const doc: ViewTypesDoc = {
+      types: [
+        {
+          user: {
+            inherits: 'datasource_types.user',
+            fields: [
+              {
+                tag: {
+                  type: 'datasource_types.tag',
+                  references: 'datasource_types.user_tag.user_id',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const datasourceDoc: DatasourceDoc = {
+      types: [
+        {
+          user_tag: {
+            datasource_type: 'many-to-many',
+            fields: [
+              { user_id: { type: 'number', references: 'user.id' } },
+              { tag_id: { type: 'number', references: 'tag.id' } },
+            ],
+          },
+        },
+      ],
+    };
+    expect(computeEagerChildren('user', doc, '*', datasourceDoc)).toEqual([
+      {
+        fieldName: 'tag',
+        childTable: 'tag',
+        refColumn: 'user_id',
+        joinTable: 'user_tag',
+        joinChildColumn: 'tag_id',
+        isArray: false,
+      },
+    ]);
+  });
 });

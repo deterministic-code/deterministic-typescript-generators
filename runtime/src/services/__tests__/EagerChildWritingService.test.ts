@@ -129,6 +129,67 @@ describe('EagerChildWritingService', () => {
       expect(result.phones![0].contact_id).toBe(result.id);
     });
 
+    it('accepts a singular nested object when isArray is false', async () => {
+      const singularService = new EagerChildWritingService({
+        base: baseContactService,
+        datasource,
+        parentRepository: contactRepo,
+        parentWithTxnRepoFn: withInMemoryTxnRepo,
+        children: [
+          {
+            fieldName: 'address',
+            childTable: 'address',
+            fkColumn: 'contact_id',
+            service: baseAddressService as IStandardCrudService<any>,
+            repository: addressRepo,
+            withTxnRepoFn: withInMemoryTxnRepo,
+            isArray: false,
+          },
+        ],
+      });
+      const result = (await singularService.create({
+        name: 'Ada',
+        email: 'ada@example.com',
+        address: { line1: '1 Lovelace St', city: 'London' },
+      } as unknown as Omit<ContactBase, 'id' | 'uuid' | 'created' | 'updated'>)) as Contact & {
+        address: Address | null;
+      };
+
+      expect(result.address).toMatchObject({
+        line1: '1 Lovelace St',
+        city: 'London',
+        contact_id: result.id,
+      });
+      expect(Array.isArray(result.address)).toBe(false);
+    });
+
+    it('packs null when a singular child is omitted on create', async () => {
+      const singularService = new EagerChildWritingService({
+        base: baseContactService,
+        datasource,
+        parentRepository: contactRepo,
+        parentWithTxnRepoFn: withInMemoryTxnRepo,
+        children: [
+          {
+            fieldName: 'address',
+            childTable: 'address',
+            fkColumn: 'contact_id',
+            service: baseAddressService as IStandardCrudService<any>,
+            repository: addressRepo,
+            withTxnRepoFn: withInMemoryTxnRepo,
+            isArray: false,
+          },
+        ],
+      });
+      const result = (await singularService.create({
+        name: 'Ada',
+        email: 'ada@example.com',
+      } as unknown as Omit<ContactBase, 'id' | 'uuid' | 'created' | 'updated'>)) as Contact & {
+        address: Address | null;
+      };
+      expect(result.address).toBeNull();
+    });
+
     it('rejects nested rows that include id field', async () => {
       const input = {
         name: 'John Doe',
@@ -384,6 +445,56 @@ describe('EagerChildWritingService', () => {
       const result = await service.patch(99999, input);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('singular nested object patch', () => {
+    const singularService = () =>
+      new EagerChildWritingService({
+        base: baseContactService,
+        datasource,
+        parentRepository: contactRepo,
+        parentWithTxnRepoFn: withInMemoryTxnRepo,
+        children: [
+          {
+            fieldName: 'address',
+            childTable: 'address',
+            fkColumn: 'contact_id',
+            service: baseAddressService as IStandardCrudService<any>,
+            repository: addressRepo,
+            withTxnRepoFn: withInMemoryTxnRepo,
+            isArray: false,
+          },
+        ],
+      });
+
+    it('replaces the object, clears on null, and leaves it when omitted', async () => {
+      const svc = singularService();
+      const created = (await svc.create({
+        name: 'Ada',
+        email: 'ada@example.com',
+        address: { line1: '1 First', city: 'London' },
+      } as unknown as Omit<ContactBase, 'id' | 'uuid' | 'created' | 'updated'>)) as Contact & {
+        address: Address | null;
+      };
+      const id = created.id;
+
+      const replaced = (await svc.patch(id, {
+        address: { id: created.address!.id, line1: '2 Second', city: 'Paris' },
+      } as unknown as Partial<Contact>)) as Contact & { address: Address | null };
+      expect(replaced.address).toMatchObject({ line1: '2 Second', city: 'Paris' });
+      expect(Array.isArray(replaced.address)).toBe(false);
+
+      const omitted = (await svc.patch(id, {
+        name: 'Ada Lovelace',
+      } as unknown as Partial<Contact>)) as Contact & { address: Address | null };
+      expect(omitted.address).toMatchObject({ line1: '2 Second' });
+
+      const cleared = (await svc.patch(id, {
+        address: null,
+      } as unknown as Partial<Contact>)) as Contact & { address: Address | null };
+      expect(cleared.address).toBeNull();
+      expect(await addressRepo.findAll()).toHaveLength(0);
     });
   });
 

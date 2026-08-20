@@ -1,6 +1,10 @@
 import { IStandardCrudService, type StandardRow } from './interfaces/IStandardCrudService';
 import { NameValue } from './interfaces/NameValue';
-import { EagerChildSpec } from '../app/loaders/computeEagerChildren';
+import {
+  EagerChildSpec,
+  packEagerRelation,
+  relationIsArray,
+} from '../app/loaders/computeEagerChildren';
 import { rebindServiceToTxn } from './rebindServiceToTxn';
 import type { ICrudRepository } from '../repositories/ICrudRepository';
 
@@ -79,7 +83,7 @@ export class EagerChildLoadingService<
     const itemRecord = item as Record<string, unknown>;
     for (const spec of this.children) {
       if (!this.hasResolvableServices(spec)) continue;
-      itemRecord[spec.fieldName] = [];
+      itemRecord[spec.fieldName] = packEagerRelation([], relationIsArray(spec));
     }
     return itemRecord as T;
   }
@@ -124,13 +128,13 @@ export class EagerChildLoadingService<
 
       if (spec.joinTable && spec.joinChildColumn) {
         const childRows = await this.fetchM2MChildrenSingle(spec, itemRecord.id);
-        itemRecord[spec.fieldName] = childRows;
+        itemRecord[spec.fieldName] = packEagerRelation(childRows, relationIsArray(spec));
         return;
       }
 
       const childService = this.childServices.get(spec.childTable)!;
       const childRows = await childService.findBy(toSingleNameValue(spec.refColumn, itemRecord.id));
-      itemRecord[spec.fieldName] = childRows;
+      itemRecord[spec.fieldName] = packEagerRelation(childRows, relationIsArray(spec));
     });
 
     await Promise.all(attachPromises);
@@ -190,7 +194,10 @@ export class EagerChildLoadingService<
       const itemRecord = item as Record<string, unknown>;
       for (const { spec, grouped } of batchedChildren) {
         if (!this.hasResolvableServices(spec)) continue;
-        itemRecord[spec.fieldName] = grouped.get(itemRecord.id) ?? [];
+        itemRecord[spec.fieldName] = packEagerRelation(
+          grouped.get(itemRecord.id) ?? [],
+          relationIsArray(spec),
+        );
       }
     }
 

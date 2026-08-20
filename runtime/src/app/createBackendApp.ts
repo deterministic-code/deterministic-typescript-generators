@@ -1179,6 +1179,7 @@ function buildEagerWriteBindings(
         junctionRepository: junctionRepo,
         withTxnRepoFn,
         ...(nested.length > 0 && { children: nested }),
+        ...(childSpec.isArray === false && { isArray: false }),
       });
       continue;
     }
@@ -1193,6 +1194,7 @@ function buildEagerWriteBindings(
       repository: childRepo,
       withTxnRepoFn,
       ...(nested.length > 0 && { children: nested }),
+      ...(childSpec.isArray === false && { isArray: false }),
     });
   }
   return bindings;

@@ -23,24 +23,8 @@ import {
 } from "./common/fake-test-data.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
-
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
   naming: ViewValidatorPaths;
   schemaVersion: string;
   tables: Map<string, DatasourceType>;
@@ -72,9 +56,8 @@ const MUTABLE_SCALAR = new Set([
 ]);
 
 const emitBase = (settings: Record<string, string>) => {
-  const ds = datasource(settings);
   return {
-    ds,
+    idType: settings["datasource.id_type"] ?? "integer",
     naming: viewValidatorPaths(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
@@ -120,7 +103,7 @@ const dsFixture = (name: string, opts: EmitOptions): string => {
   const table = opts.tables.get(name);
   if (table === undefined) return "{}";
   return objectLiteral(
-    tableFields(table.fields, opts.ds.idType).map((f) => ({
+    tableFields(table.fields, opts.idType).map((f) => ({
       ident: opts.naming.fieldIdent(f.name),
       expr: primitiveSample(f, opts),
     })),
@@ -154,7 +137,7 @@ const parentToks = (view: ShapedView, opts: EmitOptions): FieldTok[] => {
     ...view.omit,
     ...view.enrichments.map((e) => e.fkColumn),
   ]);
-  return tableFields(table.fields, opts.ds.idType)
+  return tableFields(table.fields, opts.idType)
     .filter((f) => !omit.has(f.name))
     .map((f) => ({
       name: f.name,
@@ -360,7 +343,7 @@ export const generate = async (
   const tables = (await ctx.reader.exists(DATASOURCE_TYPES_YAML))
     ? new SpecificationParser().parseDatasourceTypes({
         yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-        idType: base.ds.idType,
+        idType: base.idType,
       })
     : [];
   const opts: EmitOptions = {

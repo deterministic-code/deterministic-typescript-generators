@@ -11,24 +11,8 @@ import {
 import { idTypeToZod, toZod, toZodDefault } from "./common/type-converters/native-to-zod.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
-
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
   naming: ArtifactPaths;
   schemaVersion: string;
   withTypeAnnotation: boolean;
@@ -54,10 +38,9 @@ const STANDARD_COLUMNS: ReadonlyArray<FieldShape> = [
 ];
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const ds = datasource(settings);
   const naming = datasourcePaths(settings);
   return {
-    ds,
+    idType: settings["datasource.id_type"] ?? "integer",
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     withTypeAnnotation: true,
@@ -129,7 +112,7 @@ const zodForField = (
 ): string => {
   let expr =
     useZodId || field.references?.split(".")[1] === "id"
-      ? idTypeToZod(opts.ds.idType)
+      ? idTypeToZod(opts.idType)
       : tightenExpr(field);
   if (field.isNullable) expr = `${expr}.nullable()`;
   if (field.hasDefault) {
@@ -147,7 +130,7 @@ const tableFields = (
   );
   const standard = STANDARD_COLUMNS.filter(
     (col) =>
-      (opts.ds.withUuidColumn || col.name !== "uuid") &&
+      (opts.idType !== "uuid" || col.name !== "uuid") &&
       !userNames.has(opts.naming.fieldName(col.name)),
   ).map((field) => ({ field, useZodId: field.name === "id" }));
   return [
@@ -198,7 +181,7 @@ export const generate = async (
   const opts = emitOptions(ctx.settings);
   const types = new SpecificationParser().parseDatasourceTypes({
     yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-    idType: opts.ds.idType,
+    idType: opts.idType,
   });
   const entries = types.map((table) => renderValidator(table, opts));
   if (opts.createIndex) entries.push(renderIndex(types, opts));

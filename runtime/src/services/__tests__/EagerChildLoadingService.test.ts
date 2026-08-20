@@ -121,6 +121,67 @@ describe('EagerChildLoadingService', () => {
       });
       expect(childService.findBy).toHaveBeenCalledWith([{ name: 'parent_id', value: '1' }]);
     });
+
+    it('attaches a singular nested object (or null) when isArray is false', async () => {
+      const singularSpecs: EagerChildSpec[] = [
+        {
+          fieldName: 'child',
+          childTable: 'child',
+          refColumn: 'parent_id',
+          isArray: false,
+        },
+      ];
+      const map = new Map<string, IStandardCrudService<any, any>>();
+      map.set('child', childService);
+      const singularService = new EagerChildLoadingService(baseService, singularSpecs, map);
+      baseService.findById.mockResolvedValue(parentRow(1));
+      childService.findBy.mockResolvedValue([childRow(10, 1, 'A')]);
+
+      const result = await singularService.findById(1);
+
+      expect(result).toEqual({
+        ...parentRow(1),
+        child: childRow(10, 1, 'A'),
+      });
+
+      childService.findBy.mockResolvedValue([]);
+      const empty = await singularService.findById(1);
+      expect(empty).toEqual({ ...parentRow(1), child: null });
+    });
+  });
+
+  describe('singular findAll / create', () => {
+    const singularService = () => {
+      const specs: EagerChildSpec[] = [
+        {
+          fieldName: 'child',
+          childTable: 'child',
+          refColumn: 'parent_id',
+          isArray: false,
+        },
+      ];
+      const map = new Map<string, IStandardCrudService<any, any>>();
+      map.set('child', childService);
+      return new EagerChildLoadingService(baseService, specs, map);
+    };
+
+    it('packs one object per parent on a batched findAll', async () => {
+      baseService.findAll.mockResolvedValue([parentRow(1), parentRow(2)]);
+      childService.findBy.mockResolvedValue([childRow(10, 1, 'A'), childRow(20, 2, 'C')]);
+
+      const result = await singularService().findAll();
+
+      expect(result[0]).toEqual({ ...parentRow(1), child: childRow(10, 1, 'A') });
+      expect(result[1]).toEqual({ ...parentRow(2), child: childRow(20, 2, 'C') });
+    });
+
+    it('packs null on create instead of an empty array', async () => {
+      baseService.create.mockResolvedValue(parentRow(1));
+      const created = await singularService().create({
+        name: 'Parent1',
+      } as unknown as Omit<Parent, 'id' | 'uuid' | 'created' | 'updated'>);
+      expect(created).toEqual({ ...parentRow(1), child: null });
+    });
   });
 
   describe('findAll', () => {

@@ -40,15 +40,15 @@ export const bootGeneratedFrontend = async (args: {
   const port = await freePort();
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
-  const child = spawn(
-    "npm",
-    ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port)],
-    {
-      cwd: frontendDir,
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  const serveArgs =
+    args.settings.frontend_generate_framework === "next"
+      ? ["run", "start", "--", "--hostname", "127.0.0.1", "--port", String(port)]
+      : ["run", "preview", "--", "--host", "127.0.0.1", "--port", String(port)];
+  const child = spawn("npm", serveArgs, {
+    cwd: frontendDir,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   child.stdout?.on("data", (chunk: Buffer) => {
     stdoutChunks.push(chunk);
   });

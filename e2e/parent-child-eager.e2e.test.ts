@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import { bootParentChildEagerApp } from "./parent-child-eager-app.ts";
+import {
+  bootParentChildEagerApp,
+  dumpParentChildTrace,
+} from "./parent-child-eager-app.ts";
 import { stopGeneratedApp, type BootedApp } from "./generated-app.ts";
 
 const TEMP_PREFIX = "ts-parent-child-eager-";
@@ -52,6 +55,7 @@ describe("parent-child eager e2e", { timeout: 180_000 }, () => {
   });
 
   after(async () => {
+    if (booted !== undefined) dumpParentChildTrace(booted);
     await stopGeneratedApp(booted, TEMP_PREFIX);
   });
 
@@ -149,6 +153,15 @@ describe("parent-child eager e2e", { timeout: 180_000 }, () => {
     );
     assert.equal(patched.status, 200);
     assert.equal(asRecord(patched.body).status_name, "archived");
+
+    const put = await requestJson(booted.port, "PUT", `/api/tasks/${task.id}`, {
+      title: "shipped",
+      project_id: projectId,
+      status_name: "active",
+    });
+    assert.equal(put.status, 200);
+    assert.equal(asRecord(put.body).title, "shipped");
+    assert.equal(asRecord(put.body).status_name, "active");
 
     const listed = await requestJson(booted.port, "GET", "/api/tasks");
     assert.equal(listed.status, 200);

@@ -28,6 +28,7 @@ import {
 import {
   dumpCodegenEntries,
   dumpFinalFiles,
+  dumpServerTrace,
   verboseOutputEnabled,
 } from "./verbose-output.ts";
 
@@ -81,7 +82,7 @@ export const bootParentChildEagerApp = async (
   });
   if (verboseOutputEnabled()) dumpCodegenEntries(sqlEntries);
   await writeGenerateEntries(appDir, sqlEntries);
-  await patchSqliteMigrateHook(appDir);
+  await patchSqliteMigrateHook(appDir, { enableTrace: true });
   await addBetterSqliteDependency(appDir);
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
@@ -89,11 +90,19 @@ export const bootParentChildEagerApp = async (
   await npm(["run", "build"], appDir);
 
   const port = await freePort();
+  const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
   const child = spawn(process.execPath, ["dist/server.js"], {
     cwd: appDir,
-    env: { ...process.env, PORT: String(port) },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DETERMINISTIC_TRACE: "route,service,datasource",
+    },
     stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.on("data", (chunk: Buffer) => {
+    stdoutChunks.push(chunk);
   });
   child.stderr?.on("data", (chunk: Buffer) => {
     stderrChunks.push(chunk);
@@ -106,5 +115,10 @@ export const bootParentChildEagerApp = async (
       `health check did not come up (exitCode=${child.exitCode})\n${dumped}\n${err}`,
     );
   }
-  return { appDir, port, child, stderrChunks };
+  return { appDir, port, child, stdoutChunks, stderrChunks };
+};
+
+export const dumpParentChildTrace = (booted: BootedApp): void => {
+  if (!verboseOutputEnabled()) return;
+  dumpServerTrace(Buffer.concat(booted.stdoutChunks).toString());
 };

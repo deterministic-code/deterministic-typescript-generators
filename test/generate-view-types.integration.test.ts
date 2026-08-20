@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
-import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
+import {
+  fileReader,
+  memoryReader,
+} from "@deterministic-code/generators-common/deterministic-reader";
 import {
   DATASOURCE_TYPES_YAML,
   VIEW_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification-parser";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { generate } from "./generate-view-type-validators.ts";
+import { generate } from "../src/generate-view-types.ts";
 
 const DS_YAML = `types:
   - user:
@@ -14,7 +20,6 @@ const DS_YAML = `types:
       fields:
         - email:
             type: string
-            size: 256
         - role_id:
             type: number
             references: role.id
@@ -45,8 +50,6 @@ types:
       fields:
         - display_name:
             type: string
-            min_size: 1
-            size: 64
   - payment:
       one_of:
         - card_payment
@@ -77,6 +80,9 @@ const SIMPLE_VIEW_YAML = `types:
             type: decimal
         - paid_at:
             type: datetime
+        - note:
+            type: string
+            is_nullable: true
 `;
 
 const fixtureReader = (
@@ -117,7 +123,7 @@ const requireEntry = (
   return entry;
 };
 
-describe("generate view type validators", () => {
+describe("generate view types", () => {
   const generateWith = (
     settings: Record<string, string> = {},
     viewYaml?: string,
@@ -168,7 +174,24 @@ types: []
     );
   });
 
-  it("emits one validator per expanded view and a barrel by default", async () => {
+  it("reads view_types.yaml from a file reader", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "generate-view-types-"));
+    try {
+      await writeFile(join(dir, VIEW_TYPES_YAML), SIMPLE_VIEW_YAML);
+      const wrapped = await generate({
+        reader: fileReader(dir),
+        settings: { "codegen.schema_version": "2.0" },
+      });
+      const card = entryBody(
+        requireEntry(indexEntries(wrapped), "card_payment.ts"),
+      );
+      assert.match(card, /schema-version: 2\.0/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("emits one file per expanded view and a barrel by default", async () => {
     const byName = indexEntries(await generateWith({}));
     assert.deepEqual(
       [...byName.keys()].sort(),
@@ -188,83 +211,64 @@ types: []
     );
   });
 
-  it("renders a shaped view with primitive, datasource, and view fields plus CRUD trio", async () => {
+  it("renders a shaped view with primitive, datasource, and view fields", async () => {
     const card = await bodyOf("card_payment.ts");
     assert.match(card, /schema-version: 1\.0/);
-    assert.match(card, /import \{ z \} from "zod";/);
+    assert.match(card, /import type \{ tag \} from "\.\.\/datasource\/tag";/);
     assert.match(
       card,
-      /import \{ tagSchema as datasource_tagSchema \} from "\.\.\/\.\.\/datasource\/validators\/tag";/,
+      /import type \{ user_summary \} from "\.\/user_summary";/,
     );
-    assert.match(
-      card,
-      /import \{ user_summarySchema \} from "\.\/user_summary";/,
-    );
-    assert.match(card, /export const card_paymentSchema = z\.object\(\{/);
-    assert.match(card, /amount: z\.string\(\),/);
-    assert.match(card, /paid_at: z\.date\(\),/);
-    assert.match(card, /tags: z\.array\(z\.lazy\(\(\) => datasource_tagSchema\)\),/);
-    assert.match(card, /owner: z\.lazy\(\(\) => user_summarySchema\),/);
-    assert.match(card, /note: z\.string\(\)\.trim\(\)\.nullable\(\),/);
-    assert.match(card, /export const create_card_paymentSchema = card_paymentSchema;/);
-    assert.match(card, /export const update_card_paymentSchema = card_paymentSchema;/);
-    assert.match(
-      card,
-      /export const patch_card_paymentSchema = card_paymentSchema\.partial\(\);/,
-    );
-    assert.match(
-      card,
-      /export type card_paymentValidated = z\.infer<typeof card_paymentSchema>;/,
-    );
+    assert.match(card, /\/\*\* View card_payment\. \*\//);
+    assert.match(card, /export interface card_payment \{/);
+    assert.match(card, /amount: string;/);
+    assert.match(card, /paid_at: Date;/);
+    assert.match(card, /tags: tag\[\];/);
+    assert.match(card, /owner: user_summary;/);
+    assert.match(card, /note: string \| null;/);
   });
 
   it("renders a union view", async () => {
     const payment = await bodyOf("payment.ts");
     assert.match(
       payment,
-      /import \{ card_paymentSchema \} from "\.\/card_payment";/,
+      /import type \{ card_payment \} from "\.\/card_payment";/,
     );
     assert.match(
       payment,
-      /import \{ cash_paymentSchema \} from "\.\/cash_payment";/,
+      /import type \{ cash_payment \} from "\.\/cash_payment";/,
     );
     assert.match(
       payment,
-      /export const paymentSchema = z\.union\(\[\n  z\.lazy\(\(\) => card_paymentSchema\),\n  z\.lazy\(\(\) => cash_paymentSchema\),\n\]\);/,
+      /export type payment = card_payment \| cash_payment;/,
     );
-    assert.doesNotMatch(payment, /createPaymentSchema/);
   });
 
-  it("inherits a datasource schema with omit, enrich, and no CRUD trio for omit views", async () => {
+  it("extends the inherited datasource type and omits enrichment FKs plus explicit omit", async () => {
     const summary = await bodyOf("user_summary.ts");
     assert.match(
       summary,
-      /import \{ userSchema as datasource_userSchema \} from "\.\.\/\.\.\/datasource\/validators\/user";/,
+      /import type \{ user \} from "\.\.\/datasource\/user";/,
     );
     assert.match(
       summary,
-      /export const user_summarySchema = datasource_userSchema\.omit\(\{ "role_id": true, "nick_name": true \}\)\.partial\(\{ id: true \}\)\.extend\(\{\n  display_name: z\.string\(\)\.trim\(\)\.min\(1\)\.max\(64\),\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
+      /export interface user_summary extends Omit<user, "role_id" \| "nick_name"> \{/,
     );
-    assert.doesNotMatch(summary, /create_user_summarySchema/);
-    assert.doesNotMatch(summary, /update_user_summarySchema/);
+    assert.match(summary, /display_name: string;/);
+    assert.match(summary, /role_name: string;/);
   });
 
-  it("emits CRUD trio for inherited pass-through views", async () => {
+  it("aliases a colliding inherited datasource class name", async () => {
     const user = await bodyOf("user.ts");
     assert.match(
       user,
-      /import \{ userSchema as datasource_userSchema \} from "\.\.\/\.\.\/datasource\/validators\/user";/,
+      /import type \{ user as userBase \} from "\.\.\/datasource\/user";/,
     );
     assert.match(
       user,
-      /export const userSchema = datasource_userSchema\.omit\(\{ "role_id": true \}\)\.extend\(\{\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
+      /export interface user extends Omit<userBase, "role_id"> \{/,
     );
-    assert.match(
-      user,
-      /export const update_userSchema = datasource_userSchema\.omit\(\{ "id": true, "uuid": true, "created": true, "updated": true, "role_id": true \}\)\.extend\(\{\n  "role_name": z\.string\(\)\.trim\(\),\n\}\);/,
-    );
-    assert.match(user, /export const create_userSchema = update_userSchema;/);
-    assert.match(user, /export const patch_userSchema = update_userSchema\.partial\(\);/);
+    assert.match(user, /role_name: string;/);
   });
 
   it("skips the barrel when codegen.create_index is false", async () => {
@@ -275,18 +279,14 @@ types: []
     );
   });
 
-  it("writes the barrel with schemas and skips omit-only views", async () => {
+  it("writes the barrel with type re-exports", async () => {
     const index = await bodyOf("index.ts");
+    assert.match(index, /export type \{ user \} from "\.\/user";/);
+    assert.match(index, /export type \{ payment \} from "\.\/payment";/);
     assert.match(
       index,
-      /export \{ card_paymentSchema, create_card_paymentSchema, update_card_paymentSchema, patch_card_paymentSchema \} from "\.\/card_payment";/,
+      /export type \{ user_summary \} from "\.\/user_summary";/,
     );
-    assert.match(index, /export \{ paymentSchema \} from "\.\/payment";/);
-    assert.match(
-      index,
-      /export type \{ card_paymentValidated \} from "\.\/card_payment";/,
-    );
-    assert.doesNotMatch(index, /user_summary/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
@@ -296,16 +296,39 @@ types: []
     assert.match(card, /schema-version: 9.9/);
   });
 
-  it("datasource.id_type=uuid drops uuid from inherited update omits", async () => {
-    const user = await bodyOf("user.ts", { "datasource.id_type": "uuid" });
-    assert.match(
-      user,
-      /export const update_userSchema = datasource_userSchema\.omit\(\{ "id": true, "created": true, "updated": true, "role_id": true \}\)/,
+  it("comments=description emits the multi-line view doc", async () => {
+    const card = await bodyOf("card_payment.ts", { comments: "description" });
+    assert.match(card, /\* View card_payment\./);
+    assert.match(card, /\* Datasource type: standard\./);
+    assert.match(card, /\* Target: ShapedView\./);
+    assert.match(card, /\* Fields: 5\./);
+    const payment = await bodyOf("payment.ts", { comments: "description" });
+    assert.match(payment, /\* Target: UnionView\./);
+  });
+
+  it("comments=none omits the view doc", async () => {
+    const card = await bodyOf("card_payment.ts", { comments: "none" });
+    assert.doesNotMatch(card, /\/\*\*/);
+    assert.doesNotMatch(card, /View card_payment/);
+  });
+
+  it("emits a singular nested datasource field without []", async () => {
+    const contact = await bodyOf(
+      "contact.ts",
+      {},
+      `types:
+  - contact:
+      inherits: datasource_types.user
+      fields:
+        - address:
+            type: datasource_types.tag
+            references: datasource_types.tag.role_id
+`,
+      DS_YAML,
     );
-    assert.doesNotMatch(
-      user,
-      /update_userSchema = datasource_userSchema\.omit\(\{[^}]*"uuid"/,
-    );
+    assert.match(contact, /import type \{ tag \} from "\.\.\/datasource\/tag";/);
+    assert.match(contact, /address: tag;/);
+    assert.doesNotMatch(contact, /address: tag\[\];/);
   });
 
 });

@@ -41,24 +41,9 @@ const docTokens = (settings: Record<string, string>) => {
   };
 };
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
-
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
+  useOptimisticConcurrency: boolean;
   naming: RoutePaths;
   services: ServicePaths;
   simpleDoc: boolean;
@@ -71,7 +56,9 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = routePaths(settings);
   const createIndex = settings["codegen.create_index"];
   return {
-    ds: datasource(settings),
+    idType: settings["datasource.id_type"] ?? "integer",
+    useOptimisticConcurrency:
+      settings["datasource.use_optimistic_concurrency"] === "true",
     naming,
     services: servicePaths(settings),
     ...docTokens(settings),
@@ -154,14 +141,14 @@ const renderEntityRouter = (
   opts: EmitOptions,
   customServices: Set<string>,
 ): GenerateEntry => {
-  const { simpleDoc, descriptionDoc, ds, naming } = opts;
+  const { simpleDoc, descriptionDoc, naming } = opts;
   const entity = candidate.name;
   const occ = entityUsesOptimisticConcurrency(
     {
       datasourceType: candidate.datasourceType,
       optimisticConcurrency: candidate.optimisticConcurrency,
     },
-    ds.useOptimisticConcurrency,
+    opts.useOptimisticConcurrency,
   );
   const readOnly = candidate.datasourceType === "readonly-lookup";
   const byFields = readOnly
@@ -297,7 +284,7 @@ export const generate = async (
   const opts = emitOptions(ctx.settings);
   const parser = new SpecificationParser(ctx.reader);
   const [parsed, customServices] = await Promise.all([
-    parser.loadRoutes({ idType: opts.ds.idType }),
+    parser.loadRoutes({ idType: opts.idType }),
     customServiceEntities(ctx.reader),
   ]);
   const entries: GenerateEntry[] = [

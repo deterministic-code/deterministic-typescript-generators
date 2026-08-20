@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolvesToSelf } from "./frontend-bindings-routes.ts";
+import { resolvesToSelf } from "../src/frontend-bindings-routes.ts";
 
 describe("resolvesToSelf", () => {
   it("resolves the legacy self sentinel", () => {

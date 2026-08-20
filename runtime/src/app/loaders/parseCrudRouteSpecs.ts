@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { kebabPlural, singularizeToken } from '../../naming/index';
 import { routeViewTypeDirective } from './routeViewTypeDirective';
+import { parseRelationType, relationIsArray } from './computeEagerChildren';
 import type { StandardIdType } from '../../repositories/standardFieldConverting';
 
 export interface EagerWriteChildSpec {
@@ -24,6 +25,8 @@ export interface EagerWriteChildSpec {
   childEnrichmentColumns?: string[];
   /** Nested eager-write children of this child. Populated for depth-N paths. */
   children?: EagerWriteChildSpec[];
+  /** False when the view field is a single nested object. Omitted/`true` is a collection. */
+  isArray?: boolean;
 }
 
 interface ByFieldRouteSpec {
@@ -130,7 +133,7 @@ export function buildBodySchema(
   }
 
   for (const child of spec.eagerWriteChildren) {
-    shape[child.fieldName] = z.array(buildChildRowSchema(child, verb)).optional();
+    shape[child.fieldName] = wrapEagerChildSchema(buildChildRowSchema(child, verb), child);
   }
 
   return z.object(shape).strict();
@@ -158,11 +161,23 @@ function buildChildRowSchema(
 
   if (child.children && child.children.length > 0) {
     for (const grand of child.children) {
-      baseShape[grand.fieldName] = z.array(buildChildRowSchema(grand, verb)).optional();
+      baseShape[grand.fieldName] = wrapEagerChildSchema(
+        buildChildRowSchema(grand, verb),
+        grand,
+      );
     }
   }
 
   return z.object(baseShape).strict();
+}
+
+function wrapEagerChildSchema(
+  rowSchema: z.ZodObject<z.ZodRawShape>,
+  child: { isArray?: boolean },
+): z.ZodTypeAny {
+  return relationIsArray(child)
+    ? z.array(rowSchema).optional()
+    : rowSchema.nullable().optional();
 }
 
 function depluraliseSnake(name: string): string {
@@ -421,6 +436,7 @@ interface ChildRef {
   elementType: string;
   refTable: string;
   refColumn: string;
+  isArray: boolean;
 }
 
 function buildOneEagerWriteChild(
@@ -439,16 +455,17 @@ function buildOneEagerWriteChild(
   if (!viewField) return null;
 
   const [, fieldDef] = viewField;
-  const childTableMatch = (fieldDef.type ?? '').match(/^datasource_types\.(\w+)\[\]$/);
-  if (!childTableMatch) return null;
+  const typeMatch = parseRelationType(fieldDef.type);
+  if (!typeMatch) return null;
   const refMatch = (fieldDef.references ?? '').match(/^datasource_types\.(\w+)\.(\w+)$/);
   if (!refMatch) return null;
 
   const ref: ChildRef = {
     childFieldName,
-    elementType: childTableMatch[1],
+    elementType: typeMatch.elementType,
     refTable: refMatch[1],
     refColumn: refMatch[2],
+    isArray: typeMatch.isArray,
   };
   return ref.refTable === ref.elementType
     ? buildDirectFkChild(ref, maps.datasourceTypes)
@@ -459,7 +476,7 @@ function buildDirectFkChild(
   ref: ChildRef,
   datasourceTypes: Map<string, RawType>,
 ): EagerWriteChildSpec | null {
-  const { childFieldName, elementType, refColumn } = ref;
+  const { childFieldName, elementType, refColumn, isArray } = ref;
   const childDatasource = datasourceTypes.get(elementType);
   if (!childDatasource) return null;
   const childFields = extractFields(childDatasource);
@@ -474,6 +491,7 @@ function buildDirectFkChild(
     childColumns,
     ...(Object.keys(childColumnTypes).length > 0 && { childColumnTypes }),
     ...(childEnrichmentColumns.length > 0 && { childEnrichmentColumns }),
+    ...(!isArray && { isArray: false }),
   };
 }
 
@@ -511,6 +529,7 @@ function buildM2mChild(
     childColumns: targetFields.map(([name]) => name),
     ...(Object.keys(targetColumnTypes).length > 0 && { childColumnTypes: targetColumnTypes }),
     ...(targetEnrichmentColumns.length > 0 && { childEnrichmentColumns: targetEnrichmentColumns }),
+    ...(!ref.isArray && { isArray: false }),
   };
 }
 

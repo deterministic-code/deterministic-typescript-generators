@@ -96,7 +96,13 @@ const SQLITE_HOOK = `    beforeCreateBackendApp: async () => ({
     }),
 `;
 
-export const patchSqliteMigrateHook = async (appDir: string): Promise<void> => {
+const TRACE_MIDDLEWARE_HOOK = `    enableMiddleware: ["traceRoute", "traceService", "traceDatasource"],
+`;
+
+export const patchSqliteMigrateHook = async (
+  appDir: string,
+  options?: { enableTrace?: boolean },
+): Promise<void> => {
   const appPath = join(appDir, "app.ts");
   const before = await readFile(appPath, "utf8");
   const withImport = before.replace(
@@ -111,7 +117,11 @@ export const patchSqliteMigrateHook = async (appDir: string): Promise<void> => {
     throw new Error("generated app.ts is missing APP_BEFORE_HOOK markers");
   }
   const lineStart = withImport.lastIndexOf("\n", start) + 1;
-  const patched = `${withImport.slice(0, lineStart)}${SQLITE_HOOK}${withImport.slice(stop)}`;
+  const hook =
+    options?.enableTrace === true
+      ? `${SQLITE_HOOK}${TRACE_MIDDLEWARE_HOOK}`
+      : SQLITE_HOOK;
+  const patched = `${withImport.slice(0, lineStart)}${hook}${withImport.slice(stop)}`;
   await writeFile(appPath, patched, "utf8");
 };
 
@@ -128,6 +138,7 @@ export type BootedApp = {
   appDir: string;
   port: number;
   child: ChildProcess;
+  stdoutChunks: Buffer[];
   stderrChunks: Buffer[];
 };
 
@@ -150,11 +161,15 @@ export const bootGeneratedApp = async (args: {
   await npm(["run", "build"], appDir);
 
   const port = await freePort();
+  const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
   const child = spawn(process.execPath, ["dist/server.js"], {
     cwd: appDir,
     env: { ...process.env, PORT: String(port) },
     stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.on("data", (chunk: Buffer) => {
+    stdoutChunks.push(chunk);
   });
   child.stderr?.on("data", (chunk: Buffer) => {
     stderrChunks.push(chunk);
@@ -167,7 +182,7 @@ export const bootGeneratedApp = async (args: {
       `health check did not come up (exitCode=${child.exitCode})\n${dumped}\n${err}`,
     );
   }
-  return { appDir, port, child, stderrChunks };
+  return { appDir, port, child, stdoutChunks, stderrChunks };
 };
 
 export const stopGeneratedApp = async (booted: BootedApp | undefined, tempPrefix: string): Promise<void> => {

@@ -5,7 +5,7 @@ import {
   DATASOURCE_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification-parser";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { generate } from "./generate-datasource-type-validators-tests.ts";
+import { generate } from "../src/generate-datasource-types-tests.ts";
 
 const FIXTURE_YAML = `types:
   - user:
@@ -16,12 +16,19 @@ const FIXTURE_YAML = `types:
             size: 256
         - role_id:
             references: role.id
+        - uuid:
+            type: uuid
+        - created_at:
+            type: datetime
         - nick_name:
             type: string
             is_nullable: true
         - active:
             type: boolean
-            default_value: false
+        - balance:
+            type: decimal
+        - avatar:
+            type: binary
   - role:
       fields:
         - name:
@@ -60,7 +67,7 @@ const requireEntry = (
   return entry;
 };
 
-describe("generate datasource type validators tests", () => {
+describe("generate datasource types tests", () => {
   const generateWith = (settings: Record<string, string> = {}) =>
     generate({
       reader: fixtureReader(),
@@ -87,31 +94,61 @@ describe("generate datasource type validators tests", () => {
     );
   });
 
-  it("emits one validator test file per datasource type", async () => {
+  it("emits one test file per datasource type", async () => {
     const byName = indexEntries(await generateWith({}));
     assert.deepEqual([...byName.keys()].sort(), ["role.test.ts", "user.test.ts"]);
   });
 
-  it("imports the generated schema and covers parse, nullable, and reject cases", async () => {
+  it("imports the generated type from the sibling module", async () => {
     const user = await userBody();
-    assert.match(user, /import \{ userSchema \} from "\.\.\/user";/);
+    assert.match(user, /import type \{ user \} from "\.\.\/user";/);
     assert.match(user, /from "vitest"/);
-    assert.match(user, /it\("parses a valid payload"/);
-    assert.match(user, /it\("accepts null for nullable fields"/);
-    assert.match(user, /it\("rejects when missing required field \\"email\\""/);
-    assert.match(
-      user,
-      /it\("rejects when null for non-nullable field \\"email\\""/,
-    );
-    assert.match(user, /it\("rejects when wrong type on field \\"email\\""/);
-    assert.match(user, /nick_name: null/);
-    assert.match(user, /email: 123/);
-    assert.doesNotMatch(
-      user,
-      /it\("rejects when missing required field \\"active\\""/,
-    );
-    assert.match(user, /expect\(\(\) => userSchema\.parse\(value\)\)\.not\.toThrow/);
-    assert.match(user, /expect\(\(\) => userSchema\.parse\(value\)\)\.toThrow/);
+    assert.match(user, /const sample = \(\): user => \(/);
+  });
+
+  it("covers getters and setters for system columns and declared fields", async () => {
+    const user = await userBody();
+    const fields = [
+      "id",
+      "uuid",
+      "created",
+      "updated",
+      "email",
+      "role_id",
+      "created_at",
+      "nick_name",
+      "active",
+      "balance",
+      "avatar",
+    ];
+    for (const field of fields) {
+      assert.match(user, new RegExp(`it\\("gets ${field}"`));
+      assert.match(user, new RegExp(`it\\("sets ${field}"`));
+    }
+    assert.match(user, /it\("allows setting nick_name to null"/);
+    assert.doesNotMatch(user, /it\("allows setting email to null"/);
+    assert.match(user, /import \{ faker \} from "@faker-js\/faker"/);
+    assert.match(user, /created: faker\.date\.recent\(\)/);
+    assert.match(user, /email: faker\.string\.alphanumeric\(\{ length: 256 \}\)/);
+    assert.match(user, /active: faker\.datatype\.boolean\(\)/);
+    assert.match(user, /balance: faker\.commerce\.price\(\)/);
+  });
+
+  it("drops the uuid column and uses string ids when datasource.id_type=uuid", async () => {
+    const user = await userBody({ "datasource.id_type": "uuid" });
+    assert.match(user, /it\("gets id"/);
+    assert.match(user, /it\("sets id"/);
+    assert.doesNotMatch(user, /it\("gets uuid"/);
+    assert.doesNotMatch(user, /it\("sets uuid"/);
+    assert.match(user, /const initial = faker\.string\.uuid\(\);/);
+    assert.match(user, /role_id: faker\.string\.uuid\(\)/);
+  });
+
+  it("uses integer literals when datasource.id_type=biginteger", async () => {
+    const user = await userBody({ "datasource.id_type": "biginteger" });
+    assert.match(user, /id: faker\.number\.int\(\{ min: 1 \}\)/);
+    assert.match(user, /const next = faker\.number\.int\(\{ min: 1 \}\);/);
+    assert.match(user, /const sample = \(\): user =>/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {

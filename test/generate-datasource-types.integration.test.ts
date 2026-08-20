@@ -11,7 +11,7 @@ import {
   DATASOURCE_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification-parser";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { generate } from "./generate-datasource-types.ts";
+import { generate } from "../src/generate-datasource-types.ts";
 
 const FIXTURE_YAML = `types:
   - user:
@@ -155,7 +155,7 @@ describe("generate", () => {
     }
   });
 
-  it("renders user against StandardDataSourceWithUuid and the npm types library", async () => {
+  it("renders user against StandardDataSource and the npm types library", async () => {
     const user = await userBody({
       application_name: "catalog-api",
       "languages.typescript.library_reference_mode": "npm",
@@ -167,14 +167,13 @@ describe("generate", () => {
     );
     assert.match(
       user,
-      /export interface user extends StandardDataSourceWithUuid<number, string, Date>/,
+      /export interface user extends StandardDataSource<number, Date>/,
     );
     assert.match(user, /email: string;/);
     assert.match(user, /role_id: number;/);
     assert.match(user, /uuid: string;/);
     assert.match(user, /created_at: Date;/);
     assert.match(user, /nick_name: string \| null;/);
-    assert.doesNotMatch(user, /extends StandardDataSource</);
   });
 
   it("emits a barrel when codegen.create_index is true", async () => {
@@ -225,34 +224,24 @@ describe("generate", () => {
 
   it("datasource.id_type=biginteger uses number ids", async () => {
     const user = await userBody({ "datasource.id_type": "biginteger" });
-    assert.match(
-      user,
-      /StandardDataSourceWithUuid<number, string, Date>/,
-    );
+    assert.match(user, /StandardDataSource<number, Date>/);
   });
 
   it("datasource.id_type=string uses string ids", async () => {
     const user = await userBody({ "datasource.id_type": "string" });
-    assert.match(
-      user,
-      /StandardDataSourceWithUuid<string, string, Date>/,
-    );
+    assert.match(user, /StandardDataSource<string, Date>/);
   });
 
-  it("datasource.id_type=uuid drops the uuid column and uses StandardDataSource", async () => {
+  it("datasource.id_type=uuid drops the uuid column", async () => {
     const user = await userBody({ "datasource.id_type": "uuid" });
     assert.match(user, /export interface user extends StandardDataSource<string, Date>/);
-    assert.doesNotMatch(user, /StandardDataSourceWithUuid/);
     assert.doesNotMatch(user, /^\s*uuid:/m);
     assert.match(user, /role_id: string;/);
   });
 
   it("unknown datasource.id_type falls back to number ids", async () => {
     const user = await userBody({ "datasource.id_type": "mystery" });
-    assert.match(
-      user,
-      /StandardDataSourceWithUuid<number, string, Date>/,
-    );
+    assert.match(user, /StandardDataSource<number, Date>/);
   });
 
 });

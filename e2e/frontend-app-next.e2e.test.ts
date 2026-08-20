@@ -3,16 +3,16 @@ import { after, before, describe, it } from "node:test";
 import { bootGeneratedFrontend } from "./generated-frontend-app.ts";
 import { stopGeneratedApp, type BootedApp } from "./generated-app.ts";
 
-const TEMP_PREFIX = "ts-frontend-app-e2e-";
+const TEMP_PREFIX = "ts-frontend-app-next-e2e-";
 const DEFAULT_APPLICATION_NAME = "generated-frontend";
 
-describe("frontend-app e2e", { timeout: 180_000 }, () => {
+describe("frontend-app next e2e", { timeout: 180_000 }, () => {
   let booted: BootedApp | undefined;
 
   before(async () => {
     booted = await bootGeneratedFrontend({
       tempPrefix: TEMP_PREFIX,
-      settings: {},
+      settings: { frontend_generate_framework: "next" },
     });
   });
 
@@ -20,17 +20,12 @@ describe("frontend-app e2e", { timeout: 180_000 }, () => {
     await stopGeneratedApp(booted, TEMP_PREFIX);
   });
 
-  it("serves the generated Vite preview with the app name", async () => {
+  it("serves the generated Next.js app with the application name", async () => {
     assert.ok(booted);
-    const origin = `http://127.0.0.1:${booted.port}`;
-    const res = await fetch(`${origin}/`);
+    const res = await fetch(`http://127.0.0.1:${booted.port}/`);
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.match(html, new RegExp(`<title>${DEFAULT_APPLICATION_NAME}</title>`));
-    const asset = html.match(/src="(\/assets\/[^"]+\.js)"/);
-    assert.ok(asset?.[1], "preview HTML is missing the Vite JS asset");
-    const js = await fetch(`${origin}${asset[1]}`);
-    assert.equal(js.status, 200);
-    assert.match(await js.text(), new RegExp(DEFAULT_APPLICATION_NAME));
+    assert.match(html, new RegExp(`<h1>${DEFAULT_APPLICATION_NAME}</h1>`));
   });
 });

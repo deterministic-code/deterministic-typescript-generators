@@ -5,7 +5,7 @@ import {
   DATASOURCE_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification-parser";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { generate } from "./generate-datasource-type-validators.ts";
+import { generate } from "../src/generate-datasource-type-validators.ts";
 
 const FIXTURE_YAML = `types:
   - user:

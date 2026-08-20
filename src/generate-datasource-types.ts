@@ -20,27 +20,15 @@ const docTokens = (settings: Record<string, string>) => {
   };
 };
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
 const PROJECT_ID_TYPES = new Set(["integer", "biginteger", "uuid", "string"]);
 
-const datasource = (settings: Record<string, string>): Datasource => {
+const projectIdType = (settings: Record<string, string>): string => {
   const raw = settings["datasource.id_type"] ?? "integer";
-  const idType = PROJECT_ID_TYPES.has(raw) ? raw : "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
+  return PROJECT_ID_TYPES.has(raw) ? raw : "integer";
 };
 
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
   naming: ArtifactPaths;
   schemaVersion: string;
   simpleDoc: boolean;
@@ -50,10 +38,9 @@ type EmitOptions = {
 };
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const ds = datasource(settings);
   const naming = datasourcePaths(settings);
   return {
-    ds,
+    idType: projectIdType(settings),
     naming,
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
@@ -67,10 +54,10 @@ const renderType = (
   dsType: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { ds, naming, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
+  const { idType, naming, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
     opts;
   const className = naming.className(dsType.name);
-  const fields = declaredFields(dsType.fields, ds.idType);
+  const fields = declaredFields(dsType.fields, idType);
   return content(
     naming.filePath(dsType.name),
     fill(typeTmpl, {
@@ -80,13 +67,12 @@ const renderType = (
         libraryMode,
         naming.projectRelPath(dsType.name),
       ),
-      withUuid: ds.withUuidColumn,
       simpleDoc,
       descriptionDoc,
       className,
       datasourceType: dsType.datasourceType,
       fieldCount: String(fields.length),
-      idType: toNative(ds.idType),
+      idType: toNative(idType),
       datetimeType: toNative("datetime"),
       fields: fields.map((f) => ({
         ident: naming.fieldIdent(f.name),
@@ -117,7 +103,7 @@ export const generate = async (
   const opts = emitOptions(ctx.settings);
   const types = new SpecificationParser().parseDatasourceTypes({
     yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-    idType: opts.ds.idType,
+    idType: opts.idType,
   });
   const entries = types.map((dsType) => renderType(dsType, opts));
   if (opts.createIndex) entries.push(renderIndex(types, opts.naming));

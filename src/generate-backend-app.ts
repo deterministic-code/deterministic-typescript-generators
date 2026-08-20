@@ -48,10 +48,20 @@ const emitMinimal = (appName: string): GenerateEntry[] => {
   ];
 };
 
+// Files the deterministic lane owns outright. Spreading emitMinimal then
+// emitting a second kind:content for the same path trips the orchestrator
+// CONTENT collision guard (server.ts / tsconfig / health.test differ from
+// the scaffold). app.ts and package.json stay content+patch.
+const DETERMINISTIC_CONTENT = new Set([
+  "server.ts",
+  "tsconfig.json",
+  "__tests__/health.test.ts",
+]);
+
 const emitDeterministic = (appName: string): GenerateEntry[] => {
   const named = { appName };
   return [
-    ...emitMinimal(appName),
+    ...emitMinimal(appName).filter((e) => !DETERMINISTIC_CONTENT.has(e.filename)),
     patch("app.ts", appTs),
     content("server.ts", fill(serverTs, named)),
     patch("package.json", fill(packageJson, named)),

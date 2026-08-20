@@ -20,7 +20,6 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const idType = ctx.settings["datasource.id_type"] ?? "integer";
-  const withUuidColumn = idType !== "uuid";
   const naming = servicePaths(ctx.settings);
   const { generics } = await new SpecificationParser(ctx.reader).loadServices({
     idType,
@@ -57,10 +56,11 @@ export const generate = async (
           entityName: c.name,
           pkIdTypeJson: JSON.stringify(isUuid ? "uuid" : "integer"),
           idTsType: toNative(idType),
-          withUuid: withUuidColumn,
-          stampCols: withUuidColumn
-            ? "id/uuid/created/updated"
-            : "id/created/updated",
+          withUuid: idType !== "uuid",
+          stampCols:
+            idType !== "uuid"
+              ? "id/uuid/created/updated"
+              : "id/created/updated",
           serviceOptions: isUuid ? `, { idType: "uuid" }` : "",
           missingId: isUuid
             ? JSON.stringify("00000000-0000-0000-0000-000000000000")

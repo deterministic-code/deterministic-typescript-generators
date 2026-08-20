@@ -27,24 +27,8 @@ const docTokens = (settings: Record<string, string>) => {
   };
 };
 
-type Datasource = {
-  idType: string;
-  withUuidColumn: boolean;
-  useOptimisticConcurrency: boolean;
-};
-
-const datasource = (settings: Record<string, string>): Datasource => {
-  const idType = settings["datasource.id_type"] ?? "integer";
-  return {
-    idType,
-    withUuidColumn: idType !== "uuid",
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] === "true",
-  };
-};
-
 type EmitOptions = {
-  ds: Datasource;
+  idType: string;
   naming: ServicePaths;
   simpleDoc: boolean;
   descriptionDoc: boolean;
@@ -56,7 +40,7 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
   const naming = servicePaths(settings);
   const createIndex = settings["codegen.create_index"];
   return {
-    ds: datasource(settings),
+    idType: settings["datasource.id_type"] ?? "integer",
     naming,
     ...docTokens(settings),
     libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
@@ -209,7 +193,7 @@ export const generate = async (
 ): Promise<GenerateEntry[]> => {
   const opts = emitOptions(ctx.settings);
   const { generics, customs } = await new SpecificationParser(ctx.reader).loadServices({
-    idType: opts.ds.idType,
+    idType: opts.idType,
     serviceClassName: opts.naming.serviceClassName,
   });
   const entries: GenerateEntry[] = [

@@ -4,6 +4,11 @@ import { ValidationError } from '../errors/AppError';
 import { IStandardCrudService, type StandardRow } from './interfaces/IStandardCrudService';
 import { NameValue } from './interfaces/NameValue';
 import { rebindServiceToTxn } from './rebindServiceToTxn';
+import {
+  packEagerRelation,
+  relationIsArray,
+  unpackEagerRelation,
+} from '../app/loaders/computeEagerChildren';
 
 export type EagerWriteChildBinding = EagerWriteDirectFkBinding | EagerWriteM2MBinding;
 
@@ -18,6 +23,8 @@ interface EagerWriteDirectFkBinding {
   withTxnRepoFn: (repo: ICrudRepository<any>, txn: IDatasource) => ICrudRepository<any>;
   /** Nested eager-write bindings whose parent is each row of this child. */
   children?: EagerWriteChildBinding[];
+  /** False when the view field is a single nested object. Omitted/`true` is a collection. */
+  isArray?: boolean;
 }
 
 export interface EagerWriteM2MBinding {
@@ -40,6 +47,8 @@ export interface EagerWriteM2MBinding {
   withTxnRepoFn: (repo: ICrudRepository<any>, txn: IDatasource) => ICrudRepository<any>;
   /** Nested eager-write bindings whose parent is the linked target row. */
   children?: EagerWriteChildBinding[];
+  /** False when the view field is a single nested object. Omitted/`true` is a collection. */
+  isArray?: boolean;
 }
 
 function isM2MBinding(b: EagerWriteChildBinding): b is EagerWriteM2MBinding {
@@ -227,8 +236,8 @@ export class EagerChildWritingService<
   /**
    * Reconcile every binding in `bindings` against the corresponding fields in
    * `parentIncomingRow`, treating `parentId` as the FK parent. Returns
-   * `{ [fieldName]: reconciled[] }` for each binding processed. Mutually
-   * recursive with `processOneRow` via `binding.children`.
+   * `{ [fieldName]: reconciled[] | object | null }` for each binding processed.
+   * Mutually recursive with `processOneRow` via `binding.children`.
    */
   private async processBindingsForParent(
     bindings: EagerWriteChildBinding[],
@@ -236,34 +245,35 @@ export class EagerChildWritingService<
     parentIncomingRow: Record<string, unknown>,
     txn: IDatasource,
     mode: Mode,
-  ): Promise<Record<string, unknown[]>> {
-    const out: Record<string, unknown[]> = {};
+  ): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
     for (const binding of bindings) {
-      const incomingValue = parentIncomingRow[binding.fieldName];
-      const childRows = Array.isArray(incomingValue)
-        ? (incomingValue as Array<Record<string, unknown>>)
-        : undefined;
+      const isArray = relationIsArray(binding);
+      const childRows = unpackEagerRelation(parentIncomingRow[binding.fieldName], isArray);
 
       if (mode === 'create') {
         if (childRows === undefined) {
-          out[binding.fieldName] = [];
+          out[binding.fieldName] = packEagerRelation([], isArray);
           continue;
         }
-        out[binding.fieldName] = await this.createChildArray(binding, parentId, childRows, txn);
+        out[binding.fieldName] = packEagerRelation(
+          await this.createChildArray(binding, parentId, childRows, txn),
+          isArray,
+        );
         continue;
       }
 
       // update / patch
       if (childRows === undefined) {
-        out[binding.fieldName] = await this.loadExistingFor(binding, parentId, txn);
+        out[binding.fieldName] = packEagerRelation(
+          await this.loadExistingFor(binding, parentId, txn),
+          isArray,
+        );
         continue;
       }
-      out[binding.fieldName] = await this.reconcileChildArray(
-        binding,
-        parentId,
-        childRows,
-        txn,
-        mode,
+      out[binding.fieldName] = packEagerRelation(
+        await this.reconcileChildArray(binding, parentId, childRows, txn, mode),
+        isArray,
       );
     }
     return out;
@@ -576,9 +586,9 @@ export class EagerChildWritingService<
     mode: Mode,
   ): void {
     for (const binding of bindings) {
-      const value = parentRow[binding.fieldName];
-      if (!Array.isArray(value)) continue;
-      for (const row of value) {
+      const rows = unpackEagerRelation(parentRow[binding.fieldName], relationIsArray(binding));
+      if (rows === undefined) continue;
+      for (const row of rows) {
         const r = row as Record<string, unknown>;
         if (mode === 'create' && !isM2MBinding(binding) && 'id' in r) {
           throw new ValidationError(`nested row cannot have id field`);

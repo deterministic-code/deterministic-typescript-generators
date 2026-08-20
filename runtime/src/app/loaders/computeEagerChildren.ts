@@ -6,7 +6,32 @@ export interface EagerChildSpec {
   joinChildColumn?: string;
   /** When true, attach only on member reads (findById + mutation returns), never on the collection list. */
   memberOnly?: boolean;
+  /** False when the view field is a single nested object (`datasource_types.address`). Omitted/`true` is a collection (`address[]`). */
+  isArray?: boolean;
 }
+
+export const relationIsArray = (spec: { isArray?: boolean }): boolean => spec.isArray !== false;
+
+export const packEagerRelation = (rows: unknown[], isArray: boolean): unknown =>
+  isArray ? rows : (rows[0] ?? null);
+
+export const unpackEagerRelation = (
+  value: unknown,
+  isArray: boolean,
+): Array<Record<string, unknown>> | undefined => {
+  if (value === undefined) return undefined;
+  if (isArray) {
+    return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : undefined;
+  }
+  if (value === null) return [];
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return [value as Record<string, unknown>];
+  }
+  return undefined;
+};
+
+const withArrayFlag = <T extends object>(obj: T, isArray: boolean): T =>
+  isArray ? obj : ({ ...obj, isArray: false } as T);
 
 export type EagerLoadTree = Map<string, EagerLoadTree>;
 export type EagerLoadGate = '*' | EagerLoadTree | null | undefined;
@@ -68,7 +93,7 @@ export function computeEagerChildren(
 
     if (!isFieldIncluded(gate, fieldName)) continue;
 
-    const typeMatch = parseArrayType(fieldDef.type);
+    const typeMatch = parseRelationType(fieldDef.type);
     if (!typeMatch) continue;
 
     const refMatch = parseReference(fieldDef.references);
@@ -76,22 +101,32 @@ export function computeEagerChildren(
     if (!refMatch) {
       const auto = autoDetectM2MJunction(parentTable, typeMatch.elementType, datasourceDoc);
       if (!auto) continue;
-      result.push({
-        fieldName,
-        childTable: typeMatch.elementType,
-        refColumn: auto.parentFkColumn,
-        joinTable: auto.joinTable,
-        joinChildColumn: auto.childFkColumn,
-      });
+      result.push(
+        withArrayFlag(
+          {
+            fieldName,
+            childTable: typeMatch.elementType,
+            refColumn: auto.parentFkColumn,
+            joinTable: auto.joinTable,
+            joinChildColumn: auto.childFkColumn,
+          },
+          typeMatch.isArray,
+        ),
+      );
       continue;
     }
 
     if (refMatch.table === typeMatch.elementType) {
-      result.push({
-        fieldName,
-        childTable: typeMatch.elementType,
-        refColumn: refMatch.column,
-      });
+      result.push(
+        withArrayFlag(
+          {
+            fieldName,
+            childTable: typeMatch.elementType,
+            refColumn: refMatch.column,
+          },
+          typeMatch.isArray,
+        ),
+      );
       continue;
     }
 
@@ -102,13 +137,18 @@ export function computeEagerChildren(
     );
     if (!joinChildColumn) continue;
 
-    result.push({
-      fieldName,
-      childTable: typeMatch.elementType,
-      refColumn: refMatch.column,
-      joinTable: refMatch.table,
-      joinChildColumn,
-    });
+    result.push(
+      withArrayFlag(
+        {
+          fieldName,
+          childTable: typeMatch.elementType,
+          refColumn: refMatch.column,
+          joinTable: refMatch.table,
+          joinChildColumn,
+        },
+        typeMatch.isArray,
+      ),
+    );
   }
 
   return result;
@@ -190,11 +230,13 @@ function findJoinChildColumn(
   return null;
 }
 
-function parseArrayType(typeStr: string | undefined): { elementType: string } | null {
+export function parseRelationType(
+  typeStr: string | undefined,
+): { elementType: string; isArray: boolean } | null {
   if (!typeStr || typeof typeStr !== 'string') return null;
-  const match = typeStr.match(/^datasource_types\.([a-z_][a-z0-9_]*)\[\]$/);
+  const match = typeStr.match(/^datasource_types\.([a-z_][a-z0-9_]*)(\[\])?$/);
   if (!match) return null;
-  return { elementType: match[1] };
+  return { elementType: match[1], isArray: match[2] === '[]' };
 }
 
 function parseReference(refStr: string | undefined): { table: string; column: string } | null {
