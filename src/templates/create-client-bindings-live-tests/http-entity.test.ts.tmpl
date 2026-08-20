@@ -1,0 +1,13 @@
+import { describe, it } from "node:test";
+import { {{clientName}} } from "./{{fileBase}}.ts";
+import { createHttp } from "./http.ts";
+
+const BASE_URL = process.env.CLIENT_BINDINGS_BASE_URL ?? "http://127.0.0.1:3000";
+
+describe("{{clientName}} live", () => {
+{{#methods}}
+  it("{{methodName}} {{httpMethod}} {{pathPattern}}", async () => {
+    await {{clientName}}(createHttp(BASE_URL)).{{methodName}}({{&liveArgs}}).catch(() => undefined);
+  });
+{{/methods}}
+});

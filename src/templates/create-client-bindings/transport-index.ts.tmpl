@@ -1,0 +1,4 @@
+{{#entities}}export { {{clientName}} } from "./{{fileBase}}.ts";
+{{/entities}}{{#hasHttp}}export { createHttp } from "./http.ts";
+export type { Http, HttpRequest } from "./http.ts";
+{{/hasHttp}}

@@ -314,3 +314,50 @@ export const frontendViewValidatorPaths = (
       ),
   };
 };
+
+const camelIdent = (name: string): string =>
+  name.replace(/_([a-z0-9])/gi, (_, ch: string) => ch.toUpperCase());
+
+/** Map a routes-api path (snake segments, `{param}`) onto TS HTTP paths (kebab segments, camel params). */
+export const httpPathFromRoutesApi = (path: string): string =>
+  path
+    .split("/")
+    .map((segment) => {
+      const param = /^\{(.+)\}$/.exec(segment);
+      return param ? `{${camelIdent(param[1]!)}}` : segment.replace(/_/g, "-");
+    })
+    .join("/");
+
+export type ClientBindingTransport = "fetch" | "axios" | "tanstack";
+
+export type ClientBindingTransportPaths = {
+  indexPath: string;
+  httpPath: string;
+  filePath: (fileBase: string) => string;
+  mockTestPath: (fileBase: string) => string;
+  liveTestPath: (fileBase: string) => string;
+};
+
+export type ClientBindingPaths = {
+  rootIndex: string;
+  typeImport: (typeName: string) => string;
+  transport: (kind: ClientBindingTransport) => ClientBindingTransportPaths;
+};
+
+export const clientBindingPaths = (): ClientBindingPaths => {
+  const root = "frontend/src/client";
+  return {
+    rootIndex: `${root}/index.ts`,
+    typeImport: (typeName) => `../../types/${typeName}`,
+    transport: (kind) => {
+      const dir = `${root}/${kind}`;
+      return {
+        indexPath: `${dir}/index.ts`,
+        httpPath: `${dir}/http.ts`,
+        filePath: (fileBase) => `${dir}/${fileBase}.ts`,
+        mockTestPath: (fileBase) => `${dir}/${fileBase}.mock.test.ts`,
+        liveTestPath: (fileBase) => `${dir}/${fileBase}.live.test.ts`,
+      };
+    },
+  };
+};
