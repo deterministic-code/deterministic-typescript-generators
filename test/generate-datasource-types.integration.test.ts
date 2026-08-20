@@ -9,7 +9,7 @@ import {
 } from "@deterministic-code/generators-common/deterministic-reader";
 import {
   DATASOURCE_TYPES_YAML,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate } from "../src/generate-datasource-types.ts";
 
@@ -167,11 +167,14 @@ describe("generate", () => {
     );
     assert.match(
       user,
-      /export interface user extends StandardDataSource<number, Date>/,
+      /export interface User extends StandardDataSource<number, Date>/,
     );
+    assert.match(user, /id: number;/);
+    assert.match(user, /uuid: string;/);
+    assert.match(user, /created: Date;/);
+    assert.match(user, /updated: Date;/);
     assert.match(user, /email: string;/);
     assert.match(user, /role_id: number;/);
-    assert.match(user, /uuid: string;/);
     assert.match(user, /created_at: Date;/);
     assert.match(user, /nick_name: string \| null;/);
   });
@@ -182,8 +185,8 @@ describe("generate", () => {
     });
     const map = indexEntries(withIndex);
     const index = entryBody(requireEntry(map, "index.ts"));
-    assert.match(index, /export \{ user \} from "\.\/user";/);
-    assert.match(index, /export \{ role \} from "\.\/role";/);
+    assert.match(index, /export \{ User \} from "\.\/user";/);
+    assert.match(index, /export \{ Role \} from "\.\/role";/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
@@ -193,17 +196,17 @@ describe("generate", () => {
 
   it("comments=simple emits a one-line type doc", async () => {
     const user = await userBody({ comments: "simple" });
-    assert.match(user, /\/\*\* Type user\. \*\//);
+    assert.match(user, /\/\*\* Type User\. \*\//);
     assert.doesNotMatch(user, /Datasource type:/);
   });
 
   it("comments=description emits the multi-line type doc", async () => {
     const user = await userBody({ comments: "description" });
     assert.match(user, /\/\*\*/);
-    assert.match(user, /\* Type user\./);
+    assert.match(user, /\* Type User\./);
     assert.match(user, /\* Datasource type: audit\./);
     assert.match(user, /\* Target: StandardCrud\./);
-    assert.match(user, /\* Fields: 5\./);
+    assert.match(user, /\* Fields: 8\./);
   });
 
   it("comments=none omits the type doc", async () => {
@@ -234,7 +237,7 @@ describe("generate", () => {
 
   it("datasource.id_type=uuid drops the uuid column", async () => {
     const user = await userBody({ "datasource.id_type": "uuid" });
-    assert.match(user, /export interface user extends StandardDataSource<string, Date>/);
+    assert.match(user, /export interface User extends StandardDataSource<string, Date>/);
     assert.doesNotMatch(user, /^\s*uuid:/m);
     assert.match(user, /role_id: string;/);
   });

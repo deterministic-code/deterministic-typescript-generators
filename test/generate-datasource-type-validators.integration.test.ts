@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import {
   DATASOURCE_TYPES_YAML,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate } from "../src/generate-datasource-type-validators.ts";
 
@@ -105,7 +105,7 @@ describe("generate datasource type validators", () => {
     assert.match(user, /export const userSchema = z\.object\(/);
     assert.match(user, /export type userValidated = z\.infer<typeof userSchema>/);
     assert.match(user, /id: z\.number\(\)\.int\(\)\.nonnegative\(\)/);
-    assert.match(user, /uuid: z\.string\(\)\.trim\(\)/);
+    assert.match(user, /uuid: z\.string\(\)\.uuid\(\)/);
     assert.match(user, /email: z\.string\(\)\.trim\(\)\.min\(3\)\.max\(256\)/);
     assert.match(user, /role_id: z\.number\(\)\.int\(\)\.nonnegative\(\)/);
     assert.match(user, /nick_name: z\.string\(\)\.trim\(\)\.nullable\(\)/);

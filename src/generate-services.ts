@@ -8,10 +8,14 @@ import {
   type ServicePaths,
 } from "./common/paths.ts";
 import {
-  SpecificationParser,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
+  SERVICES_YAML,
   type CustomServiceEntry,
   type ServiceCandidate,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   customStubTmpl,
@@ -188,18 +192,29 @@ const renderIndex = (
   return entries;
 };
 
-export const generate = async (
-  ctx: GenerateContext,
-): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
-  const { generics, customs } = await new SpecificationParser(ctx.reader).loadServices({
-    idType: opts.idType,
-    serviceClassName: opts.naming.serviceClassName,
-  });
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings);
+  const { generics, customs } = deterministic.services;
   const entries: GenerateEntry[] = [
     ...generics.map((c) => renderGeneric(c, opts)),
     ...customs.map((c) => renderCustom(c, opts)),
   ];
   if (opts.createIndex) entries.push(...renderIndex(generics, customs, opts));
   return entries;
+};
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  await ctx.reader.read(SERVICES_YAML);
+  const naming = servicePaths(ctx.settings);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings, {
+      serviceClassName: naming.serviceClassName,
+    }),
+    ctx.settings,
+  );
 };

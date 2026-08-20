@@ -10,15 +10,17 @@ import {
   type ServicePaths,
 } from "./common/paths.ts";
 import {
-  SpecificationParser,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
   entityUsesOptimisticConcurrency,
-  SERVICES_YAML,
+  ROUTES_YAML,
   type CustomRouteEntry,
   type RouteByField,
   type RouteCandidate,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { isRecord } from "@deterministic-code/generators-common/yaml-entry";
-import { YamlNode } from "@deterministic-code/generators-common/yaml-node";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   byFieldDeleteListTmpl,
@@ -66,19 +68,6 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
     createIndex:
       !naming.byFeature && (createIndex === undefined || createIndex === "true"),
   };
-};
-
-const customServiceEntities = async (
-  reader: GenerateContext["reader"],
-): Promise<Set<string>> => {
-  const names = new Set<string>();
-  if (!(await reader.exists(SERVICES_YAML))) return names;
-  const root = YamlNode.fromYaml(await reader.read(SERVICES_YAML));
-  for (const entry of root.child("services").items()) {
-    const name = entry.str("name");
-    if (name !== undefined) names.add(name);
-  }
-  return names;
 };
 
 const libImports = (
@@ -278,15 +267,15 @@ const renderIndexes = (
   return entries;
 };
 
-export const generate = async (
-  ctx: GenerateContext,
-): Promise<GenerateEntry[]> => {
-  const opts = emitOptions(ctx.settings);
-  const parser = new SpecificationParser(ctx.reader);
-  const [parsed, customServices] = await Promise.all([
-    parser.loadRoutes({ idType: opts.idType }),
-    customServiceEntities(ctx.reader),
-  ]);
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings);
+  const parsed = deterministic.routes;
+  const customServices = new Set(
+    deterministic.services.customs.map((entry) => entry.name),
+  );
   const entries: GenerateEntry[] = [
     ...parsed.candidates.map((c) => renderEntityRouter(c, opts, customServices)),
     ...parsed.customs.map((c) => renderCustom(c, opts)),
@@ -295,4 +284,14 @@ export const generate = async (
     entries.push(...renderIndexes(parsed.candidates, parsed.customs, opts));
   }
   return entries;
+};
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  await ctx.reader.read(ROUTES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ctx.settings,
+  );
 };

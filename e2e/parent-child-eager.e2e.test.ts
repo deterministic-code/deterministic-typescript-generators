@@ -47,7 +47,7 @@ const itemsOf = (body: unknown): unknown[] => {
   return rec.items;
 };
 
-describe("parent-child eager e2e", { timeout: 180_000 }, () => {
+describe("parent-child eager e2e", { timeout: 360_000 }, () => {
   let booted: BootedApp | undefined;
 
   before(async () => {

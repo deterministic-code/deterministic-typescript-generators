@@ -126,7 +126,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/",
     "prepare": "npm run build",
-    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts src/common/default-casing.test.ts",
     "tests:e2e": "node --experimental-strip-types e2e/run.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },

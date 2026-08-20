@@ -4,10 +4,13 @@ import { content, type GenerateEntry } from "@deterministic-code/generators-comm
 import { toNative } from "./base-type-converter.ts";
 import { servicePaths } from "./common/paths.ts";
 import {
-  SpecificationParser,
-  DATASOURCE_TYPES_YAML,
-  type DatasourceType,
+  DeterministicParser,
+  type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
+import {
+  SERVICES_YAML,
+  type DatasourceType,
+} from "@deterministic-code/generators-common/specification";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import { genericTmpl } from "./resources/service-integration-tests.ts";
 
@@ -16,23 +19,15 @@ const tableByName = (
   datasources: DatasourceType[],
 ): DatasourceType | undefined => datasources.find((d) => d.name === name);
 
-export const generate = async (
-  ctx: GenerateContext,
-): Promise<GenerateEntry[]> => {
-  const idType = ctx.settings["datasource.id_type"] ?? "integer";
-  const naming = servicePaths(ctx.settings);
-  const { generics } = await new SpecificationParser(ctx.reader).loadServices({
-    idType,
-    serviceClassName: naming.serviceClassName,
-  });
-  const hasDs = await ctx.reader.exists(DATASOURCE_TYPES_YAML);
-  const datasources = hasDs
-    ? new SpecificationParser().parseDatasourceTypes({
-        yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-        idType,
-      })
-    : [];
-  const mode = ctx.settings["languages.typescript.library_reference_mode"];
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const idType = settings["datasource.id_type"] ?? "integer";
+  const naming = servicePaths(settings);
+  const { generics } = deterministic.services;
+  const datasources = deterministic.expandedDatasourceTypes;
+  const mode = settings["languages.typescript.library_reference_mode"];
   return generics
     .filter((c) => tableByName(c.name, datasources)?.datasourceType === "many-to-many")
     .map((c) => {
@@ -68,4 +63,16 @@ export const generate = async (
         }),
       );
     });
+};
+
+export const generate = async (
+  ctx: GenerateContext,
+): Promise<GenerateEntry[]> => {
+  await ctx.reader.read(SERVICES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings, {
+      serviceClassName: servicePaths(ctx.settings).serviceClassName,
+    }),
+    ctx.settings,
+  );
 };

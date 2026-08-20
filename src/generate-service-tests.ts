@@ -3,12 +3,15 @@ import type { GenerateContext } from "@deterministic-code/generators-common/gene
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { servicePaths, type ServicePaths } from "./common/paths.ts";
 import {
-  SpecificationParser,
-  DATASOURCE_TYPES_YAML,
+  DeterministicParser,
+  type IDeterministic,
+} from "@deterministic-code/generators-common/specification-parser";
+import {
+  SERVICES_YAML,
   primaryKeyFor,
   type DatasourceType,
   type ServiceCandidate,
-} from "@deterministic-code/generators-common/specification-parser";
+} from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import { genericTmpl } from "./resources/service-tests.ts";
@@ -20,23 +23,15 @@ type EmitOptions = {
   libraryReferenceMode: string | undefined;
 };
 
-const emitOptions = async (
-  ctx: GenerateContext,
-): Promise<EmitOptions> => {
-  const idType = ctx.settings["datasource.id_type"] ?? "integer";
-  const hasDs = await ctx.reader.exists(DATASOURCE_TYPES_YAML);
-  return {
-    naming: servicePaths(ctx.settings),
-    idType,
-    libraryReferenceMode: ctx.settings["languages.typescript.library_reference_mode"],
-    datasources: hasDs
-      ? new SpecificationParser().parseDatasourceTypes({
-          yaml: await ctx.reader.read(DATASOURCE_TYPES_YAML),
-          idType,
-        })
-      : [],
-  };
-};
+const emitOptions = (
+  settings: Record<string, string>,
+  datasources: DatasourceType[],
+): EmitOptions => ({
+  naming: servicePaths(settings),
+  idType: settings["datasource.id_type"] ?? "integer",
+  libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
+  datasources,
+});
 
 const renderTest = (
   candidate: ServiceCandidate,
@@ -66,13 +61,22 @@ const renderTest = (
   );
 };
 
+const generateFrom = (
+  deterministic: IDeterministic,
+  settings: Record<string, string>,
+): GenerateEntry[] => {
+  const opts = emitOptions(settings, deterministic.expandedDatasourceTypes);
+  return deterministic.services.generics.map((c) => renderTest(c, opts));
+};
+
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
-  const opts = await emitOptions(ctx);
-  const { generics } = await new SpecificationParser(ctx.reader).loadServices({
-    idType: opts.idType,
-    serviceClassName: opts.naming.serviceClassName,
-  });
-  return generics.map((c) => renderTest(c, opts));
+  await ctx.reader.read(SERVICES_YAML);
+  return generateFrom(
+    await DeterministicParser(ctx.reader).parse(ctx.settings, {
+      serviceClassName: servicePaths(ctx.settings).serviceClassName,
+    }),
+    ctx.settings,
+  );
 };

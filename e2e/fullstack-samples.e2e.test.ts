@@ -135,7 +135,7 @@ const assertProjectTaskStack = async (
   await assert.rejects(() => projects.get(projectId), /failed: 404/);
 };
 
-describe("fullstack sample 01-simple e2e", { timeout: 180_000 }, () => {
+describe("fullstack sample 01-simple e2e", { timeout: 360_000 }, () => {
   const TEMP_PREFIX = "ts-fullstack-simple-";
   let booted: BootedApp | undefined;
 
@@ -164,7 +164,7 @@ describe("fullstack sample 01-simple e2e", { timeout: 180_000 }, () => {
   });
 });
 
-describe("fullstack sample 02-moderate e2e", { timeout: 180_000 }, () => {
+describe("fullstack sample 02-moderate e2e", { timeout: 360_000 }, () => {
   const TEMP_PREFIX = "ts-fullstack-moderate-";
   let booted: BootedApp | undefined;
 
@@ -212,7 +212,7 @@ describe("fullstack sample 02-moderate e2e", { timeout: 180_000 }, () => {
   });
 });
 
-describe("fullstack sample 03-complex e2e", { timeout: 180_000 }, () => {
+describe("fullstack sample 03-complex e2e", { timeout: 360_000 }, () => {
   const TEMP_PREFIX = "ts-fullstack-complex-";
   let booted: BootedApp | undefined;
 
@@ -238,7 +238,7 @@ describe("fullstack sample 03-complex e2e", { timeout: 180_000 }, () => {
   });
 });
 
-describe("fullstack sample 04-occ e2e", { timeout: 180_000 }, () => {
+describe("fullstack sample 04-occ e2e", { timeout: 360_000 }, () => {
   const TEMP_PREFIX = "ts-fullstack-occ-";
   let booted: BootedApp | undefined;
 

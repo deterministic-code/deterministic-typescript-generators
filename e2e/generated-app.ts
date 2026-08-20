@@ -9,6 +9,8 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
+import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { generate as generateMigrate } from "../../generators-migraters/typescript/generate.ts";
 import { generate } from "../src/generate-backend-app.ts";
 import { removeE2eTempDirs } from "./cleanup-temp.ts";
 import {
@@ -19,6 +21,8 @@ import {
 import { writeGenerateEntries } from "./write-generate-entries.ts";
 
 const execFileAsync = promisify(execFile);
+
+export const SQLITE_DB_FILE = "dev.sqlite";
 
 export const MINIMAL_DETERMINISTIC_YAML: Record<string, string> = {
   "settings.yaml": `settings:
@@ -33,10 +37,14 @@ handlers: []
   "datasource_types.yaml": "types: []\n",
 };
 
-export const npm = async (args: string[], cwd: string): Promise<void> => {
+export const npm = async (
+  args: string[],
+  cwd: string,
+  extraEnv: Record<string, string> = {},
+): Promise<void> => {
   await execFileAsync("npm", args, {
     cwd,
-    env: process.env,
+    env: { ...process.env, ...extraEnv },
     maxBuffer: 20 * 1024 * 1024,
   });
 };
@@ -87,42 +95,39 @@ export const writeDeterministicYaml = async (
   );
 };
 
-const SQLITE_HOOK = `    beforeCreateBackendApp: async () => ({
-      connection: await connectDatabase({
-        backend: "sqlite",
-        sqliteFile: ":memory:",
-        migrationsDir: resolve(process.cwd(), "sqlite/migrations"),
-      }),
-    }),
-`;
-
-const TRACE_MIDDLEWARE_HOOK = `    enableMiddleware: ["traceRoute", "traceService", "traceDatasource"],
-`;
-
-export const patchSqliteMigrateHook = async (
-  appDir: string,
-  options?: { enableTrace?: boolean },
-): Promise<void> => {
-  const appPath = join(appDir, "app.ts");
-  const before = await readFile(appPath, "utf8");
-  const withImport = before.replace(
-    'import { createBackendApp as createDeterministicApp } from "@deterministic-code/deterministic/app";',
-    'import { connectDatabase, createBackendApp as createDeterministicApp } from "@deterministic-code/deterministic/app";',
+/** SQL generator emits `<dialect>/migrations/…`; migrate scripts look under `sql/`. */
+export const withSqlRoot = (entries: GenerateEntry[]): GenerateEntry[] =>
+  entries.map((entry) =>
+    entry.kind === "content" && !entry.filename.startsWith("sql/")
+      ? { ...entry, filename: `sql/${entry.filename}` }
+      : entry,
   );
-  const begin = "// === BEGIN APP_BEFORE_HOOK";
-  const end = "// === END APP_BEFORE_HOOK ===";
-  const start = withImport.indexOf(begin);
-  const stop = withImport.indexOf(end);
-  if (start < 0 || stop < 0 || stop <= start) {
-    throw new Error("generated app.ts is missing APP_BEFORE_HOOK markers");
-  }
-  const lineStart = withImport.lastIndexOf("\n", start) + 1;
-  const hook =
-    options?.enableTrace === true
-      ? `${SQLITE_HOOK}${TRACE_MIDDLEWARE_HOOK}`
-      : SQLITE_HOOK;
-  const patched = `${withImport.slice(0, lineStart)}${hook}${withImport.slice(stop)}`;
-  await writeFile(appPath, patched, "utf8");
+
+export const generateBundledMigrate = (
+  settings: GenerateContext["settings"],
+): Promise<GenerateEntry[]> =>
+  generateMigrate({
+    reader: memoryReader({}),
+    settings: {
+      ...settings,
+      "languages.typescript.migrate_mode": "bundled",
+    },
+  });
+
+export const sqliteAppEnv = (appDir: string): Record<string, string> => ({
+  DATABASE_BACKEND: "sqlite",
+  DB_PATH: join(appDir, SQLITE_DB_FILE),
+});
+
+const rewriteBundledMigratePrepare = async (appDir: string): Promise<void> => {
+  const pkgPath = join(appDir, "migraters/typescript/package.json");
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
+    scripts?: Record<string, string>;
+  };
+  // Bundled migrate omits generate-help.ts; keep prepare as build so
+  // `npm run migrate:build` can install better-sqlite3 and compile the CLI.
+  pkg.scripts = { ...pkg.scripts, prepare: "npm run build" };
+  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 };
 
 export const addBetterSqliteDependency = async (appDir: string): Promise<void> => {
@@ -134,12 +139,65 @@ export const addBetterSqliteDependency = async (appDir: string): Promise<void> =
   await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 };
 
+export const installBuildAndMigrateSqlite = async (
+  appDir: string,
+): Promise<string> => {
+  const dbPath = join(appDir, SQLITE_DB_FILE);
+  await addBetterSqliteDependency(appDir);
+  await rewriteBundledMigratePrepare(appDir);
+  await npm(["run", "migrate:build"], appDir);
+  await npm(
+    [
+      "install",
+      "./migraters/typescript",
+      "--no-audit",
+      "--no-fund",
+      "--prefer-offline",
+    ],
+    appDir,
+  );
+  const env = sqliteAppEnv(appDir);
+  await npm(["run", "migrate:setup"], appDir, env);
+  await npm(["run", "migrate"], appDir, env);
+  await npm(["run", "build"], appDir);
+  return dbPath;
+};
+
 export type BootedApp = {
   appDir: string;
   port: number;
   child: ChildProcess;
   stdoutChunks: Buffer[];
   stderrChunks: Buffer[];
+};
+
+export const startGeneratedServer = async (
+  appDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<BootedApp> => {
+  const port = await freePort();
+  const stdoutChunks: Buffer[] = [];
+  const stderrChunks: Buffer[] = [];
+  const child = spawn(process.execPath, ["dist/server.js"], {
+    cwd: appDir,
+    env: { ...process.env, ...extraEnv, PORT: String(port) },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.on("data", (chunk: Buffer) => {
+    stdoutChunks.push(chunk);
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderrChunks.push(chunk);
+  });
+  try {
+    await waitForUrl(`http://127.0.0.1:${port}/api/health`, 30_000);
+  } catch (err) {
+    const dumped = Buffer.concat(stderrChunks).toString();
+    throw new Error(
+      `health check did not come up (exitCode=${child.exitCode})\n${dumped}\n${err}`,
+    );
+  }
+  return { appDir, port, child, stdoutChunks, stderrChunks };
 };
 
 export const bootGeneratedApp = async (args: {
@@ -159,30 +217,7 @@ export const bootGeneratedApp = async (args: {
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
   await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir);
   await npm(["run", "build"], appDir);
-
-  const port = await freePort();
-  const stdoutChunks: Buffer[] = [];
-  const stderrChunks: Buffer[] = [];
-  const child = spawn(process.execPath, ["dist/server.js"], {
-    cwd: appDir,
-    env: { ...process.env, PORT: String(port) },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  child.stdout?.on("data", (chunk: Buffer) => {
-    stdoutChunks.push(chunk);
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    stderrChunks.push(chunk);
-  });
-  try {
-    await waitForUrl(`http://127.0.0.1:${port}/api/health`, 30_000);
-  } catch (err) {
-    const dumped = Buffer.concat(stderrChunks).toString();
-    throw new Error(
-      `health check did not come up (exitCode=${child.exitCode})\n${dumped}\n${err}`,
-    );
-  }
-  return { appDir, port, child, stdoutChunks, stderrChunks };
+  return startGeneratedServer(appDir);
 };
 
 export const stopGeneratedApp = async (booted: BootedApp | undefined, tempPrefix: string): Promise<void> => {
