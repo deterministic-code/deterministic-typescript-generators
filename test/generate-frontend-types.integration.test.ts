@@ -219,4 +219,50 @@ describe("generate-frontend-validators-tests", () => {
       true,
     );
   });
+
+  it("nests enrichment fields on included datasource views", async () => {
+    const frontend = await generateFrontendValidatorsTests({
+      reader: memoryReader({
+        [DATASOURCE_TYPES_YAML]: `types:
+  - status:
+      datasource_type: readonly-lookup
+      fields:
+        - name:
+            type: string
+            is_unique: true
+  - project:
+      fields:
+        - name:
+            type: string
+            is_unique: true
+  - task:
+      fields:
+        - title:
+            type: string
+        - project_id:
+            type: number
+            references: project.id
+        - status_id:
+            type: number
+            references: status.id
+`,
+        [VIEW_TYPES_YAML]: `includes:
+  - datasource_types:
+      include: "*"
+      auto_enrich: true
+types:
+  - project:
+      inherits: datasource_types.project
+      fields:
+        - tasks:
+            type: datasource_types.task[]
+            references: datasource_types.task.project_id
+`,
+      }),
+      settings: {},
+    });
+    const project = byBase(frontend).get("project.test.ts") ?? "";
+    assert.match(project, /project_name:/);
+    assert.match(project, /status_name:/);
+  });
 });
