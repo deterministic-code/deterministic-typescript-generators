@@ -128,7 +128,8 @@
     "prepare": "npm run build",
     "test": "node --experimental-strip-types --test test/*.test.ts src/common/default-casing.test.ts src/import-generator.test.ts",
     "tests:e2e": "node --experimental-strip-types e2e/run.ts",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "verify:prepare": "npm ci && npm run build"
   },
   "dependencies": {
     "@deterministic-code/generators-common": "github:deterministic-code/generators-common#main",
