@@ -2,8 +2,6 @@ import { toNative } from "./base-type-converter.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { createImportGenerator } from "./import-generator.ts";
-import { jsIdent } from "./common/default-casing.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -19,24 +17,16 @@ import {
   fieldExpr,
   preludeSource,
 } from "./common/fake-test-data.ts";
-
-type EmitOptions = {
-  imports: ReturnType<typeof createImportGenerator>;
-  schemaVersion: string;
-};
-
-const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  return {
-    imports: createImportGenerator(".", settings),
-    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-  };
-};
+import { Emit } from "./emit.ts";
 
 const escapeTestName = (name: string): string =>
   name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-const fieldTokens = (field: DatasourceField) => {
-  const ident = jsIdent(field.name);
+const fieldTokens = (
+  field: DatasourceField,
+  fieldIdent: (name: string) => string,
+) => {
+  const ident = fieldIdent(field.name);
   const expr = fieldExpr(fakeTestData, field.type, {
     nativeType: toNative(field.type),
     size: field.size,
@@ -51,41 +41,38 @@ const fieldTokens = (field: DatasourceField) => {
   };
 };
 
-const renderTests = (
-  table: DatasourceType,
-  opts: EmitOptions,
-): GenerateEntry => {
-  const fields = table.fields.map((f) => fieldTokens(f));
-  return content(
-    opts.imports.test(opts.imports.datasource(table.name), table.name),
-    fill(typeTestTmpl, {
-      prelude: preludeSource(fakeTestData),
-      schemaVersion: opts.schemaVersion,
-      className: table.name,
-      tableName: table.name,
-      typeImport: `../${table.name}`,
-      fixture: `{ ${fields.map((f) => `${f.ident}: ${f.sampleExpr}`).join(", ")} }`,
-      fields,
-    }),
-  );
-};
+class Generator extends Emit {
+  from(deterministic: IDeterministic): GenerateEntry[] {
+    return deterministic.expandedDatasourceTypes.map((table) =>
+      this.tests(table),
+    );
+  }
 
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-): GenerateEntry[] => {
-  const opts = emitOptions(settings);
-  return deterministic.expandedDatasourceTypes.map((table) =>
-    renderTests(table, opts),
-  );
-};
+  private tests(table: DatasourceType): GenerateEntry {
+    const fields = table.fields.map((f) =>
+      fieldTokens(f, (name) => this.casing.fieldIdent(name)),
+    );
+    const src = this.imports.datasource(table.name);
+    return content(
+      this.imports.test(src, table.name),
+      fill(typeTestTmpl, {
+        prelude: preludeSource(fakeTestData),
+        schemaVersion: this.settings.schemaVersion,
+        className: this.casing.convertTypes(table.name),
+        tableName: table.name,
+        typeImport: this.imports.testSpec(src, table.name),
+        fixture: `{ ${fields.map((f) => `${f.ident}: ${f.sampleExpr}`).join(", ")} }`,
+        fields,
+      }),
+    );
+  }
+}
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(DATASOURCE_TYPES_YAML);
-  return generateFrom(
+  return new Generator(ctx.settings).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
-    ctx.settings,
   );
 };

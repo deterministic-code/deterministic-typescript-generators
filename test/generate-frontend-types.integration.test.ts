@@ -123,7 +123,7 @@ describe("generate-frontend-types", () => {
     const frontend = await generateFrontendTypes(ctx);
     const files = byBase(frontend);
     const user = files.get("user.ts") ?? "";
-    const card = files.get("card_payment.ts") ?? "";
+    const card = files.get("cardPayment.ts") ?? "";
     assert.doesNotMatch(user, /extends /);
     assert.match(user, /email: string;/);
     assert.match(user, /role_name: string;/);
@@ -147,8 +147,8 @@ describe("generate-frontend-types", () => {
       }),
       settings: {},
     });
-    const cash = byBase(frontend).get("cash_payment.ts") ?? "";
-    assert.match(cash, /export interface cash_payment/);
+    const cash = byBase(frontend).get("cashPayment.ts") ?? "";
+    assert.match(cash, /export interface CashPayment/);
     assert.match(cash, /amount: string;/);
     assert.doesNotMatch(cash, /extends /);
   });
@@ -156,7 +156,7 @@ describe("generate-frontend-types", () => {
   it("shares view-type bodies when reference_backend_type is true", async () => {
     const frontend = await generateFrontendTypes(referenced);
     assertSharedBodies(frontend, await generateViewTypes(ctx));
-    const card = byBase(frontend).get("card_payment.ts") ?? "";
+    const card = byBase(frontend).get("cardPayment.ts") ?? "";
     assert.match(
       card,
       /from "\.\.\/\.\.\/\.\.\/types\/generated\/datasource\/tag"/,
@@ -169,9 +169,9 @@ describe("generate-frontend-types-tests", () => {
   it("shares view-type-test bodies and colocates the type import", async () => {
     const frontend = await generateFrontendTypesTests(ctx);
     assertSharedBodies(frontend, await generateViewTypesTests(ctx));
-    const card = byBase(frontend).get("card_payment.test.ts") ?? "";
-    assert.match(card, /from "\.\/card_payment"/);
-    assert.doesNotMatch(card, /from "\.\.\/card_payment"/);
+    const card = byBase(frontend).get("cardPayment.test.ts") ?? "";
+    assert.match(card, /from "\.\/cardPayment"/);
+    assert.doesNotMatch(card, /from "\.\.\/cardPayment"/);
     assert.equal(
       frontend[0]?.filename.startsWith("frontend/src/types/"),
       true,
@@ -184,10 +184,10 @@ describe("generate-frontend-validators", () => {
     const frontend = await generateFrontendValidators(ctx);
     const files = byBase(frontend);
     const user = files.get("user.ts") ?? "";
-    const card = files.get("card_payment.ts") ?? "";
-    assert.match(user, /export const userSchema = z\.object\(/);
+    const card = files.get("cardPayment.ts") ?? "";
+    assert.match(user, /export const UserSchema = z\.object\(/);
     assert.match(user, /email:/);
-    assert.doesNotMatch(user, /datasource_userSchema/);
+    assert.doesNotMatch(user, /datasource_UserSchema/);
     assert.match(card, /from "\.\/tag"/);
     assert.doesNotMatch(card, /types\/generated\/datasource/);
     assert.equal(
@@ -199,7 +199,7 @@ describe("generate-frontend-validators", () => {
   it("shares view-validator bodies when reference_backend_type is true", async () => {
     const frontend = await generateFrontendValidators(referenced);
     assertSharedBodies(frontend, await generateViewTypeValidators(ctx));
-    const card = byBase(frontend).get("card_payment.ts") ?? "";
+    const card = byBase(frontend).get("cardPayment.ts") ?? "";
     assert.match(
       card,
       /from "\.\.\/\.\.\/\.\.\/types\/generated\/datasource\/validators\/tag"/,
@@ -212,8 +212,8 @@ describe("generate-frontend-validators-tests", () => {
   it("shares view-validator-test bodies and colocates the schema import", async () => {
     const frontend = await generateFrontendValidatorsTests(ctx);
     assertSharedBodies(frontend, await generateViewTypeValidatorsTests(ctx));
-    const card = byBase(frontend).get("card_payment.test.ts") ?? "";
-    assert.match(card, /from "\.\/card_payment"/);
+    const card = byBase(frontend).get("cardPayment.test.ts") ?? "";
+    assert.match(card, /from "\.\/cardPayment"/);
     assert.equal(
       frontend[0]?.filename.startsWith("frontend/src/validators/"),
       true,

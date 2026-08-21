@@ -5,6 +5,7 @@ import {
   DeterministicParser,
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
+import { fromSettings } from "@deterministic-code/generators-common/settings";
 import { ROUTES_YAML } from "@deterministic-code/generators-common/specification";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { e2eTmpl } from "./resources/routes-e2e.ts";
@@ -18,7 +19,7 @@ const generateFrom = (
     fill(e2eTmpl, {
       detRoot: libraryImportSpecifier(
         "",
-        settings["languages.typescript.library_reference_mode"],
+        fromSettings(settings).libraryReferenceMode,
         "__tests__/app.integration.test.ts",
       ),
       entitiesJson: JSON.stringify(

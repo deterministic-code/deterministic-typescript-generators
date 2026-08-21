@@ -11,69 +11,70 @@ import {
   type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
-import { createImportGenerator } from "./import-generator.ts";
 import { genericTmpl } from "./resources/service-integration-tests.ts";
+import { createCasing } from "./common/default-casing.ts";
+import { Emit } from "./emit.ts";
 
 const tableByName = (
   name: string,
   datasources: ExpandedDatasourceType[],
 ): ExpandedDatasourceType | undefined => datasources.find((d) => d.name === name);
 
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-): GenerateEntry[] => {
-  const { generics } = deterministic.services;
-  const datasources = deterministic.expandedDatasourceTypes;
-  const mode = settings["languages.typescript.library_reference_mode"];
-  const imports = createImportGenerator(".", settings);
-  return generics
-    .filter((c) => tableByName(c.name, datasources)?.datasourceType === "many-to-many")
-    .map((c) => {
-      const table = tableByName(c.name, datasources)!;
-      const pkField =
-        table.fields.find((f) => f.isPrimaryKey === true) ??
-        table.fields.find((f) => f.name === "id");
-      const path = imports.serviceIntegrationTest(c.name);
-      const fileBase = `${c.name}_service`;
-      const isUuid = pkField?.type === "uuid";
-      const withUuid = table.fields.some((f) => f.name === "uuid");
-      return content(
-        path,
-        fill(genericTmpl, {
-          repositoriesImport: libraryImportSpecifier(
-            "repositories",
-            mode,
-            imports.serviceIntegrationTestRel(c.name),
-          ),
-          className: `${c.name}_service`,
-          serviceImport: joinImport("..", fileBase),
-          tableNameJson: JSON.stringify(c.name),
-          entityNameJson: JSON.stringify(c.name),
-          entityName: c.name,
-          pkIdTypeJson: JSON.stringify(isUuid ? "uuid" : "integer"),
-          idTsType: toNative(pkField!.type),
-          withUuid,
-          stampCols: withUuid
-            ? "id/uuid/created/updated"
-            : "id/created/updated",
-          serviceOptions: isUuid ? `, { idType: "uuid" }` : "",
-          missingId: isUuid
-            ? JSON.stringify("00000000-0000-0000-0000-000000000000")
-            : "99999",
-        }),
-      );
-    });
-};
+class Generator extends Emit {
+  from(deterministic: IDeterministic): GenerateEntry[] {
+    const { generics } = deterministic.services;
+    const datasources = deterministic.expandedDatasourceTypes;
+    const mode = this.settings.libraryReferenceMode;
+    return generics
+      .filter(
+        (c) =>
+          tableByName(c.name, datasources)?.datasourceType === "many-to-many",
+      )
+      .map((c) => {
+        const table = tableByName(c.name, datasources)!;
+        const pkField =
+          table.fields.find((f) => f.isPrimaryKey === true) ??
+          table.fields.find((f) => f.name === "id");
+        const path = this.imports.serviceIntegrationTest(c.name);
+        const isUuid = pkField?.type === "uuid";
+        const withUuid = table.fields.some((f) => f.name === "uuid");
+        return content(
+          path,
+          fill(genericTmpl, {
+            repositoriesImport: libraryImportSpecifier(
+              "repositories",
+              mode,
+              this.imports.serviceIntegrationTestRel(c.name),
+            ),
+            className: this.casing.serviceClassName(c.name),
+            serviceImport: joinImport("..", this.casing.fileBase(`${c.name}_service`)),
+            tableNameJson: JSON.stringify(c.name),
+            entityNameJson: JSON.stringify(c.name),
+            entityName: c.name,
+            pkIdTypeJson: JSON.stringify(isUuid ? "uuid" : "integer"),
+            idTsType: toNative(pkField!.type),
+            withUuid,
+            stampCols: withUuid
+              ? "id/uuid/created/updated"
+              : "id/created/updated",
+            serviceOptions: isUuid ? `, { idType: "uuid" }` : "",
+            missingId: isUuid
+              ? JSON.stringify("00000000-0000-0000-0000-000000000000")
+              : "99999",
+          }),
+        );
+      });
+  }
+}
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(SERVICES_YAML);
-  return generateFrom(
+  const casing = createCasing(ctx.settings);
+  return new Generator(ctx.settings).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings, {
-      serviceClassName: (entity) => `${entity}_service`,
+      serviceClassName: (entity) => casing.serviceClassName(entity),
     }),
-    ctx.settings,
   );
 };

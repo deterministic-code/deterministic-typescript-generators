@@ -64,24 +64,24 @@ describe("generate-service-tests", () => {
     });
     const paths = entries.map((e) => e.filename).sort();
     assert.deepEqual(paths, [
-      "role_service.test.ts",
-      "sku_service.test.ts",
-      "user_service.test.ts",
+      "roleService.test.ts",
+      "skuService.test.ts",
+      "userService.test.ts",
     ]);
 
-    const user = textOf(entries, "user_service.test.ts");
+    const user = textOf(entries, "userService.test.ts");
     assert.match(user, /import \{ faker \} from "@faker-js\/faker"/);
     assert.match(
       user,
       /from "@deterministic-code\/deterministic\/repositories"/,
     );
-    assert.match(user, /import \{ user_service \} from "\.\.\/user_service"/);
+    assert.match(user, /import \{ UserService \} from "\.\.\/userService"/);
     assert.match(user, /entityName: "user"/);
     assert.match(user, /new PrimaryKey\("id", "integer"\)/);
     assert.match(user, /faker\.number\.int\(\{ min: 1 \}\)/);
     assert.match(user, /findAll delegates to the repository/);
 
-    const sku = textOf(entries, "sku_service.test.ts");
+    const sku = textOf(entries, "skuService.test.ts");
     assert.match(sku, /new PrimaryKey\("code", "string"\)/);
     assert.match(sku, /faker\.string\.alphanumeric/);
   });
@@ -102,7 +102,7 @@ describe("generate-service-tests", () => {
       reader: fixtureReader(yaml),
       settings: { "datasource.id_type": "uuid" },
     });
-    const user = textOf(entries, "user_service.test.ts");
+    const user = textOf(entries, "userService.test.ts");
     assert.match(user, /new PrimaryKey\("id", "uuid"\)/);
     assert.match(user, /faker\.string\.uuid\(\)/);
   });
@@ -114,7 +114,7 @@ describe("generate-service-tests", () => {
         "languages.typescript.library_reference_mode": "bundled",
       },
     });
-    const user = textOf(entries, "user_service.test.ts");
+    const user = textOf(entries, "userService.test.ts");
     assert.match(user, /from "\.\.\/\.\.\/\.\.\/_deterministic\/repositories\.js"/);
   });
 });

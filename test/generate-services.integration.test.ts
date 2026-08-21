@@ -67,28 +67,28 @@ describe("generate-services", () => {
     const paths = entries.map((e) =>
       e.kind === "content" ? e.filename : e.filename,
     ).sort();
-    assert.ok(paths.includes("user_service.ts"), `got: ${paths.join(", ")}`);
-    assert.ok(paths.includes("role_service.ts"));
-    assert.ok(paths.includes("../custom/ReportService.ts"));
+    assert.ok(paths.includes("userService.ts"), `got: ${paths.join(", ")}`);
+    assert.ok(paths.includes("roleService.ts"));
+    assert.ok(paths.includes("../custom/reportService.ts"));
     assert.ok(paths.includes("../custom/health-check-service.ts"));
     assert.ok(paths.includes("index.ts"));
     assert.ok(paths.includes("../custom/index.ts"));
 
-    const user = textOf(entries, "user_service.ts");
-    assert.match(user, /export class user_service extends BaseService<user>/);
+    const user = textOf(entries, "userService.ts");
+    assert.match(user, /export class UserService extends BaseService<User>/);
     assert.match(user, /async find_by_email\(email: string\)/);
     assert.match(
       user,
       /from "\.\.\/\.\.\/types\/generated\/views\/user"/,
     );
 
-    const report = textOf(entries, "../custom/ReportService.ts");
+    const report = textOf(entries, "../custom/reportService.ts");
     assert.match(report, /async run\(\.\.\._args: unknown\[\]\)/);
     assert.match(report, /return \{\};/);
 
     const index = textOf(entries, "index.ts");
-    assert.match(index, /export \{ role_service \} from "\.\/role_service"/);
-    assert.match(index, /export \{ user_service \} from "\.\/user_service"/);
+    assert.match(index, /export \{ RoleService \} from "\.\/roleService"/);
+    assert.match(index, /export \{ UserService \} from "\.\/userService"/);
   });
 
   it("omits indexes when codegen.create_index is false", async () => {
@@ -102,7 +102,7 @@ describe("generate-services", () => {
       settings: { "codegen.create_index": "false" },
     });
     const paths = entries.map((e) => e.filename);
-    assert.ok(paths.includes("user_service.ts"));
+    assert.ok(paths.includes("userService.ts"));
     assert.ok(!paths.includes("index.ts"));
     assert.ok(!paths.includes("../custom/index.ts"));
   });
@@ -120,7 +120,7 @@ services: []
       }),
       settings: { comments: "description" },
     });
-    const user = textOf(entries, "user_service.ts");
+    const user = textOf(entries, "userService.ts");
     assert.match(user, /Datasource type: standard/);
     assert.match(user, /Target: StandardCrud/);
   });
@@ -138,7 +138,7 @@ services: []
       }),
       settings: { comments: "none" },
     });
-    const user = textOf(entries, "user_service.ts");
+    const user = textOf(entries, "userService.ts");
     assert.ok(!user.includes("/**"));
   });
 });

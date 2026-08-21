@@ -183,7 +183,7 @@ types: []
         settings: { "codegen.schema_version": "2.0" },
       });
       const card = entryBody(
-        requireEntry(indexEntries(wrapped), "card_payment.ts"),
+        requireEntry(indexEntries(wrapped), "cardPayment.ts"),
       );
       assert.match(card, /schema-version: 2\.0/);
     } finally {
@@ -196,35 +196,35 @@ types: []
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card_payment.ts",
-        "cash_payment.ts",
+        "cardPayment.ts",
+        "cashPayment.ts",
         "index.ts",
         "payment.ts",
         "role.ts",
         "tag.ts",
-        "update_tag.ts",
-        "update_user.ts",
-        "update_user_summary.ts",
+        "updateTag.ts",
+        "updateUser.ts",
+        "updateUserSummary.ts",
         "user.ts",
-        "user_summary.ts",
+        "userSummary.ts",
       ],
     );
   });
 
   it("renders a shaped view with primitive, datasource, and view fields", async () => {
-    const card = await bodyOf("card_payment.ts");
+    const card = await bodyOf("cardPayment.ts");
     assert.match(card, /schema-version: 1\.0/);
-    assert.match(card, /import type \{ tag \} from "\.\.\/datasource\/tag";/);
+    assert.match(card, /import type \{ Tag \} from "\.\.\/datasource\/tag";/);
     assert.match(
       card,
-      /import type \{ user_summary \} from "\.\/user_summary";/,
+      /import type \{ UserSummary \} from "\.\/userSummary";/,
     );
-    assert.match(card, /\/\*\* View card_payment\. \*\//);
-    assert.match(card, /export interface card_payment \{/);
+    assert.match(card, /\/\*\* View CardPayment\. \*\//);
+    assert.match(card, /export interface CardPayment \{/);
     assert.match(card, /amount: string;/);
     assert.match(card, /paid_at: Date;/);
-    assert.match(card, /tags: tag\[\];/);
-    assert.match(card, /owner: user_summary;/);
+    assert.match(card, /tags: Tag\[\];/);
+    assert.match(card, /owner: UserSummary;/);
     assert.match(card, /note: string \| null;/);
   });
 
@@ -232,27 +232,27 @@ types: []
     const payment = await bodyOf("payment.ts");
     assert.match(
       payment,
-      /import type \{ card_payment \} from "\.\/card_payment";/,
+      /import type \{ CardPayment \} from "\.\/cardPayment";/,
     );
     assert.match(
       payment,
-      /import type \{ cash_payment \} from "\.\/cash_payment";/,
+      /import type \{ CashPayment \} from "\.\/cashPayment";/,
     );
     assert.match(
       payment,
-      /export type payment = card_payment \| cash_payment;/,
+      /export type Payment = CardPayment \| CashPayment;/,
     );
   });
 
   it("extends the inherited datasource type and omits enrichment FKs plus explicit omit", async () => {
-    const summary = await bodyOf("user_summary.ts");
+    const summary = await bodyOf("userSummary.ts");
     assert.match(
       summary,
-      /import type \{ user \} from "\.\.\/datasource\/user";/,
+      /import type \{ User \} from "\.\.\/datasource\/user";/,
     );
     assert.match(
       summary,
-      /export interface user_summary extends Omit<user, "role_id" \| "nick_name"> \{/,
+      /export interface UserSummary extends Omit<User, "role_id" \| "nick_name"> \{/,
     );
     assert.match(summary, /display_name: string;/);
     assert.match(summary, /role_name: string;/);
@@ -262,11 +262,11 @@ types: []
     const user = await bodyOf("user.ts");
     assert.match(
       user,
-      /import type \{ user as userBase \} from "\.\.\/datasource\/user";/,
+      /import type \{ User as UserBase \} from "\.\.\/datasource\/user";/,
     );
     assert.match(
       user,
-      /export interface user extends Omit<userBase, "role_id"> \{/,
+      /export interface User extends Omit<UserBase, "role_id"> \{/,
     );
     assert.match(user, /role_name: string;/);
   });
@@ -281,24 +281,24 @@ types: []
 
   it("writes the barrel with type re-exports", async () => {
     const index = await bodyOf("index.ts");
-    assert.match(index, /export type \{ user \} from "\.\/user";/);
-    assert.match(index, /export type \{ payment \} from "\.\/payment";/);
+    assert.match(index, /export type \{ User \} from "\.\/user";/);
+    assert.match(index, /export type \{ Payment \} from "\.\/payment";/);
     assert.match(
       index,
-      /export type \{ user_summary \} from "\.\/user_summary";/,
+      /export type \{ UserSummary \} from "\.\/userSummary";/,
     );
   });
 
   it("writes codegen.schema_version into the file header", async () => {
-    const card = await bodyOf("card_payment.ts", {
+    const card = await bodyOf("cardPayment.ts", {
       "codegen.schema_version": "9.9",
     });
     assert.match(card, /schema-version: 9.9/);
   });
 
   it("comments=description emits the multi-line view doc", async () => {
-    const card = await bodyOf("card_payment.ts", { comments: "description" });
-    assert.match(card, /\* View card_payment\./);
+    const card = await bodyOf("cardPayment.ts", { comments: "description" });
+    assert.match(card, /\* View CardPayment\./);
     assert.match(card, /\* Datasource type: standard\./);
     assert.match(card, /\* Target: ShapedView\./);
     assert.match(card, /\* Fields: 5\./);
@@ -307,9 +307,9 @@ types: []
   });
 
   it("comments=none omits the view doc", async () => {
-    const card = await bodyOf("card_payment.ts", { comments: "none" });
+    const card = await bodyOf("cardPayment.ts", { comments: "none" });
     assert.doesNotMatch(card, /\/\*\*/);
-    assert.doesNotMatch(card, /View card_payment/);
+    assert.doesNotMatch(card, /View CardPayment/);
   });
 
   it("emits a singular nested datasource field without []", async () => {
@@ -326,9 +326,9 @@ types: []
 `,
       DS_YAML,
     );
-    assert.match(contact, /import type \{ tag \} from "\.\.\/datasource\/tag";/);
-    assert.match(contact, /address: tag;/);
-    assert.doesNotMatch(contact, /address: tag\[\];/);
+    assert.match(contact, /import type \{ Tag \} from "\.\.\/datasource\/tag";/);
+    assert.match(contact, /address: Tag;/);
+    assert.doesNotMatch(contact, /address: Tag\[\];/);
   });
 
 });

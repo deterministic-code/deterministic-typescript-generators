@@ -2,9 +2,6 @@ import { posix } from "node:path";
 import type { IImportGenerator } from "@deterministic-code/generators-common/import-generator";
 import { createCasing, type PackCasing } from "./common/default-casing.ts";
 
-export const FRONTEND_VIEW_DIR = "frontend/src/types";
-export const FRONTEND_VIEW_VALIDATOR_DIR = "frontend/src/validators";
-
 const importSpec = (fromFile: string, toFile: string): string => {
   const toNoExt = toFile.endsWith(".ts") ? toFile.slice(0, -3) : toFile;
   const rel = posix.relative(posix.dirname(fromFile), toNoExt);
@@ -16,9 +13,6 @@ const modulePathParts = (mod: string): string[] => {
   while (parts.length && parts[0] === "..") parts.shift();
   return parts;
 };
-
-const featureEntity = (entity: string): string =>
-  entity.replace(/^(?:update_|create_)/, "");
 
 export class TypeScriptImportGenerator implements IImportGenerator {
   private readonly organizeByFeature: boolean;
@@ -35,7 +29,11 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   datasource(entity: string): string {
-    return this.cased(this.underBase(this.featureFile(entity, entity)), entity);
+    const file = this.tsFile(entity);
+    const path = this.organizeByFeature
+      ? this.featurePath(entity, file)
+      : file;
+    return this.underBase(path);
   }
 
   datasourceRel(entity: string): string {
@@ -47,8 +45,12 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   datasourceValidator(entity: string): string {
-    const file = `${entity}${this.organizeByFeature ? ".validator" : ""}.ts`;
-    const path = this.organizeByFeature ? `features/${entity}/${file}` : file;
+    const file = this.organizeByFeature
+      ? `${this.casing.fileBase(entity)}.validator.ts`
+      : this.tsFile(entity);
+    const path = this.organizeByFeature
+      ? this.featurePath(entity, file)
+      : file;
     return this.underBase(path);
   }
 
@@ -68,7 +70,7 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   viewQual(entity: string): string {
-    return entity;
+    return this.casing.convertTypes(entity);
   }
 
   viewValidator(entity: string): string {
@@ -83,7 +85,11 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   service(entity: string): string {
-    return this.underBase(this.featureFile(entity, this.serviceStem(entity)));
+    const file = `${this.serviceStem(entity)}.ts`;
+    const path = this.organizeByFeature
+      ? this.featurePath(entity, file)
+      : file;
+    return this.underBase(path);
   }
 
   serviceRel(entity: string): string {
@@ -95,16 +101,16 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   serviceCustomRel(entity: string): string {
-    const stem = this.serviceStem(entity);
+    const file = `${this.serviceStem(entity)}.ts`;
     return this.organizeByFeature
-      ? `features/${entity}/custom/${stem}.ts`
-      : `services/custom/${stem}.ts`;
+      ? `features/${this.casing.directory(entity)}/custom/${file}`
+      : `services/custom/${file}`;
   }
 
   serviceTest(entity: string): string {
     const file = `${this.serviceStem(entity)}.test.ts`;
     const path = this.organizeByFeature
-      ? `features/${entity}/__tests__/${file}`
+      ? `features/${this.casing.directory(entity)}/__tests__/${file}`
       : file;
     return this.underBase(path);
   }
@@ -129,7 +135,11 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   route(entity: string): string {
-    return this.underBase(this.featureFile(entity, entity));
+    const file = this.tsFile(entity);
+    const path = this.organizeByFeature
+      ? this.featurePath(entity, file)
+      : file;
+    return this.underBase(path);
   }
 
   routeRel(entity: string): string {
@@ -141,9 +151,9 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   routeTest(entity: string): string {
-    const file = `${entity}.integration.test.ts`;
+    const file = `${this.casing.fileBase(entity)}.integration.test.ts`;
     const path = this.organizeByFeature
-      ? `features/${entity}/__tests__/${file}`
+      ? `features/${this.casing.directory(entity)}/__tests__/${file}`
       : file;
     return this.underBase(path);
   }
@@ -153,14 +163,15 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   test(srcFile: string, fileBase: string): string {
+    const stem = this.casing.fileBase(fileBase);
     if (this.organizeByFeature) {
-      return `${posix.dirname(srcFile)}/__tests__/${fileBase}.test.ts`;
+      return `${posix.dirname(srcFile)}/__tests__/${stem}.test.ts`;
     }
     return srcFile.replace(/\.ts$/, ".test.ts");
   }
 
   testSpec(srcFile: string, fileBase: string): string {
-    if (!srcFile.includes("/")) return `../${fileBase}`;
+    if (!srcFile.includes("/")) return `../${this.casing.fileBase(fileBase)}`;
     return importSpec(this.test(srcFile, fileBase), srcFile);
   }
 
@@ -174,7 +185,7 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   routeModule(entity: string): string {
-    return entity;
+    return this.casing.fileBase(entity);
   }
 
   appWiring(): string {
@@ -193,26 +204,25 @@ export class TypeScriptImportGenerator implements IImportGenerator {
     return entity.replace(/_/g, "-");
   }
 
+  frontend(relPath: string): string {
+    return posix.join("frontend", relPath);
+  }
+
   private rel(prefix: string, file: string): string {
     if (this.organizeByFeature || this.flat) return file;
     return `${prefix}/${file}`;
   }
 
-  private cased(laid: string, entity: string): string {
-    const identityFile = `${entity}.ts`;
-    const casedFile = `${this.casing.fileBase(entity)}.ts`;
-    const withFile = laid.endsWith(identityFile)
-      ? laid.slice(0, -identityFile.length) + casedFile
-      : laid;
-    const identityDir = `/${entity}/`;
-    const casedDir = `/${this.casing.directory(entity)}/`;
-    return withFile.includes(identityDir)
-      ? withFile.replace(identityDir, casedDir)
-      : withFile;
+  private tsFile(stem: string): string {
+    return `${this.casing.fileBase(stem)}.ts`;
+  }
+
+  private featurePath(entity: string, file: string): string {
+    return `features/${this.casing.directory(entity)}/${file}`;
   }
 
   private serviceStem(entity: string): string {
-    return `${entity}_service`;
+    return this.casing.fileBase(`${entity}_service`);
   }
 
   private underBase(file: string): string {
@@ -220,15 +230,10 @@ export class TypeScriptImportGenerator implements IImportGenerator {
     return `${this.basePath}/${file}`;
   }
 
-  private featureFile(entity: string, stem: string, dir = entity): string {
-    const file = `${stem}.ts`;
-    return this.organizeByFeature ? `features/${dir}/${file}` : file;
-  }
-
   private viewLike(entity: string, featureExt: string): string {
-    const file = `${entity}${this.organizeByFeature ? featureExt : ""}.ts`;
+    const file = `${this.casing.fileBase(entity)}${this.organizeByFeature ? featureExt : ""}.ts`;
     return this.organizeByFeature
-      ? `features/${featureEntity(entity)}/${file}`
+      ? `features/${this.casing.directory(entity)}/${file}`
       : file;
   }
 
@@ -242,13 +247,13 @@ export class TypeScriptImportGenerator implements IImportGenerator {
       layer === "services"
         ? "generateCustomServiceStub"
         : "generateCustomRouteStub";
+    const file =
+      layer === "services"
+        ? this.tsFile(name)
+        : `${this.casing.fileBase(`${name}_route`)}.ts`;
     const defaultStub = this.organizeByFeature
-      ? layer === "services"
-        ? `features/${name}/custom/${name}.ts`
-        : `features/${name}/custom/${name}_route.ts`
-      : layer === "services"
-        ? `../custom/${name}.ts`
-        : `../custom/${name}_route.ts`;
+      ? `features/${this.casing.directory(name)}/custom/${file}`
+      : `../custom/${file}`;
     if (this.organizeByFeature) {
       if (
         typeof mod !== "string" ||

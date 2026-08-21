@@ -12,11 +12,7 @@ import {
   type ViewType,
 } from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
-import { jsIdent } from "./common/default-casing.ts";
-import {
-  createImportGenerator,
-  type TypeScriptImportGenerator,
-} from "./import-generator.ts";
+import { Emit } from "./emit.ts";
 import {
   indexTmpl as defaultIndexTmpl,
   typeTmpl as defaultTypeTmpl,
@@ -36,69 +32,6 @@ export type ViewEmitMode = {
   datasourceBasePath?: string;
 };
 
-const docTokens = (settings: Record<string, string>) => {
-  const comments = settings["comments"];
-  return {
-    simpleDoc: comments !== "none" && comments !== "description",
-    descriptionDoc: comments === "description",
-  };
-};
-
-type EmitOptions = {
-  imports: TypeScriptImportGenerator;
-  datasourceImports: TypeScriptImportGenerator;
-  schemaVersion: string;
-  simpleDoc: boolean;
-  descriptionDoc: boolean;
-  createIndexSetting: string | undefined;
-  referenceBackendType: boolean;
-  templates: ViewTypeTemplates;
-};
-
-const emitOptions = (
-  settings: Record<string, string>,
-  mode: ViewEmitMode,
-): EmitOptions => {
-  const referenceBackendType = mode.referenceBackendType ?? true;
-  return {
-    imports: createImportGenerator(mode.basePath ?? ".", settings),
-    datasourceImports: createImportGenerator(
-      mode.datasourceBasePath ?? ".",
-      settings,
-    ),
-    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-    ...docTokens(settings),
-    createIndexSetting: settings["codegen.create_index"],
-    referenceBackendType,
-    templates: mode.templates ?? {
-      typeTmpl: defaultTypeTmpl,
-      indexTmpl: defaultIndexTmpl,
-    },
-  };
-};
-
-const viewRel = (entity: string, opts: EmitOptions): string =>
-  opts.imports.viewRel(entity);
-
-const datasourceRel = (entity: string, opts: EmitOptions): string =>
-  opts.datasourceImports.datasourceRel(entity);
-
-const typeImport = (
-  from: string,
-  to: { entity: string; kind: "view" | "datasource" },
-  opts: EmitOptions,
-): string =>
-  opts.imports.spec(
-    viewRel(from, opts),
-    (to.kind === "view" ? viewRel : datasourceRel)(to.entity, opts),
-  );
-
-const importKind = (
-  kind: "view" | "datasource",
-  opts: EmitOptions,
-): "view" | "datasource" =>
-  !opts.referenceBackendType && kind === "datasource" ? "view" : kind;
-
 const groupImports = (
   entries: Array<{ original: string; alias?: string; fromPath: string }>,
 ): Array<{ names: string; fromPath: string }> => {
@@ -116,158 +49,180 @@ const groupImports = (
     .sort((a, b) => a.fromPath.localeCompare(b.fromPath));
 };
 
-const collectImports = (view: ViewType, opts: EmitOptions) => {
-  const self = view.name;
-  const entries: Array<{ original: string; alias?: string; fromPath: string }> =
-    [];
-  const seen = new Set<string>();
-  const aliasByClass = new Map<string, string>();
-  const add = (original: string, alias: string | undefined, fromPath: string) => {
-    const key = `${fromPath}::${original}::${alias ?? ""}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    entries.push({ original, alias, fromPath });
-  };
-  const refs: Array<{ entity: string; kind: "view" | "datasource" }> = [];
-  if (view.kind === "shaped") {
-    if (opts.referenceBackendType && view.inherits !== null) {
-      refs.push({ entity: view.inherits, kind: "datasource" });
+class Generator extends Emit {
+  private readonly referenceBackendType: boolean;
+  private readonly templates: ViewTypeTemplates;
+
+  constructor(raw: Record<string, string>, mode: ViewEmitMode) {
+    super(raw, mode.basePath ?? ".", mode.datasourceBasePath ?? ".");
+    this.referenceBackendType = mode.referenceBackendType ?? true;
+    this.templates = mode.templates ?? {
+      typeTmpl: defaultTypeTmpl,
+      indexTmpl: defaultIndexTmpl,
+    };
+  }
+
+  from(deterministic: IDeterministic): GenerateEntry[] {
+    const expandedByName = new Map(
+      deterministic.expandedViewTypes.map((v) => [v.name, v]),
+    );
+    const views = deterministic.viewTypes;
+    const entries = views.map((v) => this.view(v, expandedByName.get(v.name)));
+    const index = this.imports.index(this.imports.view(views[0]?.name ?? "index"));
+    if (index && this.settings.createIndex) {
+      entries.push(
+        content(
+          index,
+          fill(this.templates.indexTmpl, {
+            types: views.map((v) => ({
+              className: this.casing.convertTypes(v.name),
+              fileBase: this.casing.fileBase(v.name),
+            })),
+          }),
+        ),
+      );
     }
-    for (const f of view.fields) {
-      if (f.kind === "datasource" || f.kind === "view") {
-        refs.push({ entity: f.base, kind: importKind(f.kind, opts) });
+    return entries;
+  }
+
+  private typeImport(
+    from: string,
+    to: { entity: string; kind: "view" | "datasource" },
+  ): string {
+    const rel =
+      to.kind === "view"
+        ? this.imports.viewRel(to.entity)
+        : this.datasourceImports.datasourceRel(to.entity);
+    return this.imports.spec(this.imports.viewRel(from), rel);
+  }
+
+  private importKind(kind: "view" | "datasource"): "view" | "datasource" {
+    return !this.referenceBackendType && kind === "datasource" ? "view" : kind;
+  }
+
+  private collectImports(view: ViewType) {
+    const self = view.name;
+    const entries: Array<{ original: string; alias?: string; fromPath: string }> =
+      [];
+    const seen = new Set<string>();
+    const aliasByClass = new Map<string, string>();
+    const add = (
+      original: string,
+      alias: string | undefined,
+      fromPath: string,
+    ) => {
+      const key = `${fromPath}::${original}::${alias ?? ""}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      entries.push({ original, alias, fromPath });
+    };
+    const refs: Array<{ entity: string; kind: "view" | "datasource" }> = [];
+    if (view.kind === "shaped") {
+      if (this.referenceBackendType && view.inherits !== null) {
+        refs.push({ entity: view.inherits, kind: "datasource" });
       }
+      for (const f of view.fields) {
+        if (f.kind === "datasource" || f.kind === "view") {
+          refs.push({ entity: f.base, kind: this.importKind(f.kind) });
+        }
+      }
+    } else {
+      for (const m of view.members) refs.push({ entity: m, kind: "view" });
     }
-  } else {
-    for (const m of view.members) refs.push({ entity: m, kind: "view" });
+    for (const { entity, kind } of refs) {
+      if (kind === "view" && entity === self) continue;
+      const typeName = this.casing.convertTypes(entity);
+      const alias =
+        this.referenceBackendType && kind === "datasource" && entity === self
+          ? `${typeName}Base`
+          : undefined;
+      if (alias !== undefined) aliasByClass.set(entity, alias);
+      add(typeName, alias, this.typeImport(view.name, { entity, kind }));
+    }
+    return { imports: groupImports(entries), aliasByClass };
   }
-  for (const { entity, kind } of refs) {
-    if (kind === "view" && entity === self) continue;
-    const alias =
-      opts.referenceBackendType && kind === "datasource" && entity === self
-        ? `${entity}Base`
-        : undefined;
-    if (alias !== undefined) aliasByClass.set(entity, alias);
-    add(entity, alias, typeImport(view.name, { entity, kind }, opts));
+
+  private fieldTs(
+    field: ViewField,
+    aliasByClass: Map<string, string>,
+  ): string {
+    const base =
+      field.kind === "primitive"
+        ? toNative(field.base)
+        : (aliasByClass.get(field.base) ?? this.casing.convertTypes(field.base));
+    return field.isArray ? `${base}[]` : base;
   }
-  return { imports: groupImports(entries), aliasByClass };
-};
 
-const fieldTs = (
-  field: ViewField,
-  opts: EmitOptions,
-  aliasByClass: Map<string, string>,
-): string => {
-  const base =
-    field.kind === "primitive"
-      ? toNative(field.base)
-      : (aliasByClass.get(field.base) ?? field.base);
-  return field.isArray ? `${base}[]` : base;
-};
+  private extendsType(
+    view: ShapedView,
+    aliasByClass: Map<string, string>,
+  ): string | undefined {
+    if (!this.referenceBackendType || view.inherits === null) return undefined;
+    const inheritCls = view.inherits;
+    const parent =
+      aliasByClass.get(inheritCls) ?? this.casing.convertTypes(inheritCls);
+    const omitKeys = [
+      ...view.enrichments.map((e) => e.fkColumn),
+      ...view.omit,
+    ];
+    if (omitKeys.length === 0) return parent;
+    return `Omit<${parent}, ${omitKeys.map((k) => JSON.stringify(this.casing.convertFields(k))).join(" | ")}>`;
+  }
 
-const extendsType = (
-  view: ShapedView,
-  opts: EmitOptions,
-  aliasByClass: Map<string, string>,
-): string | undefined => {
-  if (!opts.referenceBackendType || view.inherits === null) return undefined;
-  const inheritCls = view.inherits;
-  const parent = aliasByClass.get(inheritCls) ?? inheritCls;
-  const omitKeys = [
-    ...view.enrichments.map((e) => e.fkColumn),
-    ...view.omit,
-  ];
-  if (omitKeys.length === 0) return parent;
-  return `Omit<${parent}, ${omitKeys.map((k) => JSON.stringify(k)).join(" | ")}>`;
-};
-
-const renderView = (
-  view: ViewType,
-  expanded: ViewType | undefined,
-  opts: EmitOptions,
-): GenerateEntry => {
-  const { schemaVersion, simpleDoc, descriptionDoc } = opts;
-  const className = view.name;
-  const { imports, aliasByClass } = collectImports(view, opts);
-  const isUnion = view.kind === "union";
-  const parent = isUnion ? undefined : extendsType(view, opts, aliasByClass);
-  const fields = isUnion
-    ? []
-    : opts.referenceBackendType
-      ? view.fields
-      : expanded?.kind === "shaped"
-        ? expanded.fields
-        : view.fields;
-  return content(
-    opts.imports.view(view.name),
-    fill(opts.templates.typeTmpl, {
-      schemaVersion,
-      imports,
-      hasImports: imports.length > 0,
-      simpleDoc,
-      descriptionDoc,
-      className,
-      datasourceType: isUnion ? "standard" : (view.inherits ?? "standard"),
-      target: isUnion ? "UnionView" : "ShapedView",
-      fieldCount: String(isUnion ? view.members.length : fields.length),
-      isUnion,
-      isShaped: !isUnion,
-      hasExtends: parent !== undefined,
-      extendsType: parent ?? "",
-      hasFields: fields.length > 0,
-      fields: fields.map((f) => ({
-        ident: jsIdent(f.name),
-        tsType: fieldTs(f, opts, aliasByClass),
-        nullable: f.isNullable,
-      })),
-      unionMembers: isUnion
-        ? view.members.join(" | ")
-        : "",
-    }),
-  );
-};
-
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-  mode: ViewEmitMode,
-): GenerateEntry[] => {
-  const opts = emitOptions(settings, mode);
-  const expandedByName = new Map(
-    deterministic.expandedViewTypes.map((v) => [v.name, v]),
-  );
-  const views = deterministic.viewTypes;
-  const entries = views.map((v) =>
-    renderView(v, expandedByName.get(v.name), opts),
-  );
-  const index = opts.imports.index(opts.imports.view(views[0]?.name ?? "index"));
-  if (
-    index &&
-    (opts.createIndexSetting === undefined || opts.createIndexSetting === "true")
-  ) {
-    entries.push(
-      content(
-        index,
-        fill(opts.templates.indexTmpl, {
-          types: views.map((v) => ({
-            className: v.name,
-            fileBase: v.name,
-          })),
-        }),
-      ),
+  private view(
+    view: ViewType,
+    expanded: ViewType | undefined,
+  ): GenerateEntry {
+    const { schemaVersion, simpleDoc, descriptionDoc } = this.settings;
+    const className = this.casing.convertTypes(view.name);
+    const { imports, aliasByClass } = this.collectImports(view);
+    const isUnion = view.kind === "union";
+    const parent = isUnion
+      ? undefined
+      : this.extendsType(view, aliasByClass);
+    const fields = isUnion
+      ? []
+      : this.referenceBackendType
+        ? view.fields
+        : expanded?.kind === "shaped"
+          ? expanded.fields
+          : view.fields;
+    return content(
+      this.imports.view(view.name),
+      fill(this.templates.typeTmpl, {
+        schemaVersion,
+        imports,
+        hasImports: imports.length > 0,
+        simpleDoc,
+        descriptionDoc,
+        className,
+        datasourceType: isUnion ? "standard" : (view.inherits ?? "standard"),
+        target: isUnion ? "UnionView" : "ShapedView",
+        fieldCount: String(isUnion ? view.members.length : fields.length),
+        isUnion,
+        isShaped: !isUnion,
+        hasExtends: parent !== undefined,
+        extendsType: parent ?? "",
+        hasFields: fields.length > 0,
+        fields: fields.map((f) => ({
+          ident: this.casing.fieldIdent(f.name),
+          tsType: this.fieldTs(f, aliasByClass),
+          nullable: f.isNullable,
+        })),
+        unionMembers: isUnion
+          ? view.members.map((m) => this.casing.convertTypes(m)).join(" | ")
+          : "",
+      }),
     );
   }
-  return entries;
-};
+}
 
 export const generateViewTypes = async (
   ctx: GenerateContext,
   mode: ViewEmitMode = {},
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(VIEW_TYPES_YAML);
-  return generateFrom(
+  return new Generator(ctx.settings, mode).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
-    ctx.settings,
-    mode,
   );
 };

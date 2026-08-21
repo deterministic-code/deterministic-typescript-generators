@@ -69,7 +69,7 @@ describe("generate-routes-tests", () => {
     ]);
 
     const users = textOf(entries, "user.integration.test.ts");
-    assert.match(users, /import \{ userRouter \} from "\.\.\/user"/);
+    assert.match(users, /import \{ UserRouter \} from "\.\.\/user"/);
     assert.match(users, /POST \/api\/user delegates to service.create/);
     assert.match(users, /GET \/api\/user\/email\/:value returns the row/);
     assert.match(users, /new PrimaryKey\("id", "integer"\)/);

@@ -1,7 +1,6 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { createCasing, type PackCasing } from "./common/default-casing.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -11,121 +10,84 @@ import {
   type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
-import {
-  createImportGenerator,
-  type TypeScriptImportGenerator,
-} from "./import-generator.ts";
+import { Emit } from "./emit.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 
-const docTokens = (settings: Record<string, string>) => {
-  const comments = settings["comments"];
-  return {
-    simpleDoc: comments !== "none" && comments !== "description",
-    descriptionDoc: comments === "description",
-  };
-};
+class Generator extends Emit {
+  from(deterministic: IDeterministic): GenerateEntry[] {
+    const types = deterministic.expandedDatasourceTypes;
+    const entries = types.map((dsType) => this.type(dsType));
+    const index = this.imports.index(
+      this.imports.datasource(types[0]?.name ?? "index"),
+    );
+    if (this.settings.createIndex && index) {
+      entries.push(this.index(types, index));
+    }
+    return entries;
+  }
 
-type EmitOptions = {
-  imports: TypeScriptImportGenerator;
-  casing: PackCasing;
-  schemaVersion: string;
-  simpleDoc: boolean;
-  descriptionDoc: boolean;
-  libraryMode: string | undefined;
-  createIndex: boolean;
-};
+  private type(dsType: ExpandedDatasourceType): GenerateEntry {
+    const { schemaVersion, simpleDoc, descriptionDoc, libraryReferenceMode } =
+      this.settings;
+    const className = this.casing.convertTypes(dsType.name);
+    const fields = dsType.fields.map((f) => ({
+      name: f.name,
+      ident: this.casing.fieldIdent(f.name),
+      tsType: toNative(f.type),
+      nullable: f.isNullable,
+      isPrimaryKey: f.isPrimaryKey === true,
+    }));
+    const idField =
+      fields.find((f) => f.isPrimaryKey) ?? fields.find((f) => f.name === "id");
+    const datetimeField =
+      fields.find((f) => f.name === "created") ??
+      fields.find((f) => f.name === "updated");
+    const typeArgs = [idField?.tsType, datetimeField?.tsType].filter(
+      (value): value is string => value !== undefined && value !== "",
+    );
+    const extendsClause =
+      typeArgs.length === 0
+        ? ""
+        : ` extends StandardDataSource<${typeArgs.join(", ")}>`;
+    return content(
+      this.imports.datasource(dsType.name),
+      fill(typeTmpl, {
+        schemaVersion,
+        libraryImport: libraryImportSpecifier(
+          "types",
+          libraryReferenceMode,
+          this.imports.datasourceRel(dsType.name),
+        ),
+        simpleDoc,
+        descriptionDoc,
+        className,
+        datasourceType: dsType.datasourceType,
+        fieldCount: String(fields.length),
+        extendsClause,
+        fields,
+      }),
+    );
+  }
 
-const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const imports = createImportGenerator(".", settings);
-  return {
-    imports,
-    casing: createCasing(settings),
-    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-    ...docTokens(settings),
-    libraryMode: settings["languages.typescript.library_reference_mode"],
-    createIndex:
-      settings["codegen.create_index"] === "true" &&
-      Boolean(imports.index("x.ts")),
-  };
-};
-
-const renderType = (
-  dsType: ExpandedDatasourceType,
-  opts: EmitOptions,
-): GenerateEntry => {
-  const { casing, schemaVersion, simpleDoc, descriptionDoc, libraryMode } =
-    opts;
-  const className = casing.convertTypes(dsType.name);
-  const fields = dsType.fields.map((f) => ({
-    name: f.name,
-    ident: casing.fieldIdent(f.name),
-    tsType: toNative(f.type),
-    nullable: f.isNullable,
-    isPrimaryKey: f.isPrimaryKey === true,
-  }));
-  const idField =
-    fields.find((f) => f.isPrimaryKey) ?? fields.find((f) => f.name === "id");
-  const datetimeField =
-    fields.find((f) => f.name === "created") ??
-    fields.find((f) => f.name === "updated");
-  const file = opts.imports.datasource(dsType.name);
-  return content(
-    file,
-    fill(typeTmpl, {
-      schemaVersion,
-      libraryImport: libraryImportSpecifier(
-        "types",
-        libraryMode,
-        opts.imports.datasourceRel(dsType.name),
-      ),
-      simpleDoc,
-      descriptionDoc,
-      className,
-      datasourceType: dsType.datasourceType,
-      fieldCount: String(fields.length),
-      idType: idField?.tsType,
-      datetimeType: datetimeField?.tsType,
-      fields,
-    }),
-  );
-};
-
-const renderIndex = (
-  types: ExpandedDatasourceType[],
-  opts: EmitOptions,
-  index: string,
-): GenerateEntry =>
-  content(
-    index,
-    fill(indexTmpl, {
-      types: types.map((t) => ({
-        className: opts.casing.convertTypes(t.name),
-        fileBase: opts.casing.fileBase(t.name),
-      })),
-    }),
-  );
-
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-): GenerateEntry[] => {
-  const opts = emitOptions(settings);
-  const types = deterministic.expandedDatasourceTypes;
-  const entries = types.map((dsType) => renderType(dsType, opts));
-  const index = opts.imports.index(
-    opts.imports.datasource(types[0]?.name ?? "index"),
-  );
-  if (opts.createIndex && index) entries.push(renderIndex(types, opts, index));
-  return entries;
-};
+  private index(types: ExpandedDatasourceType[], index: string): GenerateEntry {
+    return content(
+      index,
+      fill(indexTmpl, {
+        types: types.map((t) => ({
+          className: this.casing.convertTypes(t.name),
+          fileBase: this.casing.fileBase(t.name),
+        })),
+      }),
+    );
+  }
+}
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(DATASOURCE_TYPES_YAML);
-  return generateFrom(
+  return new Generator(ctx.settings).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
-    ctx.settings,
   );
 };

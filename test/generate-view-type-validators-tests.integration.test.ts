@@ -156,28 +156,28 @@ describe("generate view type validators tests", () => {
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card_payment.test.ts",
-        "cash_payment.test.ts",
+        "cardPayment.test.ts",
+        "cashPayment.test.ts",
         "payment.test.ts",
         "role.test.ts",
         "tag.test.ts",
-        "update_tag.test.ts",
-        "update_user.test.ts",
-        "update_user_summary.test.ts",
+        "updateTag.test.ts",
+        "updateUser.test.ts",
+        "updateUserSummary.test.ts",
         "user.test.ts",
-        "user_summary.test.ts",
+        "userSummary.test.ts",
       ],
     );
   });
 
   it("imports the generated schema and covers parse, nullable, and reject cases", async () => {
     const card = await bodyOf(
-      "card_payment.test.ts",
+      "cardPayment.test.ts",
       {},
       SIMPLE_VIEW_YAML,
       undefined,
     );
-    assert.match(card, /import \{ card_paymentSchema \} from "\.\.\/card_payment";/);
+    assert.match(card, /import \{ CardPaymentSchema \} from "\.\.\/cardPayment";/);
     assert.match(card, /it\("parses a valid payload"/);
     assert.match(card, /it\("accepts null for nullable fields"/);
     assert.match(card, /it\("rejects when missing required field \\"amount\\""/);
@@ -195,7 +195,7 @@ describe("generate view type validators tests", () => {
   });
 
   it("covers nested datasource and view fields on a shaped view", async () => {
-    const card = await bodyOf("card_payment.test.ts");
+    const card = await bodyOf("cardPayment.test.ts");
     assert.match(card, /tags: \[\{ /);
     assert.match(card, /label: faker\.string\.alphanumeric\(\{ length: 12 \}\)/);
     assert.match(card, /owner: \{ /);
@@ -212,9 +212,9 @@ describe("generate view type validators tests", () => {
 
   it("emits union member accept cases and a neither-member reject", async () => {
     const payment = await bodyOf("payment.test.ts");
-    assert.match(payment, /import \{ paymentSchema \} from "\.\.\/payment";/);
-    assert.match(payment, /it\("accepts a card_payment member"/);
-    assert.match(payment, /it\("accepts a cash_payment member"/);
+    assert.match(payment, /import \{ PaymentSchema \} from "\.\.\/payment";/);
+    assert.match(payment, /it\("accepts a CardPayment member"/);
+    assert.match(payment, /it\("accepts a CashPayment member"/);
     assert.match(
       payment,
       /it\("rejects when matches neither member of union \\"payment\\""/,
@@ -224,7 +224,7 @@ describe("generate view type validators tests", () => {
 
   it("writes codegen.schema_version into the file header", async () => {
     const card = await bodyOf(
-      "card_payment.test.ts",
+      "cardPayment.test.ts",
       { "codegen.schema_version": "9.9" },
       SIMPLE_VIEW_YAML,
       undefined,

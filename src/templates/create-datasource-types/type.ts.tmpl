@@ -8,7 +8,7 @@ import type { StandardDataSource } from "{{libraryImport}}";
  * Target: StandardCrud.
  * Fields: {{fieldCount}}.
  */
-{{/descriptionDoc}}export interface {{className}} extends StandardDataSource<{{idType}}, {{datetimeType}}> {
+{{/descriptionDoc}}export interface {{className}}{{extendsClause}} {
 {{#fields}}
   {{ident}}: {{tsType}}{{#nullable}} | null{{/nullable}};
 {{/fields}}
