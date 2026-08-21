@@ -296,12 +296,15 @@ describe("generate-client-bindings-mock-tests", () => {
     assert.ok(paths.includes("frontend/src/client/axios/role.mock.test.ts"));
     assert.ok(paths.includes("frontend/src/client/tanstack/project.mock.test.ts"));
     const user = textOf(entries, "frontend/src/client/fetch/user.mock.test.ts");
+    assert.match(user, /from "vitest"/);
     assert.match(user, /userClient mock/);
     assert.match(user, /getByEmail/);
     const tanstack = textOf(
       entries,
       "frontend/src/client/tanstack/custom.mock.test.ts",
     );
+    assert.match(tanstack, /from "vitest"/);
+    assert.match(tanstack, /async <T>\(\) => \(\{\} as T\)/);
     assert.match(tanstack, /mutationFn delegates/);
     const nested = textOf(
       entries,
@@ -318,8 +321,11 @@ describe("generate-client-bindings-live-tests", () => {
       entries,
       "frontend/src/client/fetch/user.live.test.ts",
     );
+    assert.match(fetchUser, /from "vitest"/);
     assert.match(fetchUser, /CLIENT_BINDINGS_BASE_URL/);
-    assert.match(fetchUser, /createHttp/);
+    assert.match(fetchUser, /describe\.skipIf/);
+    assert.match(fetchUser, /hits the server/);
+    assert.doesNotMatch(fetchUser, /catch\(\(\) => undefined\)/);
     const axiosUser = textOf(
       entries,
       "frontend/src/client/axios/user.live.test.ts",
@@ -331,6 +337,6 @@ describe("generate-client-bindings-live-tests", () => {
     );
     assert.match(tanstack, /from "\.\.\/fetch\/http\.ts"/);
     assert.match(tanstack, /queryFn/);
-    assert.match(tanstack, /mutationFn/);
+    assert.doesNotMatch(tanstack, /catch\(\(\) => undefined\)/);
   });
 });

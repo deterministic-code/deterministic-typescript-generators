@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import { {{mutationOptionsName}}, {{queryOptionsName}} } from "./{{fileBase}}.ts";
 
 describe("{{clientName}} tanstack mock", () => {
 {{#queries}}
   it("{{methodName}} queryFn delegates to the fetch client", async () => {
     const http = {
-      request: async <T>() => {{&mockReturn}} as T,
+      request: async <T>() => ({{&mockReturn}} as T),
     };
     const result = await {{queryOptionsName}}.{{methodName}}(http{{#hasArgs}}, {{&liveArgs}}{{/hasArgs}}).queryFn();
     assert.deepEqual(result, {{&mockReturn}});
@@ -14,7 +14,7 @@ describe("{{clientName}} tanstack mock", () => {
 {{/queries}}{{#mutations}}
   it("{{methodName}} mutationFn delegates to the fetch client", async () => {
     const http = {
-      request: async <T>() => {{&mockReturn}} as T,
+      request: async <T>() => ({{&mockReturn}} as T),
     };
     const result = await {{mutationOptionsName}}.{{methodName}}(http).mutationFn({{&liveMutationArg}});
     assert.deepEqual(result, {{&mockReturn}});
