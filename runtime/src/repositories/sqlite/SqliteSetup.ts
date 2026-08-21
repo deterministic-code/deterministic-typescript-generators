@@ -1,8 +1,9 @@
 import type Database from 'better-sqlite3';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { ISetup } from '../ISetup';
 import { pathExists } from '../pathExists';
+import { collectMigrationFiles } from '../collectMigrationFiles';
 
 export interface SqliteSetupOptions {
   dbPath: string;
@@ -11,15 +12,6 @@ export interface SqliteSetupOptions {
   // Reuse an already-open Database handle; required for `:memory:` where opening a second connection lands migrations on a throwaway that dies on close.
   database?: Database.Database;
 }
-
-interface MigrationFile {
-  file: string;
-  version: string;
-  sortKey: number;
-}
-
-const LEGACY_PATTERN = /^V(\d+)__(.+)\.sql$/;
-const NEW_PATTERN = /^(\d+)_(.+)_up\.sql$/;
 
 export class SqliteSetup implements ISetup {
   constructor(private readonly options: SqliteSetupOptions) {}
@@ -106,28 +98,4 @@ function hasExistingUserTables(db: Database.Database): boolean {
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
     .all() as Array<{ name: string }>;
   return rows.some((r) => !MIGRATION_TRACKING_TABLES.has(r.name));
-}
-
-async function collectMigrationFiles(dir: string): Promise<MigrationFile[]> {
-  const out: MigrationFile[] = [];
-  for (const file of await readdir(dir)) {
-    const legacy = LEGACY_PATTERN.exec(file);
-    if (legacy) {
-      out.push({
-        file,
-        version: `V${legacy[1]}`,
-        sortKey: parseInt(legacy[1], 10),
-      });
-      continue;
-    }
-    const next = NEW_PATTERN.exec(file);
-    if (next) {
-      out.push({
-        file,
-        version: `${next[1]}_${next[2]}`,
-        sortKey: parseInt(next[1], 10),
-      });
-    }
-  }
-  return out.sort((a, b) => a.sortKey - b.sortKey);
 }

@@ -19,7 +19,6 @@ export { DataSourceConsoleLoggerMiddleware } from './DataSourceConsoleLoggerMidd
 export type { IServiceMiddleware } from './IServiceMiddleware';
 export { ServiceConsoleLoggerMiddleware } from './ServiceConsoleLoggerMiddleware';
 export { traceRouteErrorMiddleware, traceRouteMiddleware } from './traceRouteMiddleware';
-export { extractSqlMethod } from './extractSqlMethod';
 export { formatTraceLine, type TraceTier, type TracePhase } from './traceFormat';
 export { MiddlewareLookup } from './MiddlewareLookup';
 export type { MiddlewareDeps, MiddlewareHandler, RouteMiddlewareFactory } from './MiddlewareLookup';

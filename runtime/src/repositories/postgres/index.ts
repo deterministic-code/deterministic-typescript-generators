@@ -1,7 +1,6 @@
 export { PostgresDatasource } from './PostgresDatasource';
 export type { PostgresDatasourceOptions } from './PostgresDatasource';
 export { PostgresTxnDatasource } from './PostgresTxnDatasource';
-export { PostgresRepository } from './PostgresRepository';
 export { PostgresCrudRepository } from './PostgresCrudRepository';
 export {
   PostgresStandardRepository,

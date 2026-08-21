@@ -67,11 +67,6 @@
       "import": "./dist/migrate.js",
       "require": "./dist/migrate.cjs"
     },
-    "./bindings": {
-      "types": "./dist/bindings.d.ts",
-      "import": "./dist/bindings.js",
-      "require": "./dist/bindings.cjs"
-    },
     "./package.json": "./package.json"
   },
   "files": [

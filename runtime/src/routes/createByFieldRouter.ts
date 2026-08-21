@@ -7,6 +7,7 @@ import {
 import { handleZodError } from '../errors/handleZodError';
 import { sendItem, sendItems, sendError } from '../responses/sendResponse';
 import { wrapRouteHandler as wrap } from './wrapRouteHandler';
+import { snakeToKebab } from '../naming';
 
 // Runtime twin of the `byFieldsBlock` emitter in scripts/lib/emit-routes-typescript.mjs, resolving routes.yaml `entity + byField` declarations without a hand-mounted emitted router.
 export interface ByFieldRouterOptions<T extends StandardRow> {
@@ -27,10 +28,6 @@ interface ByFieldContext<T extends StandardRow> {
   unique: boolean;
   entityName: string;
   updateSchema?: ZodSchema;
-}
-
-function snakeToKebab(s: string): string {
-  return s.replace(/_/g, '-');
 }
 
 function paramName(field: string): string {
