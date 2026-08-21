@@ -37,16 +37,44 @@ handlers: []
   "datasource_types.yaml": "types: []\n",
 };
 
+type ExecErr = Error & { stdout?: string; stderr?: string; code?: unknown };
+
+const failOnNpmNoise = (stderr: string, args: string[]): void => {
+  const fatal = stderr
+    .split(/\r?\n/)
+    .filter((line) => /^(npm warn |npm error )/i.test(line.trim()));
+  if (fatal.length > 0) {
+    throw new Error(
+      `npm ${args.join(" ")} wrote warnings/errors (treated as failures):\n${fatal.join("\n")}`,
+    );
+  }
+};
+
 export const npm = async (
   args: string[],
   cwd: string,
   extraEnv: Record<string, string> = {},
 ): Promise<void> => {
-  await execFileAsync("npm", args, {
-    cwd,
-    env: { ...process.env, ...extraEnv },
-    maxBuffer: 20 * 1024 * 1024,
-  });
+  const env = { ...process.env, ...extraEnv };
+  // Cursor sandbox sets this node-gyp path; npm 11 warns it is not a config.
+  delete env.npm_config_devdir;
+  try {
+    const { stderr } = await execFileAsync("npm", args, {
+      cwd,
+      env,
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    failOnNpmNoise(stderr, args);
+  } catch (err) {
+    const exec = err as ExecErr;
+    if (typeof exec.stderr === "string") {
+      failOnNpmNoise(exec.stderr, args);
+      throw new Error(
+        `npm ${args.join(" ")} failed (exit ${String(exec.code ?? "?")}):\n${exec.stderr}\n${exec.stdout ?? ""}`,
+      );
+    }
+    throw err;
+  }
 };
 
 export const installFrontend = async (appDir: string): Promise<void> => {
@@ -61,6 +89,13 @@ export const testFrontend = async (
   extraEnv: Record<string, string> = {},
 ): Promise<void> => {
   await npm(["test"], join(appDir, "frontend"), extraEnv);
+};
+
+export const testBackend = async (
+  appDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<void> => {
+  await npm(["test"], appDir, extraEnv);
 };
 
 export const installAndTestFrontend = async (
@@ -151,6 +186,7 @@ export const installBuildAndMigrateSqlite = async (
   await npm(["run", "migrate:setup"], appDir, env);
   await npm(["run", "migrate"], appDir, env);
   await npm(["run", "build"], appDir);
+  await testBackend(appDir, env);
   return dbPath;
 };
 
@@ -208,6 +244,7 @@ export const bootGeneratedApp = async (args: {
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
   await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir);
   await npm(["run", "build"], appDir);
+  await testBackend(appDir);
   return startGeneratedServer(appDir);
 };
 

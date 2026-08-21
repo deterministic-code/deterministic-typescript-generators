@@ -115,6 +115,15 @@ describe("generate", () => {
       "^0.0.6",
     );
     assert.equal(pkg.dependencies.express, undefined);
+    assert.equal(pkg.allowScripts.esbuild, true);
+    assert.equal(pkg.allowScripts["better-sqlite3"], true);
+    assert.equal(pkg.allowScripts["@deterministic-code/deterministic"], true);
+    assert.equal(pkg.allowScripts["core-js"], true);
+    assert.equal(pkg.allowScripts["@scarf/scarf"], true);
+    assert.equal(pkg.overrides["better-sqlite3"], "^13.0.3");
+    assert.equal(pkg.overrides.glob, "^13.0.6");
+    assert.equal(pkg.devDependencies.supertest, "^7.0.0");
+    assert.equal(pkg.devDependencies["@types/supertest"], "^6.0.2");
   });
 
   it("copies the project from the image root, not a language lane", () => {
