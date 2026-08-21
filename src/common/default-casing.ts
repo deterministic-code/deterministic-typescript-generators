@@ -24,11 +24,16 @@ export type PackCasing = ICasingStrategy & {
   serviceClassName: (entity: string) => string
   serviceInterfaceName: (entity: string) => string
   authoredInterfaceName: (name: string) => string
+  customClassName: (name: string) => string
+  baseTypeName: (entity: string) => string
   schemaName: (name: string) => string
   validatedTypeName: (name: string) => string
   routerFnName: (entity: string) => string
   hookName: (entity: string, method: string) => string
   finderMethod: (field: string) => string
+  clientName: (entity: string) => string
+  clientQueryOptionsName: (entity: string) => string
+  clientMutationOptionsName: (entity: string) => string
 };
 
 /** Language defaults + settings overrides. Layout (by-feature) lives on ImportGenerator. */
@@ -55,6 +60,8 @@ export const createCasing = (
     serviceInterfaceName: (entity: string) =>
       casing.convertTypes(`i_${entity}_service`),
     authoredInterfaceName: (name: string) => casing.convertTypes(`i_${name}`),
+    customClassName: (name: string) => casing.convertTypes(name),
+    baseTypeName: (entity: string) => casing.convertTypes(`${entity}_base`),
     schemaName: (name: string) => casing.convertTypes(`${name}_schema`),
     validatedTypeName: (name: string) =>
       casing.convertTypes(`${name}_validated`),
@@ -62,6 +69,11 @@ export const createCasing = (
     hookName: (entity: string, method: string) =>
       casing.convertTypes(`use_${entity}_${method}`),
     finderMethod: (field: string) => convertFields(`find_by_${field}`),
+    clientName: (entity: string) => casing.convertTypes(`${entity}_client`),
+    clientQueryOptionsName: (entity: string) =>
+      casing.convertTypes(`${entity}_client_query_options`),
+    clientMutationOptionsName: (entity: string) =>
+      casing.convertTypes(`${entity}_client_mutation_options`),
   };
 };
 

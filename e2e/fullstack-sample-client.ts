@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createCasing } from "../src/common/default-casing.ts";
 
 export type FetchHttp = {
   request: <T>(input: {
@@ -15,21 +16,6 @@ export type BindingClient = Record<
   string,
   (...args: unknown[]) => Promise<unknown>
 >;
-
-const camelIdent = (name: string): string => {
-  const words = name
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_\-.]+/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.toLowerCase());
-  return words
-    .map((word, i) =>
-      i === 0 ? word : `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`,
-    )
-    .join("");
-};
 
 export const asRecord = (value: unknown): Record<string, unknown> => {
   assert.equal(typeof value, "object");
@@ -48,6 +34,7 @@ export const loadFetchClient = async (
   appDir: string,
   fileBase: string,
   baseUrl: string,
+  settings: Record<string, string> = {},
 ): Promise<{ http: FetchHttp; client: BindingClient }> => {
   const dir = join(appDir, "frontend/src/client/fetch");
   const httpMod = (await import(pathToFileURL(join(dir, "http.ts")).href)) as {
@@ -56,8 +43,9 @@ export const loadFetchClient = async (
   const entityMod = (await import(
     pathToFileURL(join(dir, `${fileBase}.ts`)).href
   )) as Record<string, (http: FetchHttp) => BindingClient>;
-  const factory = entityMod[`${camelIdent(fileBase)}Client`];
-  assert.equal(typeof factory, "function", `missing ${fileBase}Client`);
+  const factoryName = createCasing(settings).clientName(fileBase);
+  const factory = entityMod[factoryName];
+  assert.equal(typeof factory, "function", `missing ${factoryName}`);
   const http = httpMod.createHttp(baseUrl);
   return { http, client: factory(http) };
 };
