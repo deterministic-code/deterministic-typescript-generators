@@ -86,6 +86,14 @@ class Generator extends Emit {
     );
   }
 
+  /** Map emit paths like `../custom/foo.ts` to Rel keys `services/custom/foo.ts`. */
+  private customModuleKey(emitPath: string): string {
+    if (emitPath.startsWith("../custom/")) {
+      return `services/custom/${emitPath.slice("../custom/".length)}`;
+    }
+    return emitPath;
+  }
+
   private custom(entry: CustomServiceEntry): GenerateEntry {
     const { simpleDoc, descriptionDoc } = this.settings;
     const className = entry.name;
@@ -102,7 +110,7 @@ class Generator extends Emit {
         methods: entry.methods.map((name) => ({ name })),
       }),
       {
-        module: path,
+        module: this.customModuleKey(path),
         exports: `${className}, ${interfaceName}`,
       },
     );
@@ -166,6 +174,9 @@ class Generator extends Emit {
             this.casing.authoredInterfaceName(e.name),
           ])
           .join(", ");
+        const modules = sorted.map((e) =>
+          this.customModuleKey(this.imports.serviceCustom(e.name, e.module)),
+        );
         entries.push(
           content(
             index,
@@ -177,11 +188,9 @@ class Generator extends Emit {
               })),
             }),
             {
-              module: index,
+              module: this.customModuleKey(index),
               exports,
-              imports: sorted
-                .map((e) => this.imports.serviceCustom(e.name, e.module))
-                .join(", "),
+              imports: modules.join(", "),
               uses: exports,
             },
           ),
