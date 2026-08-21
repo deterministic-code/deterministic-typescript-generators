@@ -63,7 +63,7 @@ export const bootFullstackSample = async (
     generateSql(ctx),
     generateBundledMigrate(settings),
   ]);
-  requireNamed(frontendEntries, "frontend/src/App.tsx");
+  requireNamed(frontendEntries, "frontend/src/app.tsx");
   requireNamed(bindingEntries, "frontend/src/client/fetch/http.ts");
   requireNamed(bindingEntries, "frontend/src/client/fetch/");
   requireNamed(migrateEntries, "migraters/typescript/package.json");

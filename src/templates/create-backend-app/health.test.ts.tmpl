@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { createBackendApp } from "../app.js";
+import { {{appFnName}} } from "../{{appFileBase}}.js";
 
 describe("GET /api/health", () => {
   it("returns 200", async () => {
-    const app = await createBackendApp();
+    const app = await {{appFnName}}();
     const server = createServer(app);
     server.listen(0);
     await once(server, "listening");

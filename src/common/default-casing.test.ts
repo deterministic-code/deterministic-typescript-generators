@@ -51,6 +51,14 @@ describe("createCasing Auto defaults", () => {
       casing.clientMutationOptionsName("contact_source"),
       "ContactSourceClientMutationOptions",
     );
+    assert.equal(casing.appFnName(), "CreateBackendApp");
+    assert.equal(casing.appComponentName(), "App");
+    assert.equal(casing.homeComponentName(), "Home");
+    assert.equal(casing.rootLayoutName(), "RootLayout");
+    assert.equal(casing.appConfigName(), "AppConfig");
+    assert.equal(casing.filePath("app"), "app.ts");
+    assert.equal(casing.filePath("server"), "server.ts");
+    assert.equal(casing.fileBase("app_boot"), "appBoot");
   });
 });
 
@@ -114,6 +122,11 @@ describe("createCasing overrides", () => {
       casing.clientQueryOptionsName("contact_source"),
       "contact_source_client_query_options",
     );
+    assert.equal(casing.appFnName(), "create_backend_app");
+    assert.equal(casing.appComponentName(), "app");
+    assert.equal(casing.homeComponentName(), "home");
+    assert.equal(casing.rootLayoutName(), "root_layout");
+    assert.equal(casing.appConfigName(), "app_config");
   });
 
   it("camels fields", () => {

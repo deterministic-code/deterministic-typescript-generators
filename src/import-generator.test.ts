@@ -72,6 +72,10 @@ describe("TypeScriptImportGenerator layered (organize_by_feature unset)", () => 
     assert.equal(imports.apiPath("card_payment"), "card-payment");
     assert.equal(imports.frontend("src/App.tsx"), "frontend/src/App.tsx");
     assert.equal(imports.frontend("src/types"), "frontend/src/types");
+    assert.equal(imports.app(), "app.ts");
+    assert.equal(imports.server(), "server.ts");
+    assert.equal(imports.appTest("health"), "__tests__/health.test.ts");
+    assert.equal(imports.appTest("app_boot"), "__tests__/appBoot.test.ts");
   });
 
   it("cases file names from settings for every lane", () => {
@@ -85,6 +89,9 @@ describe("TypeScriptImportGenerator layered (organize_by_feature unset)", () => 
     const pascal = createImportGenerator(".", {
       "languages.typescript.casing.file_names": "Pascal",
     });
+    assert.equal(pascal.app(), "App.ts");
+    assert.equal(pascal.server(), "Server.ts");
+    assert.equal(pascal.appTest("app_boot"), "__tests__/AppBoot.test.ts");
     assert.equal(pascal.datasource("notification_type"), "NotificationType.ts");
     assert.equal(pascal.view("notification_type"), "NotificationType.ts");
     assert.equal(pascal.service("notification_type"), "NotificationTypeService.ts");

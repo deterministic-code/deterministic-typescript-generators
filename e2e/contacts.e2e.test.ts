@@ -109,7 +109,7 @@ const assertContactsLayout = async (
 ): Promise<void> => {
   const { appDir, variant, settings, lanes } = booted;
   await Promise.all([
-    requireAppFile(appDir, "frontend/src/App.tsx"),
+    requireAppFile(appDir, "frontend/src/app.tsx"),
     requireAppFile(appDir, "frontend/src/client/fetch/http.ts"),
     requireAppFile(
       appDir,

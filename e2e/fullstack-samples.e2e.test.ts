@@ -21,7 +21,7 @@ const assertReactClientScaffold = async (
   entities: readonly string[],
 ): Promise<void> => {
   await Promise.all([
-    requireFrontendBinding(appDir, "frontend/src/App.tsx"),
+    requireFrontendBinding(appDir, "frontend/src/app.tsx"),
     requireFrontendBinding(appDir, "frontend/package.json"),
     requireFrontendBinding(appDir, "frontend/src/client/fetch/http.ts"),
     requireFrontendBinding(appDir, "frontend/src/client/index.ts"),

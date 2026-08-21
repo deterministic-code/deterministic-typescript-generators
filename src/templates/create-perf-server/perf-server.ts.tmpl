@@ -1,4 +1,4 @@
-import { createBackendApp } from "./app.js";
+import { {{appFnName}} } from "./{{appFileBase}}.js";
 import { type SupportedBackend } from "{{appImport}}";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -31,7 +31,7 @@ async function bootstrap(): Promise<void> {
   }
   // Self-migrate every dialect via createBackendApp's connectDatabase({migrationsDir}) so perf hits a freshly-built schema — sqlite from an empty temp file, network dialects against their fresh container.
   process.env.DETERMINISTIC_APP_MIGRATE = "1";
-  const app = await createBackendApp();
+  const app = await {{appFnName}}();
   const port = Number(process.env.PORT ?? 4000);
   app.listen(port);
   const onSignal = async (): Promise<void> => {

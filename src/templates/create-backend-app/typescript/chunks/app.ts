@@ -26,7 +26,7 @@ async function resolveDeterministicRoot(): Promise<string> {
 // === BEGIN APP_DB_IMPORTS — see PATCH_PLAN in create-migrate-scripts.mjs ===
 // === END APP_DB_IMPORTS ===
 
-export async function createBackendApp(): Promise<Express> {
+export async function {{appFnName}}(): Promise<Express> {
   return createDeterministicApp({
     deterministicRoot: await resolveDeterministicRoot(),
     srcRoot: process.env.SRC_ROOT ?? process.cwd(),

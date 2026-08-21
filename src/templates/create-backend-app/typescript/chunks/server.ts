@@ -1,9 +1,9 @@
 import { once } from "node:events";
-import { createBackendApp } from "./app.js";
+import { {{appFnName}} } from "./{{appFileBase}}.js";
 
 const port = Number(process.env.PORT ?? 4001);
 
-const app = await createBackendApp();
+const app = await {{appFnName}}();
 const server = app.listen(port);
 await once(server, "listening");
 console.log(`{{appName}} listening on http://localhost:${port}`);

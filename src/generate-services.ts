@@ -51,7 +51,7 @@ class Generator extends Emit {
     if (Object.keys(paths).length === 0) return undefined;
     const literal = JSON.stringify(paths, null, 2).replace(/\n/g, "\n    ");
     return patch(
-      "app.ts",
+      this.imports.app(),
       `customModulePaths: ${literal},\n`,
       "APP_CUSTOM_MODULE_PATHS",
     );
