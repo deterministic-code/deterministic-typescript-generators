@@ -60,7 +60,7 @@ export const createCasing = (
     serviceInterfaceName: (entity: string) =>
       casing.convertTypes(`i_${entity}_service`),
     authoredInterfaceName: (name: string) => casing.convertTypes(`i_${name}`),
-    customClassName: (name: string) => casing.convertTypes(name),
+    customClassName: (name: string) => name,
     baseTypeName: (entity: string) => casing.convertTypes(`${entity}_base`),
     schemaName: (name: string) => casing.convertTypes(`${name}_schema`),
     validatedTypeName: (name: string) =>

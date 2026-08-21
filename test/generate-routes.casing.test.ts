@@ -160,63 +160,37 @@ describe("generate routes casing", () => {
     assert.match(files.get("features/contact/Contact.route.ts")!, /IContactService/);
   });
 
-  it("Pascal types convert mixed custom route keys to matching class and interface", async () => {
-    const settings = { "languages.typescript.casing.types": "Pascal" };
-    const files = await byFilename(settings);
-    const casing = createCasing(settings);
-    const stems = ["getHealth", "import_contacts", "migrate_legacy_contacts"];
-    const index = files.get("../custom/index.ts");
-    assert.ok(index, `missing custom index; got ${[...files.keys()].join(", ")}`);
-    for (const stem of stems) {
-      const className = casing.customClassName(stem);
-      const interfaceName = casing.authoredInterfaceName(stem);
-      const path = `../custom/${casing.fileBase(`${stem}_route`)}.ts`;
-      const body = files.get(path);
-      assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
-      assert.match(
-        body,
-        new RegExp(`export class ${className} implements ${interfaceName}`),
-      );
-      assert.match(index, new RegExp(`export \\{ ${className} \\} from`));
-      assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
-      assert.doesNotMatch(body, /export class getHealth /);
-      assert.doesNotMatch(body, /export class import_contacts /);
-    }
-    assert.equal(casing.customClassName("getHealth"), "GetHealth");
-    assert.equal(casing.customClassName("import_contacts"), "ImportContacts");
-    assert.equal(
-      casing.customClassName("migrate_legacy_contacts"),
-      "MigrateLegacyContacts",
-    );
-  });
-
-  it("Snake types convert mixed custom route keys to matching class and interface", async () => {
+  it("keeps authored custom route class names for runtime load", async () => {
     const settings = { "languages.typescript.casing.types": "Snake" };
-    const files = await byFilename(settings);
-    const casing = createCasing(settings);
-    const stems = ["getHealth", "import_contacts", "migrate_legacy_contacts"];
-    const index = files.get("../custom/index.ts");
-    assert.ok(index, `missing custom index; got ${[...files.keys()].join(", ")}`);
-    for (const stem of stems) {
-      const className = casing.customClassName(stem);
-      const interfaceName = casing.authoredInterfaceName(stem);
-      const path = `../custom/${casing.fileBase(`${stem}_route`)}.ts`;
-      const body = files.get(path);
-      assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
-      assert.match(
-        body,
-        new RegExp(`export class ${className} implements ${interfaceName}`),
-      );
-      assert.match(index, new RegExp(`export \\{ ${className} \\} from`));
-      assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
-      assert.doesNotMatch(body, /export class GetHealth /);
-      assert.doesNotMatch(body, /export class IImportContacts /);
+    const files = new Map<string, string>();
+    for (const entry of await generate({
+      reader: memoryReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "routes.yaml": `includes:
+  - view_type_routes:
+      filter: 'type is view_type || type is datasource_type'
+routes:
+  - echo:
+      path: /api/echo
+      method: GET
+      routeClass: EchoRoute
+      module: ./routes/echo-route
+  - import_contacts:
+      path: /api/contacts/import
+      method: POST
+`,
+      }),
+      settings,
+    })) {
+      files.set(entry.filename, entryBody(entry));
     }
-    assert.equal(casing.customClassName("getHealth"), "get_health");
-    assert.equal(casing.customClassName("import_contacts"), "import_contacts");
-    assert.equal(
-      casing.customClassName("migrate_legacy_contacts"),
-      "migrate_legacy_contacts",
-    );
+    const casing = createCasing(settings);
+    const echo = files.get("../echo-route.ts");
+    assert.ok(echo, `missing echo-route; got ${[...files.keys()].join(", ")}`);
+    assert.match(echo, /export class EchoRoute /);
+    assert.doesNotMatch(echo, /export class echo_route /);
+    const importPath = `../custom/${casing.fileBase("import_contacts_route")}.ts`;
+    assert.match(files.get(importPath)!, /export class import_contacts /);
   });
 });

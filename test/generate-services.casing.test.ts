@@ -116,26 +116,25 @@ services:
     const index = files.get("../custom/index.ts");
     assert.ok(index, `got ${[...files.keys()].join(", ")}`);
     for (const stem of ["ContactImportService", "report_service"]) {
-      const className = casing.customClassName(stem);
       const interfaceName = casing.authoredInterfaceName(stem);
       const path = `../custom/${casing.fileBase(stem)}.ts`;
       const body = files.get(path);
       assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
       assert.match(
         body,
-        new RegExp(`export class ${className} implements ${interfaceName}`),
+        new RegExp(`export class ${stem} implements ${interfaceName}`),
       );
-      assert.match(index, new RegExp(`export \\{ ${className} \\} from`));
+      assert.match(index, new RegExp(`export \\{ ${stem} \\} from`));
       assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
     }
     assert.equal(
       casing.customClassName("ContactImportService"),
       "ContactImportService",
     );
-    assert.equal(casing.customClassName("report_service"), "ReportService");
+    assert.equal(casing.customClassName("report_service"), "report_service");
   });
 
-  it("Snake types convert custom service class and interface together", async () => {
+  it("Snake types keep the authored custom class name for runtime load", async () => {
     const settings = { "languages.typescript.casing.types": "Snake" };
     const files = new Map<string, string>();
     for (const entry of await generate({
@@ -158,24 +157,18 @@ services:
     const index = files.get("../custom/index.ts");
     assert.ok(index, `got ${[...files.keys()].join(", ")}`);
     for (const stem of ["ContactImportService", "report_service"]) {
-      const className = casing.customClassName(stem);
       const interfaceName = casing.authoredInterfaceName(stem);
       const path = `../custom/${casing.fileBase(stem)}.ts`;
       const body = files.get(path);
       assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
       assert.match(
         body,
-        new RegExp(`export class ${className} implements ${interfaceName}`),
+        new RegExp(`export class ${stem} implements ${interfaceName}`),
       );
-      assert.match(index, new RegExp(`export \\{ ${className} \\} from`));
+      assert.match(index, new RegExp(`export \\{ ${stem} \\} from`));
       assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
     }
-    assert.equal(
-      casing.customClassName("ContactImportService"),
-      "contact_import_service",
-    );
-    assert.equal(casing.customClassName("report_service"), "report_service");
-    assert.doesNotMatch(
+    assert.match(
       files.get(`../custom/${casing.fileBase("ContactImportService")}.ts`)!,
       /export class ContactImportService /,
     );

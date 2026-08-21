@@ -35,8 +35,12 @@ describe("createCasing Auto defaults", () => {
     );
     assert.equal(casing.routerFnName("contact_group"), "ContactGroupRouter");
     assert.equal(casing.hookName("contact_group", "list"), "UseContactGroupList");
-    assert.equal(casing.customClassName("getHealth"), "GetHealth");
-    assert.equal(casing.customClassName("import_contacts"), "ImportContacts");
+    assert.equal(casing.customClassName("getHealth"), "getHealth");
+    assert.equal(casing.customClassName("import_contacts"), "import_contacts");
+    assert.equal(
+      casing.customClassName("ContactImportService"),
+      "ContactImportService",
+    );
     assert.equal(casing.baseTypeName("contact"), "ContactBase");
     assert.equal(casing.clientName("contact_source"), "ContactSourceClient");
     assert.equal(
@@ -98,8 +102,12 @@ describe("createCasing overrides", () => {
       casing.authoredInterfaceName("ContactImportService"),
       "i_contact_import_service",
     );
-    assert.equal(casing.customClassName("getHealth"), "get_health");
+    assert.equal(casing.customClassName("getHealth"), "getHealth");
     assert.equal(casing.customClassName("import_contacts"), "import_contacts");
+    assert.equal(
+      casing.customClassName("ContactImportService"),
+      "ContactImportService",
+    );
     assert.equal(casing.baseTypeName("contact"), "contact_base");
     assert.equal(casing.clientName("contact_source"), "contact_source_client");
     assert.equal(
