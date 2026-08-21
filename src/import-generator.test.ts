@@ -162,15 +162,15 @@ describe("TypeScriptImportGenerator layered (organize_by_feature unset)", () => 
 describe("TypeScriptImportGenerator by-feature", () => {
   it("nests every lane under features/<entity>/", () => {
     const imports = byFeature();
-    assert.equal(imports.datasource("user"), "features/user/user.ts");
-    assert.equal(imports.datasourceRel("user"), "features/user/user.ts");
+    assert.equal(imports.datasource("user"), "features/user/user.datasource.ts");
+    assert.equal(imports.datasourceRel("user"), "features/user/user.datasource.ts");
     assert.equal(
       imports.datasourceValidator("user"),
-      "features/user/user.validator.ts",
+      "features/user/user.datasource.validator.ts",
     );
     assert.equal(
       imports.datasourceValidatorRel("user"),
-      "features/user/user.validator.ts",
+      "features/user/user.datasource.validator.ts",
     );
     assert.equal(imports.view("card_payment"), "features/cardPayment/cardPayment.ts");
     assert.equal(
@@ -209,8 +209,8 @@ describe("TypeScriptImportGenerator by-feature", () => {
       imports.serviceCustomRel("user"),
       "features/user/custom/userService.ts",
     );
-    assert.equal(imports.route("user"), "features/user/user.ts");
-    assert.equal(imports.routeRel("user"), "features/user/user.ts");
+    assert.equal(imports.route("user"), "features/user/user.route.ts");
+    assert.equal(imports.routeRel("user"), "features/user/user.route.ts");
     assert.equal(
       imports.routeTest("user"),
       "features/user/__tests__/user.integration.test.ts",
@@ -232,7 +232,7 @@ describe("TypeScriptImportGenerator by-feature", () => {
     const camel = byFeature();
     assert.equal(
       camel.datasource("notification_type"),
-      "features/notificationType/notificationType.ts",
+      "features/notificationType/notificationType.datasource.ts",
     );
     assert.equal(
       camel.view("notification_type"),
@@ -244,7 +244,7 @@ describe("TypeScriptImportGenerator by-feature", () => {
     );
     assert.equal(
       camel.route("notification_type"),
-      "features/notificationType/notificationType.ts",
+      "features/notificationType/notificationType.route.ts",
     );
     const imports = byFeature({
       "languages.typescript.casing.file_names": "Pascal",
@@ -252,7 +252,7 @@ describe("TypeScriptImportGenerator by-feature", () => {
     });
     assert.equal(
       imports.datasource("notification_type"),
-      "features/notification-type/NotificationType.ts",
+      "features/notification-type/NotificationType.datasource.ts",
     );
     assert.equal(
       imports.view("notification_type"),
@@ -268,7 +268,7 @@ describe("TypeScriptImportGenerator by-feature", () => {
     });
     assert.equal(
       snakeDirs.datasource("notification_type"),
-      "features/notification_type/notification_type.ts",
+      "features/notification_type/notification_type.datasource.ts",
     );
     assert.equal(
       snakeDirs.service("notification_type"),
@@ -365,6 +365,6 @@ describe("TypeScriptImportGenerator flat basePath", () => {
     const imports = createImportGenerator("", {
       "other.organize_by_feature": "true",
     });
-    assert.equal(imports.datasource("user"), "features/user/user.ts");
+    assert.equal(imports.datasource("user"), "features/user/user.datasource.ts");
   });
 });

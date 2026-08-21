@@ -147,8 +147,8 @@ describe("generate routes casing", () => {
       "languages.typescript.casing.file_names": "Pascal",
       "languages.typescript.casing.directories": "Kebab",
     });
-    assert.ok(files.has("features/contact/Contact.ts"));
-    assert.ok(files.has("features/contact-group/ContactGroup.ts"));
-    assert.match(files.get("features/contact/Contact.ts")!, /IContactService/);
+    assert.ok(files.has("features/contact/Contact.route.ts"));
+    assert.ok(files.has("features/contact-group/ContactGroup.route.ts"));
+    assert.match(files.get("features/contact/Contact.route.ts")!, /IContactService/);
   });
 });

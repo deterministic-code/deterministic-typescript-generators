@@ -8,7 +8,6 @@ import {
 import {
   VIEW_TYPES_YAML,
   type ExpandedViewType,
-  type ShapedView,
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification";
@@ -39,8 +38,10 @@ export type ViewValidatorEmitMode = {
 
 const omitObj = (keys: string[]) =>
   keys.map((k) => `${JSON.stringify(k)}: true`).join(", ");
-const viewOmits = (view: ShapedView, hasUuidColumn: boolean) =>
-  view.omit.filter((k) => hasUuidColumn || k !== "uuid");
+
+const WRITE_PREFIXES = ["update_", "create_"] as const;
+const isWriteVariant = (name: string): boolean =>
+  WRITE_PREFIXES.some((prefix) => name.startsWith(prefix));
 
 const tighten = (field: ViewField): string => {
   const base = toZod(field.base);
@@ -73,8 +74,10 @@ const indexExports = (
   schemaName: (name: string) => string,
 ): string | undefined => {
   const schema = schemaName(view.name);
-  if (view.kind === "shaped" && view.omit.length > 0) return undefined;
   if (view.kind === "union") return schema;
+  if (isWriteVariant(view.name)) return schema;
+  if (view.omit.length > 0) return undefined;
+  if (view.inherits !== null) return schema;
   return [
     schema,
     schemaName(`create_${view.name}`),
@@ -86,6 +89,7 @@ const indexExports = (
 class Generator extends Emit {
   private readonly referenceBackendType: boolean;
   private readonly templates: ViewValidatorTemplates;
+  private parentFieldsByName = new Map<string, Set<string>>();
 
   constructor(raw: Record<string, string>, mode: ViewValidatorEmitMode) {
     super(raw, mode.basePath ?? ".", mode.datasourceBasePath ?? ".");
@@ -100,6 +104,12 @@ class Generator extends Emit {
   }
 
   from(deterministic: IDeterministic): GenerateEntry[] {
+    this.parentFieldsByName = new Map(
+      deterministic.expandedDatasourceTypes.map((table) => [
+        table.name,
+        new Set(table.fields.map((field) => field.name)),
+      ]),
+    );
     const expandedByName = new Map(
       deterministic.expandedViewTypes.map((v) => [v.name, v]),
     );
@@ -236,48 +246,33 @@ class Generator extends Emit {
     const fields = this.fieldTokens(
       inheritBackend ? view.fields : inlineFields,
     );
-    const hasUuidColumn =
-      expanded?.kind === "shaped" &&
-      expanded.fields.some((f) => f.name === "uuid");
-    const omits = viewOmits(view, hasUuidColumn);
-    const hasTrio = omits.length === 0;
     if (!inheritBackend || view.inherits === null) {
       return fill(this.templates.schemaStandaloneTmpl, {
         schemaName,
         emptyObject: fields.length === 0,
         fields,
-        hasTrio,
+        hasTrio: view.omit.length === 0,
         createName: t.create,
         updateName: t.update,
         patchName: t.patch,
       }).trimEnd();
     }
     const parent = view.inherits;
-    const allOmits = [...view.enrichments.map((e) => e.fkColumn), ...omits];
-    const stamp = hasUuidColumn
-      ? ["id", "uuid", "created", "updated"]
-      : ["id", "created", "updated"];
+    const parentFields = this.parentFieldsByName.get(parent) ?? new Set();
+    const onParent = (keys: string[]) => keys.filter((k) => parentFields.has(k));
+    const omits = onParent(view.omit);
+    const allOmits = onParent([
+      ...view.enrichments.map((e) => e.fkColumn),
+      ...view.omit,
+    ]);
     return fill(this.templates.schemaInheritTmpl, {
       schemaName,
       dsAlias: this.casing.schemaName(`datasource_${parent}`),
       hasOmits: allOmits.length > 0,
       omitObj: omitObj(allOmits.map((k) => this.casing.convertFields(k))),
-      partialId: omits.length > 0 && !omits.includes("id"),
+      partialId: parentFields.has("id") && omits.length > 0 && !omits.includes("id"),
       hasFields: fields.length > 0,
       fields,
-      hasTrio,
-      updateName: t.update,
-      createName: t.create,
-      patchName: t.patch,
-      updateOmitObj: omitObj(
-        [...stamp, ...view.enrichments.map((e) => e.fkColumn)].map((k) =>
-          this.casing.convertFields(k),
-        ),
-      ),
-      hasEnrich: view.enrichments.length > 0,
-      enrichFields: view.enrichments.map((e) => ({
-        ident: JSON.stringify(this.casing.convertFields(e.newField)),
-      })),
     }).trimEnd();
   }
 }

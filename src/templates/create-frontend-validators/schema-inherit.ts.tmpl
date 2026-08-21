@@ -3,12 +3,3 @@ export const {{schemaName}} = {{dsAlias}}{{#hasOmits}}.omit({ {{&omitObj}} }){{/
   {{ident}}: {{&zodExpr}},
 {{/fields}}
 }){{/hasFields}};
-{{#hasTrio}}
-export const {{updateName}} = {{dsAlias}}.omit({ {{&updateOmitObj}} }){{#hasEnrich}}.extend({
-{{#enrichFields}}
-  {{&ident}}: z.string().trim(),
-{{/enrichFields}}
-}){{/hasEnrich}};
-export const {{createName}} = {{updateName}};
-export const {{patchName}} = {{updateName}}.partial();
-{{/hasTrio}}
