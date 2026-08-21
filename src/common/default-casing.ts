@@ -24,7 +24,6 @@ export type PackCasing = ICasingStrategy & {
   serviceClassName: (entity: string) => string
   serviceInterfaceName: (entity: string) => string
   authoredInterfaceName: (name: string) => string
-  customClassName: (name: string) => string
   baseTypeName: (entity: string) => string
   schemaName: (name: string) => string
   validatedTypeName: (name: string) => string
@@ -65,7 +64,6 @@ export const createCasing = (
     serviceInterfaceName: (entity: string) =>
       casing.convertTypes(`i_${entity}_service`),
     authoredInterfaceName: (name: string) => casing.convertTypes(`i_${name}`),
-    customClassName: (name: string) => name,
     baseTypeName: (entity: string) => casing.convertTypes(`${entity}_base`),
     schemaName: (name: string) => casing.convertTypes(`${name}_schema`),
     validatedTypeName: (name: string) =>

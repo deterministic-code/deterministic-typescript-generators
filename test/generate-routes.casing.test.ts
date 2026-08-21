@@ -84,6 +84,72 @@ const assertServiceImport = (
   );
 };
 
+const CUSTOM_ROUTES_YAML = `includes:
+  - view_type_routes:
+      filter: 'type is view_type || type is datasource_type'
+routes:
+  - import_contacts:
+      path: /api/contacts/import
+      method: POST
+  - migrate_legacy_contacts:
+      path: /api/legacy-contacts/migrate
+      method: POST
+  - echo:
+      path: /api/echo
+      method: GET
+      routeClass: EchoRoute
+      module: ./routes/echo-route
+`;
+
+const generateCustomRoutes = async (settings: Record<string, string>) => {
+  const files = new Map<string, string>();
+  for (const entry of await generate({
+    reader: memoryReader({
+      "datasource_types.yaml": DS_YAML,
+      "view_types.yaml": VIEW_YAML,
+      "routes.yaml": CUSTOM_ROUTES_YAML,
+    }),
+    settings,
+  })) {
+    files.set(entry.filename, entryBody(entry));
+  }
+  return { files, casing: createCasing(settings) };
+};
+
+const customStubPath = (
+  casing: ReturnType<typeof createCasing>,
+  name: string,
+): string => `../custom/${casing.fileBase(`${name}_route`)}.ts`;
+
+const assertPairedStub = (
+  body: string,
+  className: string,
+  interfaceName: string,
+): void => {
+  assert.match(body, new RegExp(`export interface ${interfaceName} \\{`));
+  assert.match(
+    body,
+    new RegExp(`export class ${className} implements ${interfaceName}`),
+  );
+  assert.match(body, new RegExp(`error: "stub route ${className}"`));
+};
+
+const assertCustomIndexExports = (
+  index: string,
+  pairs: ReadonlyArray<readonly [string, string, string]>,
+): void => {
+  for (const [className, interfaceName, fileBase] of pairs) {
+    assert.match(
+      index,
+      new RegExp(`export \\{ ${className} \\} from "\\./${fileBase}"`),
+    );
+    assert.match(
+      index,
+      new RegExp(`export type \\{ ${interfaceName} \\} from "\\./${fileBase}"`),
+    );
+  }
+};
+
 describe("generate routes casing", () => {
   it("Auto uses Camel files, Pascal types, and IContactService", async () => {
     const settings = {};
@@ -161,36 +227,103 @@ describe("generate routes casing", () => {
   });
 
   it("keeps authored custom route class names for runtime load", async () => {
-    const settings = { "languages.typescript.casing.types": "Snake" };
-    const files = new Map<string, string>();
-    for (const entry of await generate({
-      reader: memoryReader({
-        "datasource_types.yaml": DS_YAML,
-        "view_types.yaml": VIEW_YAML,
-        "routes.yaml": `includes:
-  - view_type_routes:
-      filter: 'type is view_type || type is datasource_type'
-routes:
-  - echo:
-      path: /api/echo
-      method: GET
-      routeClass: EchoRoute
-      module: ./routes/echo-route
-  - import_contacts:
-      path: /api/contacts/import
-      method: POST
-`,
-      }),
-      settings,
-    })) {
-      files.set(entry.filename, entryBody(entry));
-    }
-    const casing = createCasing(settings);
+    const { files } = await generateCustomRoutes({
+      "languages.typescript.casing.types": "Snake",
+    });
     const echo = files.get("../echo-route.ts");
     assert.ok(echo, `missing echo-route; got ${[...files.keys()].join(", ")}`);
     assert.match(echo, /export class EchoRoute /);
     assert.doesNotMatch(echo, /export class echo_route /);
-    const importPath = `../custom/${casing.fileBase("import_contacts_route")}.ts`;
-    assert.match(files.get(importPath)!, /export class import_contacts /);
+  });
+});
+
+describe("custom route class and interface casing", () => {
+  it("pairs Pascal class and I-prefixed interface from YAML keys", async () => {
+    const { files, casing } = await generateCustomRoutes({});
+    const importPath = customStubPath(casing, "import_contacts");
+    const migratePath = customStubPath(casing, "migrate_legacy_contacts");
+    const healthPath = customStubPath(casing, "getHealth");
+    assertPairedStub(files.get(importPath)!, "ImportContacts", "IImportContacts");
+    assertPairedStub(
+      files.get(migratePath)!,
+      "MigrateLegacyContacts",
+      "IMigrateLegacyContacts",
+    );
+    assertPairedStub(files.get(healthPath)!, "GetHealth", "IGetHealth");
+    assert.doesNotMatch(files.get(importPath)!, /export class import_contacts /);
+    assert.doesNotMatch(
+      files.get(migratePath)!,
+      /export class migrate_legacy_contacts /,
+    );
+    assert.doesNotMatch(files.get(healthPath)!, /export class getHealth /);
+    const index = files.get("../custom/index.ts");
+    assert.ok(index, `missing custom index; got ${[...files.keys()].join(", ")}`);
+    assertCustomIndexExports(index, [
+      ["GetHealth", "IGetHealth", casing.fileBase("getHealth_route")],
+      ["ImportContacts", "IImportContacts", casing.fileBase("import_contacts_route")],
+      [
+        "MigrateLegacyContacts",
+        "IMigrateLegacyContacts",
+        casing.fileBase("migrate_legacy_contacts_route"),
+      ],
+    ]);
+  });
+
+  it("pairs snake class and i_ interface when types are Snake", async () => {
+    const { files, casing } = await generateCustomRoutes({
+      "languages.typescript.casing.types": "Snake",
+    });
+    const importPath = customStubPath(casing, "import_contacts");
+    const migratePath = customStubPath(casing, "migrate_legacy_contacts");
+    const healthPath = customStubPath(casing, "getHealth");
+    assertPairedStub(files.get(importPath)!, "import_contacts", "i_import_contacts");
+    assertPairedStub(
+      files.get(migratePath)!,
+      "migrate_legacy_contacts",
+      "i_migrate_legacy_contacts",
+    );
+    assertPairedStub(files.get(healthPath)!, "get_health", "i_get_health");
+    assert.doesNotMatch(files.get(importPath)!, /export class ImportContacts /);
+    assert.doesNotMatch(files.get(healthPath)!, /export class GetHealth /);
+    assert.doesNotMatch(files.get(healthPath)!, /export class getHealth /);
+    const index = files.get("../custom/index.ts")!;
+    assertCustomIndexExports(index, [
+      ["get_health", "i_get_health", casing.fileBase("getHealth_route")],
+      ["import_contacts", "i_import_contacts", casing.fileBase("import_contacts_route")],
+      [
+        "migrate_legacy_contacts",
+        "i_migrate_legacy_contacts",
+        casing.fileBase("migrate_legacy_contacts_route"),
+      ],
+    ]);
+  });
+
+  it("keeps explicit routeClass and cases its interface", async () => {
+    const pascal = await generateCustomRoutes({});
+    assertPairedStub(pascal.files.get("../echo-route.ts")!, "EchoRoute", "IEchoRoute");
+    assert.doesNotMatch(pascal.files.get("../custom/index.ts")!, /EchoRoute/);
+
+    const snake = await generateCustomRoutes({
+      "languages.typescript.casing.types": "Snake",
+    });
+    assertPairedStub(snake.files.get("../echo-route.ts")!, "EchoRoute", "i_echo_route");
+    assert.doesNotMatch(snake.files.get("../echo-route.ts")!, /export class echo_route /);
+  });
+
+  it("cases custom stubs under by-feature layout", async () => {
+    const settings = {
+      "other.organize_by_feature": "true",
+      "languages.typescript.casing.file_names": "Pascal",
+      "languages.typescript.casing.directories": "Kebab",
+    };
+    const { files } = await generateCustomRoutes(settings);
+    const importBody = [...files.entries()].find(([path]) =>
+      path.includes("ImportContacts"),
+    )?.[1];
+    assert.ok(
+      importBody,
+      `missing import_contacts stub; got ${[...files.keys()].join(", ")}`,
+    );
+    assertPairedStub(importBody, "ImportContacts", "IImportContacts");
   });
 });

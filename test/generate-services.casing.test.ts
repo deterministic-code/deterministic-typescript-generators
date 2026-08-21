@@ -128,10 +128,10 @@ services:
       assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
     }
     assert.equal(
-      casing.customClassName("ContactImportService"),
+      casing.convertTypes("ContactImportService"),
       "ContactImportService",
     );
-    assert.equal(casing.customClassName("report_service"), "report_service");
+    assert.equal(casing.convertTypes("report_service"), "ReportService");
   });
 
   it("Snake types keep the authored custom class name for runtime load", async () => {
