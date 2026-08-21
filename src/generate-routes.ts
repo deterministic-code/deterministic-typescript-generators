@@ -54,11 +54,11 @@ const byFieldsNeedsZod = (entries: RouteByField[]): boolean =>
   entries.some((e) => methodsOf(e, ["GET", "PUT", "DELETE"]).includes("PUT"));
 
 const customRouteMeta = (entry: CustomRouteEntry, casing: PackCasing) => {
-  const className = entry.routeClass || entry.name;
+  const className = entry.routeClass ?? casing.convertTypes(entry.name);
   return {
     module: entry.module,
     className,
-    interfaceName: casing.authoredInterfaceName(className),
+    interfaceName: casing.convertTypes(`i_${className}`),
   };
 };
 
