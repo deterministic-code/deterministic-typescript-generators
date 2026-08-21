@@ -2,7 +2,8 @@ import { toNative } from "./base-type-converter.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
+import { createImportGenerator } from "./import-generator.ts";
+import { jsIdent } from "./common/default-casing.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -20,13 +21,13 @@ import {
 } from "./common/fake-test-data.ts";
 
 type EmitOptions = {
-  naming: ArtifactPaths;
+  imports: ReturnType<typeof createImportGenerator>;
   schemaVersion: string;
 };
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
   return {
-    naming: datasourcePaths(settings),
+    imports: createImportGenerator(".", settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
 };
@@ -34,8 +35,8 @@ const emitOptions = (settings: Record<string, string>): EmitOptions => {
 const escapeTestName = (name: string): string =>
   name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-const fieldTokens = (field: DatasourceField, opts: EmitOptions) => {
-  const ident = opts.naming.fieldIdent(field.name);
+const fieldTokens = (field: DatasourceField) => {
+  const ident = jsIdent(field.name);
   const expr = fieldExpr(fakeTestData, field.type, {
     nativeType: toNative(field.type),
     size: field.size,
@@ -43,33 +44,26 @@ const fieldTokens = (field: DatasourceField, opts: EmitOptions) => {
   return {
     ident,
     access: ident.startsWith('"') ? `[${ident}]` : `.${ident}`,
-    testName: escapeTestName(opts.naming.fieldName(field.name)),
+    testName: escapeTestName(field.name),
     sampleExpr: expr,
     nextExpr: expr,
     nullable: field.isNullable,
   };
 };
 
-const testPath = (entity: string, naming: ArtifactPaths): string => {
-  const file = `${naming.fileBase(entity)}.test.ts`;
-  if (!naming.byFeature) return file;
-  const typeFile = naming.filePath(entity);
-  return `${typeFile.slice(0, typeFile.lastIndexOf("/"))}/__tests__/${file}`;
-};
-
 const renderTests = (
   table: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const fields = table.fields.map((f) => fieldTokens(f, opts));
+  const fields = table.fields.map((f) => fieldTokens(f));
   return content(
-    testPath(table.name, opts.naming),
+    opts.imports.test(opts.imports.datasource(table.name), table.name),
     fill(typeTestTmpl, {
       prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
-      className: opts.naming.className(table.name),
+      className: table.name,
       tableName: table.name,
-      typeImport: `../${opts.naming.fileBase(table.name)}`,
+      typeImport: `../${table.name}`,
       fixture: `{ ${fields.map((f) => `${f.ident}: ${f.sampleExpr}`).join(", ")} }`,
       fields,
     }),

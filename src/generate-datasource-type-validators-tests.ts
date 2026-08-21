@@ -2,7 +2,8 @@ import { toNative } from "./base-type-converter.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
+import { createImportGenerator } from "./import-generator.ts";
+import { jsIdent } from "./common/default-casing.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -20,7 +21,7 @@ import {
 } from "./common/fake-test-data.ts";
 
 type EmitOptions = {
-  naming: ArtifactPaths;
+  imports: ReturnType<typeof createImportGenerator>;
   schemaVersion: string;
 };
 
@@ -50,7 +51,7 @@ const MUTABLE_SCALAR = new Set([
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
   return {
-    naming: datasourcePaths(settings),
+    imports: createImportGenerator(".", settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
 };
@@ -81,9 +82,8 @@ const wrongTypeExpr = (type: string): string | undefined => {
 
 const fieldTok = (
   field: DatasourceField | { name: string; type: string; isNullable: boolean },
-  opts: EmitOptions,
 ): FieldTok => {
-  const ident = opts.naming.fieldIdent(field.name);
+  const ident = jsIdent(field.name);
   const sampleExpr = fieldExpr(fakeTestData, field.type, {
     nativeType: toNative(field.type),
     size: "size" in field ? field.size : undefined,
@@ -96,13 +96,6 @@ const fieldTok = (
     hasDefault: "hasDefault" in field && field.hasDefault === true,
     type: field.type,
   };
-};
-
-const testPath = (entity: string, naming: ArtifactPaths): string => {
-  const file = `${naming.fileBase(entity)}.test.ts`;
-  if (!naming.byFeature) return file;
-  const typeFile = naming.filePath(entity);
-  return `${typeFile.slice(0, typeFile.lastIndexOf("/"))}/__tests__/${file}`;
 };
 
 const casesFor = (fields: FieldTok[]): CaseTok[] => {
@@ -171,15 +164,15 @@ const renderTests = (
   table: DatasourceType,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const fields = table.fields.map((f) => fieldTok(f, opts));
+  const fields = table.fields.map((f) => fieldTok(f));
   return content(
-    testPath(table.name, opts.naming),
+    opts.imports.test(opts.imports.datasource(table.name), table.name),
     fill(typeTestTmpl, {
       prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       schemaName: `${table.name}Schema`,
       tableName: table.name,
-      schemaImport: `../${opts.naming.fileBase(table.name)}`,
+      schemaImport: `../${table.name}`,
       cases: casesFor(fields),
     }),
   );

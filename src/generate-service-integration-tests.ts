@@ -2,7 +2,6 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { toNative } from "./base-type-converter.ts";
-import { servicePaths } from "./common/paths.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -12,6 +11,7 @@ import {
   type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
+import { createImportGenerator } from "./import-generator.ts";
 import { genericTmpl } from "./resources/service-integration-tests.ts";
 
 const tableByName = (
@@ -23,10 +23,10 @@ const generateFrom = (
   deterministic: IDeterministic,
   settings: Record<string, string>,
 ): GenerateEntry[] => {
-  const naming = servicePaths(settings);
   const { generics } = deterministic.services;
   const datasources = deterministic.expandedDatasourceTypes;
   const mode = settings["languages.typescript.library_reference_mode"];
+  const imports = createImportGenerator(".", settings);
   return generics
     .filter((c) => tableByName(c.name, datasources)?.datasourceType === "many-to-many")
     .map((c) => {
@@ -34,8 +34,8 @@ const generateFrom = (
       const pkField =
         table.fields.find((f) => f.isPrimaryKey === true) ??
         table.fields.find((f) => f.name === "id");
-      const path = naming.testPath(c.name).replace(/\.test\.ts$/, ".integration.test.ts");
-      const fileBase = naming.fileBase(c.name);
+      const path = imports.serviceIntegrationTest(c.name);
+      const fileBase = `${c.name}_service`;
       const isUuid = pkField?.type === "uuid";
       const withUuid = table.fields.some((f) => f.name === "uuid");
       return content(
@@ -44,11 +44,9 @@ const generateFrom = (
           repositoriesImport: libraryImportSpecifier(
             "repositories",
             mode,
-            naming.byFeature
-              ? path
-              : `services/generated/__tests__/${fileBase}.integration.test.ts`,
+            imports.serviceIntegrationTestRel(c.name),
           ),
-          className: naming.serviceClassName(c.name),
+          className: `${c.name}_service`,
           serviceImport: joinImport("..", fileBase),
           tableNameJson: JSON.stringify(c.name),
           entityNameJson: JSON.stringify(c.name),
@@ -74,7 +72,7 @@ export const generate = async (
   await ctx.reader.read(SERVICES_YAML);
   return generateFrom(
     await DeterministicParser(ctx.reader).parse(ctx.settings, {
-      serviceClassName: servicePaths(ctx.settings).serviceClassName,
+      serviceClassName: (entity) => `${entity}_service`,
     }),
     ctx.settings,
   );

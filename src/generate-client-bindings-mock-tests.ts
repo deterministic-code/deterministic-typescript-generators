@@ -2,7 +2,7 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { loadClientBindingsIr } from "./client-bindings-ir.ts";
-import { clientBindingPaths } from "./common/paths.ts";
+import { clientBindingMockTestPath } from "./client-binding-transport.ts";
 import {
   httpEntityTmpl,
   tanstackEntityTmpl,
@@ -12,15 +12,17 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const ir = await loadClientBindingsIr(ctx);
-  const naming = clientBindingPaths();
-  const fetch = naming.transport("fetch");
-  const axios = naming.transport("axios");
-  const tanstack = naming.transport("tanstack");
   return ir.entities.flatMap((entity) => [
-    content(fetch.mockTestPath(entity.fileBase), fill(httpEntityTmpl, entity)),
-    content(axios.mockTestPath(entity.fileBase), fill(httpEntityTmpl, entity)),
     content(
-      tanstack.mockTestPath(entity.fileBase),
+      clientBindingMockTestPath("fetch", entity.fileBase),
+      fill(httpEntityTmpl, entity),
+    ),
+    content(
+      clientBindingMockTestPath("axios", entity.fileBase),
+      fill(httpEntityTmpl, entity),
+    ),
+    content(
+      clientBindingMockTestPath("tanstack", entity.fileBase),
       fill(tanstackEntityTmpl, entity),
     ),
   ]);
