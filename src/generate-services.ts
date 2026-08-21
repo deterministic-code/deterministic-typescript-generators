@@ -12,183 +12,143 @@ import {
   type ServiceCandidate,
 } from "@deterministic-code/generators-common/specification";
 import { libraryImportSpecifier } from "./library-import.ts";
-import { jsIdent } from "./common/default-casing.ts";
-import {
-  createImportGenerator,
-  type TypeScriptImportGenerator,
-} from "./import-generator.ts";
+import { Emit } from "./emit.ts";
 import {
   customStubTmpl,
   genericTmpl,
   indexTmpl,
 } from "./resources/services.ts";
 
-const serviceClassName = (entity: string): string => `${entity}_service`;
-const serviceFileBase = (entity: string): string => `${entity}_service`;
+class Generator extends Emit {
+  from(deterministic: IDeterministic): GenerateEntry[] {
+    const { generics, customs } = deterministic.services;
+    const entries: GenerateEntry[] = [
+      ...generics.map((c) => this.generic(c)),
+      ...customs.map((c) => this.custom(c)),
+    ];
+    if (this.settings.createIndex) {
+      entries.push(...this.indexes(generics, customs));
+    }
+    return entries;
+  }
 
-const docTokens = (settings: Record<string, string>) => {
-  const comments = settings["comments"];
-  return {
-    simpleDoc: comments !== "none" && comments !== "description",
-    descriptionDoc: comments === "description",
-  };
-};
-
-type EmitOptions = {
-  imports: TypeScriptImportGenerator;
-  simpleDoc: boolean;
-  descriptionDoc: boolean;
-  libraryReferenceMode: string | undefined;
-  createIndexSetting: string | undefined;
-};
-
-const emitOptions = (settings: Record<string, string>): EmitOptions => ({
-  imports: createImportGenerator(".", settings),
-  ...docTokens(settings),
-  libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
-  createIndexSetting: settings["codegen.create_index"],
-});
-
-const renderGeneric = (
-  candidate: ServiceCandidate,
-  opts: EmitOptions,
-): GenerateEntry => {
-  const { imports, simpleDoc, descriptionDoc, libraryReferenceMode } = opts;
-  const typeName = candidate.name;
-  const className = serviceClassName(candidate.name);
-  const interfaceName = `I${className}`;
-  const generatePath = imports.service(candidate.name);
-  const typeImportPath = imports.spec(
-    imports.serviceRel(candidate.name),
-    candidate.kind === "datasource_type"
-      ? imports.datasourceRel(candidate.name)
-      : imports.viewRel(candidate.name),
-  );
-  const servicesImport = libraryImportSpecifier(
-    "services",
-    libraryReferenceMode,
-    imports.serviceRel(candidate.name),
-  );
-  return content(
-    generatePath,
-    fill(genericTmpl, {
-      simpleDoc,
-      descriptionDoc,
-      typeImport: true,
-      typeName,
-      typeImportPath,
-      servicesImport,
-      interfaceName,
-      className,
-      datasourceType: candidate.datasourceType ?? "standard",
-      finders: candidate.byFields.map((bf) => ({
-        method: `find_by_${bf.field}`,
-        param: jsIdent(bf.field),
-        paramType: toNative(bf.type),
-        field: bf.field,
+  private generic(candidate: ServiceCandidate): GenerateEntry {
+    const { simpleDoc, descriptionDoc, libraryReferenceMode } = this.settings;
+    const typeName = this.casing.convertTypes(candidate.name);
+    const className = this.casing.serviceClassName(candidate.name);
+    const interfaceName = `I${className}`;
+    const generatePath = this.imports.service(candidate.name);
+    const typeImportPath = this.imports.spec(
+      this.imports.serviceRel(candidate.name),
+      candidate.kind === "datasource_type"
+        ? this.imports.datasourceRel(candidate.name)
+        : this.imports.viewRel(candidate.name),
+    );
+    const servicesImport = libraryImportSpecifier(
+      "services",
+      libraryReferenceMode,
+      this.imports.serviceRel(candidate.name),
+    );
+    return content(
+      generatePath,
+      fill(genericTmpl, {
+        simpleDoc,
+        descriptionDoc,
+        typeImport: true,
         typeName,
-      })),
-    }),
-  );
-};
-
-const renderCustom = (
-  entry: CustomServiceEntry,
-  opts: EmitOptions,
-): GenerateEntry => {
-  const { imports, simpleDoc, descriptionDoc } = opts;
-  const className = entry.name;
-  const interfaceName = `I${className}`;
-  return content(
-    imports.serviceCustom(entry.name, entry.module),
-    fill(customStubTmpl, {
-      simpleDoc,
-      descriptionDoc,
-      interfaceName,
-      className,
-      hasMethods: entry.methods.length > 0,
-      methods: entry.methods.map((name) => ({ name })),
-    }),
-  );
-};
-
-const renderIndex = (
-  generics: ServiceCandidate[],
-  customs: CustomServiceEntry[],
-  imports: TypeScriptImportGenerator,
-): GenerateEntry[] => {
-  const entries: GenerateEntry[] = [];
-  if (generics.length > 0) {
-    const sorted = [...generics].sort((a, b) =>
-      serviceClassName(a.name).localeCompare(serviceClassName(b.name)),
+        typeImportPath,
+        servicesImport,
+        interfaceName,
+        className,
+        datasourceType: candidate.datasourceType ?? "standard",
+        finders: candidate.byFields.map((bf) => ({
+          method: this.casing.finderMethod(bf.field),
+          param: this.casing.fieldIdent(bf.field),
+          paramType: toNative(bf.type),
+          field: this.casing.convertFields(bf.field),
+          typeName,
+        })),
+      }),
     );
-    const index = imports.index(imports.service(sorted[0]!.name));
-    if (index) {
-      entries.push(
-        content(
-          index,
-          fill(indexTmpl, {
-            types: sorted.map((c) => ({
-              className: serviceClassName(c.name),
-              fileBase: serviceFileBase(c.name),
-            })),
-          }),
+  }
+
+  private custom(entry: CustomServiceEntry): GenerateEntry {
+    const { simpleDoc, descriptionDoc } = this.settings;
+    const className = this.casing.convertTypes(entry.name);
+    const interfaceName = `I${className}`;
+    return content(
+      this.imports.serviceCustom(entry.name, entry.module),
+      fill(customStubTmpl, {
+        simpleDoc,
+        descriptionDoc,
+        interfaceName,
+        className,
+        hasMethods: entry.methods.length > 0,
+        methods: entry.methods.map((name) => ({ name })),
+      }),
+    );
+  }
+
+  private indexes(
+    generics: ServiceCandidate[],
+    customs: CustomServiceEntry[],
+  ): GenerateEntry[] {
+    const entries: GenerateEntry[] = [];
+    if (generics.length > 0) {
+      const sorted = [...generics].sort((a, b) =>
+        this.casing.serviceClassName(a.name).localeCompare(
+          this.casing.serviceClassName(b.name),
         ),
       );
+      const index = this.imports.index(this.imports.service(sorted[0]!.name));
+      if (index) {
+        entries.push(
+          content(
+            index,
+            fill(indexTmpl, {
+              types: sorted.map((c) => ({
+                className: this.casing.serviceClassName(c.name),
+                fileBase: this.casing.fileBase(`${c.name}_service`),
+              })),
+            }),
+          ),
+        );
+      }
     }
-  }
-  const customDirEntries = customs.filter(
-    (e) => !e.module || !e.module.startsWith("."),
-  );
-  if (customDirEntries.length > 0) {
-    const sorted = [...customDirEntries].sort((a, b) =>
-      a.name.localeCompare(b.name),
+    const customDirEntries = customs.filter(
+      (e) => !e.module || !e.module.startsWith("."),
     );
-    const index = imports.index(imports.serviceCustom(sorted[0]!.name));
-    if (index) {
-      entries.push(
-        content(
-          index,
-          fill(indexTmpl, {
-            types: sorted.map((e) => ({
-              className: e.name,
-              fileBase: e.name,
-            })),
-          }),
-        ),
+    if (customDirEntries.length > 0) {
+      const sorted = [...customDirEntries].sort((a, b) =>
+        a.name.localeCompare(b.name),
       );
+      const index = this.imports.index(this.imports.serviceCustom(sorted[0]!.name));
+      if (index) {
+        entries.push(
+          content(
+            index,
+            fill(indexTmpl, {
+              types: sorted.map((e) => ({
+                className: this.casing.convertTypes(e.name),
+                fileBase: this.casing.fileBase(e.name),
+              })),
+            }),
+          ),
+        );
+      }
     }
+    return entries;
   }
-  return entries;
-};
-
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-): GenerateEntry[] => {
-  const opts = emitOptions(settings);
-  const { generics, customs } = deterministic.services;
-  const entries: GenerateEntry[] = [
-    ...generics.map((c) => renderGeneric(c, opts)),
-    ...customs.map((c) => renderCustom(c, opts)),
-  ];
-  if (
-    opts.createIndexSetting === undefined ||
-    opts.createIndexSetting === "true"
-  ) {
-    entries.push(...renderIndex(generics, customs, opts.imports));
-  }
-  return entries;
-};
+}
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(SERVICES_YAML);
-  return generateFrom(
+  const generator = new Generator(ctx.settings);
+  return generator.from(
     await DeterministicParser(ctx.reader).parse(ctx.settings, {
-      serviceClassName,
+      serviceClassName: (entity) => generator.casing.serviceClassName(entity),
     }),
-    ctx.settings,
   );
 };

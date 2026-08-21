@@ -148,7 +148,7 @@ describe("generate", () => {
         },
       }),
     );
-    assert.deepEqual([...byName.keys()].sort(), ["role.ts", "user.ts"]);
+    assert.deepEqual([...byName.keys()].sort(), ["index.ts", "role.ts", "user.ts"]);
     for (const filename of byName.keys()) {
       assert.equal(filename.startsWith("features/"), false, filename);
       assert.equal(requireEntry(byName, filename).kind, "content");
@@ -245,6 +245,28 @@ describe("generate", () => {
   it("unknown datasource.id_type falls back to number ids", async () => {
     const user = await userBody({ "datasource.id_type": "mystery" });
     assert.match(user, /StandardDataSource<number, Date>/);
+  });
+
+  it("readonly-lookup extends StandardDataSource with only the id type", async () => {
+    const entries = await generate({
+      reader: memoryReader({
+        [DATASOURCE_TYPES_YAML]: `types:
+  - contact_source:
+      datasource_type: readonly-lookup
+      fields:
+        - name:
+            type: string
+`,
+      }),
+      settings: { application_name: "catalog-api" },
+    });
+    const source = entryBody(
+      requireEntry(indexEntries(entries), "contactSource.ts"),
+    );
+    assert.match(source, /export interface ContactSource extends StandardDataSource<number> \{/);
+    assert.doesNotMatch(source, /StandardDataSource<number,\s*>/);
+    assert.doesNotMatch(source, /^\s*created:/m);
+    assert.doesNotMatch(source, /^\s*updated:/m);
   });
 
 });

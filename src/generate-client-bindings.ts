@@ -1,7 +1,8 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { createIndex, loadClientBindingsIr } from "./client-bindings-ir.ts";
+import { fromSettings } from "@deterministic-code/generators-common/settings";
+import { loadClientBindingsIr } from "./client-bindings-ir.ts";
 import {
   clientBindingFilePath,
   clientBindingHttpPath,
@@ -40,7 +41,7 @@ export const generate = async (
       ),
     ]),
   ];
-  if (!createIndex(ctx.settings)) return entries;
+  if (!fromSettings(ctx.settings).createIndex) return entries;
   const indexTokens = { entities: ir.entities, hasHttp: true };
   entries.push(
     content(clientBindingIndexPath("fetch"), fill(transportIndexTmpl, indexTokens)),

@@ -206,7 +206,7 @@ describe("generate-client-bindings", () => {
       /\/api\/projects\/\$\{encodeURIComponent\(String\(id\)\)\}\/tasks/,
     );
 
-    const fetchCard = textOf(entries, "frontend/src/client/fetch/card_payment.ts");
+    const fetchCard = textOf(entries, "frontend/src/client/fetch/cardPayment.ts");
     assert.match(fetchCard, /"\/api\/card-payments"/);
 
     const custom = textOf(entries, "frontend/src/client/fetch/custom.ts");

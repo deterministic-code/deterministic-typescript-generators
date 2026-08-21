@@ -1,15 +1,9 @@
 import {
-  CasingFactory,
-  LANGUAGE_CASING_DEFAULTS,
-  casingOverridesFromSettings,
+  createCasingStrategy,
   type ICasingStrategy,
-  type LanguageCasingDefaults,
 } from "@deterministic-code/generators-common/casing-strategy";
 
 export const GENERATOR_LANGUAGE = "typescript";
-
-export const DEFAULT_CASING: LanguageCasingDefaults =
-  LANGUAGE_CASING_DEFAULTS.typescript;
 
 const IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const VARIANT_PREFIXES = ["update_", "create_"] as const;
@@ -35,10 +29,7 @@ export type PackCasing = ICasingStrategy & {
 export const createCasing = (
   settings: Record<string, string>,
 ): PackCasing => {
-  const casing = CasingFactory.create(
-    GENERATOR_LANGUAGE,
-    casingOverridesFromSettings(settings, GENERATOR_LANGUAGE),
-  );
+  const casing = createCasingStrategy(GENERATOR_LANGUAGE, settings);
   const fileBase = (stem: string): string => casing.convertFileName(stem);
   const directory = (entity: string): string =>
     casing.convertDirectories(featureEntity(entity));

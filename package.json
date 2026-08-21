@@ -133,7 +133,6 @@
   "dependencies": {
     "@deterministic-code/generators-common": "github:deterministic-code/generators-common",
     "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger",
-    "change-case": "^5.4.4",
     "mustache": "^4.2.0",
     "pluralize": "^8.0.0",
     "yaml": "^2.6.0"

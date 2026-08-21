@@ -4,6 +4,7 @@ import { content, patch, type GenerateEntry } from "@deterministic-code/generato
 import {
   DATASOURCE_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification";
+import { fromSettings } from "@deterministic-code/generators-common/settings";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { serverTmpl, vitestPerfTmpl } from "./resources/perf-server.ts";
 
@@ -16,7 +17,7 @@ export const generate = async (
   await ctx.reader.read(DATASOURCE_TYPES_YAML);
   const appImport = libraryImportSpecifier(
     "app",
-    ctx.settings["languages.typescript.library_reference_mode"],
+    fromSettings(ctx.settings).libraryReferenceMode,
     "perf-server.ts",
   );
   return [

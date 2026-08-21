@@ -101,9 +101,9 @@ describe("generate datasource types tests", () => {
 
   it("imports the generated type from the sibling module", async () => {
     const user = await userBody();
-    assert.match(user, /import type \{ user \} from "\.\.\/user";/);
+    assert.match(user, /import type \{ User \} from "\.\.\/user";/);
     assert.match(user, /from "vitest"/);
-    assert.match(user, /const sample = \(\): user => \(/);
+    assert.match(user, /const sample = \(\): User => \(/);
   });
 
   it("covers getters and setters for system columns and declared fields", async () => {
@@ -148,7 +148,7 @@ describe("generate datasource types tests", () => {
     const user = await userBody({ "datasource.id_type": "biginteger" });
     assert.match(user, /id: faker\.number\.int\(\{ min: 1 \}\)/);
     assert.match(user, /const next = faker\.number\.int\(\{ min: 1 \}\);/);
-    assert.match(user, /const sample = \(\): user =>/);
+    assert.match(user, /const sample = \(\): User =>/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {

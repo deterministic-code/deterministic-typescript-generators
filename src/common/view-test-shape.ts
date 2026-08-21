@@ -8,12 +8,13 @@ import {
 import { toNative } from "../base-type-converter.ts";
 import { valueTmpl } from "../resources/view-types-tests.ts";
 import { fakeTestData, fieldExpr } from "./fake-test-data.ts";
-import { jsIdent } from "./default-casing.ts";
+import type { PackCasing } from "./default-casing.ts";
 
 export type ShapeOpts = {
   tables: Map<string, DatasourceType>;
   views: Map<string, ViewType>;
   referenceBackendType: boolean;
+  casing: PackCasing;
 };
 
 export type ShapeNode = {
@@ -88,8 +89,9 @@ const scalarNode = (
   accessPrefix: string,
   pathPrefix: string,
   isRoot: boolean,
+  casing: PackCasing,
 ): ShapeNode => {
-  const ident = jsIdent(field.name);
+  const ident = casing.fieldIdent(field.name);
   const path = pathPrefix === "" ? field.name : `${pathPrefix}.${field.name}`;
   return {
     name: field.name,
@@ -118,7 +120,7 @@ const dsNodes = (
   const table = opts.tables.get(name);
   if (table === undefined) return [];
   return table.fields.map((f) =>
-    scalarNode(f, accessPrefix, pathPrefix, false),
+    scalarNode(f, accessPrefix, pathPrefix, false, opts.casing),
   );
 };
 
@@ -131,7 +133,7 @@ const viewFieldNode = (
   isRoot: boolean,
 ): ShapeNode => {
   if (field.kind === "primitive") {
-    const ident = jsIdent(field.name);
+    const ident = opts.casing.fieldIdent(field.name);
     const path = pathPrefix === "" ? field.name : `${pathPrefix}.${field.name}`;
     return {
       name: field.name,
@@ -150,7 +152,7 @@ const viewFieldNode = (
       nested: [],
     };
   }
-  const ident = jsIdent(field.name);
+  const ident = opts.casing.fieldIdent(field.name);
   const path = pathPrefix === "" ? field.name : `${pathPrefix}.${field.name}`;
   const access = `${accessPrefix}${fieldAccess(ident)}`;
   const childPrefix = field.isArray ? `${access}[0]` : access;

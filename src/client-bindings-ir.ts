@@ -1,11 +1,12 @@
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
-import type {
-  RoutesApiBody,
-  RoutesApiDoc,
-  RoutesApiRouteDef,
+import {
+  namedRoutes,
+  type RoutesApiBody,
+  type RoutesApiDoc,
+  type RoutesApiRouteDef,
 } from "@deterministic-code/generators-common/routes-api";
 import { loadRoutesApi } from "@deterministic-code/generators-common/routes-api-converter";
-import { isRecord, namedEntries } from "@deterministic-code/generators-common/yaml-entry";
+import { createCasing } from "./common/default-casing.ts";
 import { httpPathFromRoutesApi } from "./common/http-path.ts";
 import { resolvesToSelf } from "./frontend-bindings-routes.ts";
 
@@ -205,11 +206,7 @@ export const projectClientBindings = (
     string,
     { fileBase: string; clientName: string; pascalEntity: string; methods: ClientMethodIr[]; typeNames: Set<string> }
   >();
-  for (const [routeName, raw] of namedEntries(doc.routes)) {
-    if (!isRecord(raw) || typeof raw.path !== "string" || typeof raw.method !== "string") {
-      continue;
-    }
-    const def = raw as RoutesApiRouteDef;
+  for (const [routeName, def] of namedRoutes(doc.routes)) {
     const fileBase = def.entity ?? "custom";
     const bucket = grouped.get(fileBase) ?? {
       fileBase,
@@ -239,14 +236,28 @@ export const projectClientBindings = (
   return { entities };
 };
 
-export const createIndex = (settings: Record<string, string>): boolean => {
-  const flag = settings["codegen.create_index"];
-  return flag === undefined || flag === "true";
-};
-
 export const loadClientBindingsIr = async (
   ctx: GenerateContext,
 ): Promise<ClientBindingsIr> => {
   requireSelfSchema(ctx.settings);
-  return projectClientBindings(await loadRoutesApi(ctx));
+  const ir = projectClientBindings(await loadRoutesApi(ctx));
+  const casing = createCasing(ctx.settings);
+  return {
+    entities: ir.entities.map((entity) => {
+      const fileBase = casing.fileBase(entity.fileBase);
+      const methods = entity.methods.map((method) => ({
+        ...method,
+        pascalName: casing.convertTypes(method.methodName),
+      }));
+      return {
+        ...entity,
+        fileBase,
+        clientName: `${fileBase}Client`,
+        pascalEntity: casing.convertTypes(entity.fileBase),
+        methods,
+        queries: methods.filter((method) => method.isQuery),
+        mutations: methods.filter((method) => !method.isQuery),
+      };
+    }),
+  };
 };

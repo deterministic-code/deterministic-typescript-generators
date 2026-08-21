@@ -6,7 +6,6 @@ import {
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
 import {
-  entityUsesOptimisticConcurrency,
   ROUTES_YAML,
   type ExpandedDatasourceType,
   type RouteByField,
@@ -14,7 +13,6 @@ import {
   type ViewEnrichment,
 } from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
-import { createImportGenerator } from "./import-generator.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   byFieldDeleteListTmpl,
@@ -27,28 +25,7 @@ import {
   mockFactoryTmpl,
   readonlyTmpl,
 } from "./resources/routes-tests.ts";
-
-type EmitOptions = {
-  imports: ReturnType<typeof createImportGenerator>;
-  datasources: ExpandedDatasourceType[];
-  libraryReferenceMode: string | undefined;
-  useOcc: boolean;
-  enrichmentsByEntity: Map<string, ViewEnrichment[]>;
-};
-
-const emitOptions = (
-  settings: Record<string, string>,
-  datasources: ExpandedDatasourceType[],
-  enrichmentsByEntity: Map<string, ViewEnrichment[]>,
-): EmitOptions => {
-  return {
-    imports: createImportGenerator(".", settings),
-    libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
-    useOcc: settings["datasource.use_optimistic_concurrency"] !== "false",
-    datasources,
-    enrichmentsByEntity,
-  };
-};
+import { Emit } from "./emit.ts";
 
 const fkMockSuffix = (enrichments: ViewEnrichment[]): string =>
   enrichments.map((e) => `, ${e.fkColumn}: 1`).join("");
@@ -107,75 +84,82 @@ const byFieldsBlock = (
     })
     .join("");
 
-const renderTest = (
-  candidate: RouteCandidate,
-  opts: EmitOptions,
-): GenerateEntry => {
-  const table = opts.datasources.find((d) => d.name === candidate.name);
-  const column = table?.primaryKeyColumn ?? "id";
-  const pkType =
-    table?.fields.find((f) => f.name === column)?.type ?? "integer";
-  const path = opts.imports.routeTest(candidate.name);
-  const fileBase = candidate.name;
-  const mountPath = `/api/${candidate.name}`;
-  const enrichments = opts.enrichmentsByEntity.get(candidate.name) ?? [];
-  const occ = entityUsesOptimisticConcurrency(candidate, opts.useOcc);
-  const ifMatch = occ ? `.set("If-Match", occToken)` : "";
-  const shared = {
-    prelude: preludeSource(fakeTestData),
-    pkImport: `import { PrimaryKey } from "${libraryImportSpecifier(
-      "repositories",
-      opts.libraryReferenceMode,
-      path,
-    )}";`,
-    fnName: `${candidate.name}Router`,
-    fileBase,
-    mockFactory: mockFactoryTmpl,
-    pkExpr: `new PrimaryKey(${JSON.stringify(column)}, ${JSON.stringify(pkType)})`,
-    mountPath,
-    idFieldName: column,
-    idExpr: fakeTestData.id(asIdType(pkType)),
-    fkSuffix: fkMockSuffix(enrichments),
-    byFieldsBlock: byFieldsBlock(mountPath, candidate.byFields, ifMatch),
-  };
-  if (candidate.datasourceType === "readonly-lookup") {
-    return content(path, fill(readonlyTmpl, shared));
-  }
-  return content(
-    path,
-    fill(crudTmpl, {
-      ...shared,
-      entity: candidate.name,
-      nameSuffix: requestNameSuffix(enrichments),
-      occDecl: occ ? `  const occToken = new Date().toISOString();\n` : "",
-      ifMatch,
-      occCallArg: occ ? `, { expectedUpdated: occToken }` : "",
-    }),
-  );
-};
+class Generator extends Emit {
+  private readonly datasources: ExpandedDatasourceType[];
+  private readonly enrichmentsByEntity: Map<string, ViewEnrichment[]>;
 
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-): GenerateEntry[] => {
-  const parsed = deterministic.routes;
-  const views = deterministic.viewTypes;
-  const opts = emitOptions(
-    settings,
-    deterministic.expandedDatasourceTypes,
-    new Map(
-      views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
-    ),
-  );
-  return parsed.candidates.map((c) => renderTest(c, opts));
-};
+  constructor(
+    raw: Record<string, string>,
+    datasources: ExpandedDatasourceType[],
+    enrichmentsByEntity: Map<string, ViewEnrichment[]>,
+  ) {
+    super(raw);
+    this.datasources = datasources;
+    this.enrichmentsByEntity = enrichmentsByEntity;
+  }
+
+  from(deterministic: IDeterministic): GenerateEntry[] {
+    return deterministic.routes.candidates.map((c) => this.test(c));
+  }
+
+  private test(candidate: RouteCandidate): GenerateEntry {
+    const table = this.datasources.find((d) => d.name === candidate.name);
+    const column = table?.primaryKeyColumn ?? "id";
+    const pkType =
+      table?.fields.find((f) => f.name === column)?.type ?? "integer";
+    const path = this.imports.routeTest(candidate.name);
+    const fileBase = candidate.name;
+    const mountPath = `/api/${candidate.name}`;
+    const enrichments = this.enrichmentsByEntity.get(candidate.name) ?? [];
+    const occ = this.settings.usesOptimisticConcurrency(candidate);
+    const ifMatch = occ ? `.set("If-Match", occToken)` : "";
+    const shared = {
+      prelude: preludeSource(fakeTestData),
+      pkImport: `import { PrimaryKey } from "${libraryImportSpecifier(
+        "repositories",
+        this.settings.libraryReferenceMode,
+        path,
+      )}";`,
+      fnName: this.casing.convertTypes(`${candidate.name}_router`),
+      fileBase,
+      mockFactory: mockFactoryTmpl,
+      pkExpr: `new PrimaryKey(${JSON.stringify(column)}, ${JSON.stringify(pkType)})`,
+      mountPath,
+      idFieldName: column,
+      idExpr: fakeTestData.id(asIdType(pkType)),
+      fkSuffix: fkMockSuffix(enrichments),
+      byFieldsBlock: byFieldsBlock(mountPath, candidate.byFields, ifMatch),
+    };
+    if (candidate.datasourceType === "readonly-lookup") {
+      return content(path, fill(readonlyTmpl, shared));
+    }
+    return content(
+      path,
+      fill(crudTmpl, {
+        ...shared,
+        entity: candidate.name,
+        nameSuffix: requestNameSuffix(enrichments),
+        occDecl: occ ? `  const occToken = new Date().toISOString();\n` : "",
+        ifMatch,
+        occCallArg: occ ? `, { expectedUpdated: occToken }` : "",
+      }),
+    );
+  }
+}
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(ROUTES_YAML);
-  return generateFrom(
-    await DeterministicParser(ctx.reader).parse(ctx.settings),
+  const deterministic = await DeterministicParser(ctx.reader).parse(
     ctx.settings,
   );
+  const views = deterministic.viewTypes;
+  return new Generator(
+    ctx.settings,
+    deterministic.expandedDatasourceTypes,
+    new Map(
+      views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
+    ),
+  ).from(deterministic);
 };

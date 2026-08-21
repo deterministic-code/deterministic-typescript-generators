@@ -183,29 +183,29 @@ types: []
     assert.deepEqual(
       [...byName.keys()].sort(),
       [
-        "card_payment.test.ts",
-        "cash_payment.test.ts",
+        "cardPayment.test.ts",
+        "cashPayment.test.ts",
         "payment.test.ts",
         "tag.test.ts",
-        "update_tag.test.ts",
-        "update_user.test.ts",
-        "update_user_summary.test.ts",
+        "updateTag.test.ts",
+        "updateUser.test.ts",
+        "updateUserSummary.test.ts",
         "user.test.ts",
-        "user_summary.test.ts",
+        "userSummary.test.ts",
       ],
     );
   });
 
   it("imports the generated type and covers get/set plus null assignment", async () => {
     const card = await bodyOf(
-      "card_payment.test.ts",
+      "cardPayment.test.ts",
       {},
       SIMPLE_VIEW_YAML,
       undefined,
     );
-    assert.match(card, /import type \{ card_payment \} from "\.\.\/card_payment";/);
+    assert.match(card, /import type \{ CardPayment \} from "\.\.\/cardPayment";/);
     assert.match(card, /from "vitest"/);
-    assert.match(card, /const sample = \(\): card_payment => \(/);
+    assert.match(card, /const sample = \(\): CardPayment => \(/);
     for (const field of ["amount", "paid_at", "note"]) {
       assert.match(card, new RegExp(`it\\("gets ${field}"`));
       assert.match(card, new RegExp(`it\\("sets ${field}"`));
@@ -219,7 +219,7 @@ types: []
   });
 
   it("covers nested datasource and view fields on a shaped view", async () => {
-    const card = await bodyOf("card_payment.test.ts");
+    const card = await bodyOf("cardPayment.test.ts");
     assert.match(card, /it\("gets tags"/);
     assert.match(card, /it\("sets tags"/);
     assert.match(card, /it\("gets tags.label"/);
@@ -237,24 +237,24 @@ types: []
 
   it("emits union member accept cases instead of field accessors", async () => {
     const payment = await bodyOf("payment.test.ts");
-    assert.match(payment, /import type \{ payment \} from "\.\.\/payment";/);
+    assert.match(payment, /import type \{ Payment \} from "\.\.\/payment";/);
     assert.match(
       payment,
-      /import type \{ card_payment \} from "\.\/card_payment";/,
+      /import type \{ CardPayment \} from "\.\/cardPayment";/,
     );
     assert.match(
       payment,
-      /import type \{ cash_payment \} from "\.\/cash_payment";/,
+      /import type \{ CashPayment \} from "\.\/cashPayment";/,
     );
-    assert.match(payment, /it\("accepts a card_payment member"/);
-    assert.match(payment, /it\("accepts a cash_payment member"/);
+    assert.match(payment, /it\("accepts a CardPayment member"/);
+    assert.match(payment, /it\("accepts a CashPayment member"/);
     assert.doesNotMatch(payment, /const sample = /);
     assert.doesNotMatch(payment, /it\("gets /);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
     const card = await bodyOf(
-      "card_payment.test.ts",
+      "cardPayment.test.ts",
       { "codegen.schema_version": "9.9" },
       SIMPLE_VIEW_YAML,
       undefined,
@@ -264,7 +264,7 @@ types: []
 
   it("covers remaining primitive sample literals", async () => {
     const card = await bodyOf(
-      "card_payment.test.ts",
+      "cardPayment.test.ts",
       {},
       `types:
   - card_payment:
@@ -307,7 +307,7 @@ types: []
 
   it("renders empty shaped and union views", async () => {
     const empty = await bodyOf(
-      "empty_view.test.ts",
+      "emptyView.test.ts",
       {},
       `types:
   - empty_view:
@@ -317,10 +317,10 @@ types: []
 `,
       undefined,
     );
-    assert.match(empty, /const sample = \(\): empty_view => \(\{\}\);/);
+    assert.match(empty, /const sample = \(\): EmptyView => \(\{\}\);/);
     assert.doesNotMatch(empty, /it\("gets /);
     const union = await bodyOf(
-      "empty_union.test.ts",
+      "emptyUnion.test.ts",
       {},
       `types:
   - empty_view:

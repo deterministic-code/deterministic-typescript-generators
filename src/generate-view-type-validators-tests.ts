@@ -13,10 +13,6 @@ import {
 import { preludeSource, fakeTestData } from "./common/fake-test-data.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 import {
-  createImportGenerator,
-  type TypeScriptImportGenerator,
-} from "./import-generator.ts";
-import {
   escapeTestName,
   flattenNodes,
   renderMutatedObject,
@@ -26,11 +22,7 @@ import {
   type ShapeNode,
   type ShapeOpts,
 } from "./common/view-test-shape.ts";
-
-type EmitOptions = ShapeOpts & {
-  imports: TypeScriptImportGenerator;
-  schemaVersion: string;
-};
+import { Emit } from "./emit.ts";
 
 type CaseTok = {
   name: string;
@@ -46,16 +38,6 @@ const MUTABLE_SCALAR = new Set([
   "reference",
   "binary",
 ]);
-
-const emitBase = (
-  settings: Record<string, string>,
-  basePath: string,
-) => {
-  return {
-    imports: createImportGenerator(basePath, settings),
-    schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-  };
-};
 
 const wrongTypeExpr = (type: string): string | undefined => {
   switch (type) {
@@ -122,108 +104,118 @@ const mutationCases = (
   return cases;
 };
 
-const shapedCases = (view: ShapedView, opts: EmitOptions): CaseTok[] => {
-  const fields = shapedViewNodes(view, opts);
-  const declared = view.fields.map((declaredField) => {
-    const node = fields.find((f) => f.name === declaredField.name);
-    if (node === undefined) {
-      throw new Error(`missing shaped field ${declaredField.name}`);
-    }
-    return node;
-  });
-  const cases: CaseTok[] = [
-    {
-      name: "parses a valid payload",
-      fixture: renderObject(fields),
-      assertion: "not.toThrow",
-    },
-  ];
-  if (fields.some((f) => f.nullable)) {
-    cases.push({
-      name: "accepts null for nullable fields",
-      fixture: renderObject(
-        fields.map((f) =>
-          f.nullable
-            ? {
-                ...f,
-                isObject: false,
-                isPrimitive: true,
-                isArray: false,
-                expr: "null",
-                nested: [],
-              }
-            : f,
-        ),
-      ),
-      assertion: "not.toThrow",
-    });
+class Generator extends Emit implements ShapeOpts {
+  readonly tables: ShapeOpts["tables"];
+  readonly views: ShapeOpts["views"];
+  readonly referenceBackendType: boolean;
+
+  constructor(
+    raw: Record<string, string>,
+    basePath: string,
+    deterministic: IDeterministic,
+    referenceBackendType: boolean,
+  ) {
+    super(raw, basePath);
+    this.tables = new Map(
+      deterministic.expandedDatasourceTypes.map((t) => [t.name, t]),
+    );
+    this.views = new Map(
+      deterministic.expandedViewTypes.map((v) => [v.name, v]),
+    );
+    this.referenceBackendType = referenceBackendType;
   }
-  const inheritedMutation = fields.find(
-    (f) =>
-      !declared.some((d) => d.name === f.name) && !f.nullable && !f.hasDefault,
-  );
-  if (inheritedMutation !== undefined) {
-    cases.push(
-      ...mutationCases(fields, [inheritedMutation], { inherited: true }),
+
+  from(): GenerateEntry[] {
+    return [...this.views.values()].map((view) => this.tests(view));
+  }
+
+  private shapedCases(view: ShapedView): CaseTok[] {
+    const fields = shapedViewNodes(view, this);
+    const declared = view.fields.map((declaredField) => {
+      const node = fields.find((f) => f.name === declaredField.name);
+      if (node === undefined) {
+        throw new Error(`missing shaped field ${declaredField.name}`);
+      }
+      return node;
+    });
+    const cases: CaseTok[] = [
+      {
+        name: "parses a valid payload",
+        fixture: renderObject(fields),
+        assertion: "not.toThrow",
+      },
+    ];
+    if (fields.some((f) => f.nullable)) {
+      cases.push({
+        name: "accepts null for nullable fields",
+        fixture: renderObject(
+          fields.map((f) =>
+            f.nullable
+              ? {
+                  ...f,
+                  isObject: false,
+                  isPrimitive: true,
+                  isArray: false,
+                  expr: "null",
+                  nested: [],
+                }
+              : f,
+          ),
+        ),
+        assertion: "not.toThrow",
+      });
+    }
+    const inheritedMutation = fields.find(
+      (f) =>
+        !declared.some((d) => d.name === f.name) &&
+        !f.nullable &&
+        !f.hasDefault,
+    );
+    if (inheritedMutation !== undefined) {
+      cases.push(
+        ...mutationCases(fields, [inheritedMutation], { inherited: true }),
+      );
+    }
+    cases.push(...mutationCases(fields, flattenNodes(declared)));
+    return cases;
+  }
+
+  private unionCases(view: Extract<ViewType, { kind: "union" }>): CaseTok[] {
+    const cases = view.members.map((name) => ({
+      name: escapeTestName(
+        `accepts a ${this.casing.convertTypes(name)} member`,
+      ),
+      fixture: renderObject(viewNodes(name, this, new Set([view.name]))),
+      assertion: "not.toThrow",
+    }));
+    cases.push({
+      name: escapeTestName(
+        `rejects when matches neither member of union "${view.name}"`,
+      ),
+      fixture: `{ __not_a_member__: true }`,
+      assertion: "toThrow",
+    });
+    return cases;
+  }
+
+  private tests(view: ViewType): GenerateEntry {
+    const src = this.imports.viewValidator(view.name);
+    return content(
+      this.imports.test(src, view.name),
+      fill(typeTestTmpl, {
+        prelude: preludeSource(fakeTestData),
+        schemaVersion: this.settings.schemaVersion,
+        schemaName: `${this.casing.convertTypes(view.name)}Schema`,
+        viewName: view.name,
+        schemaImport: this.imports.testSpec(src, view.name),
+        cases:
+          view.kind === "union"
+            ? this.unionCases(view)
+            : this.shapedCases(view),
+      }),
     );
   }
-  cases.push(...mutationCases(fields, flattenNodes(declared)));
-  return cases;
-};
-
-const unionCases = (
-  view: Extract<ViewType, { kind: "union" }>,
-  opts: EmitOptions,
-): CaseTok[] => {
-  const cases = view.members.map((name) => ({
-    name: escapeTestName(`accepts a ${name} member`),
-    fixture: renderObject(viewNodes(name, opts, new Set([view.name]))),
-    assertion: "not.toThrow",
-  }));
-  cases.push({
-    name: escapeTestName(
-      `rejects when matches neither member of union "${view.name}"`,
-    ),
-    fixture: `{ __not_a_member__: true }`,
-    assertion: "toThrow",
-  });
-  return cases;
-};
-
-const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
-  const src = opts.imports.viewValidator(view.name);
-  return content(
-    opts.imports.test(src, view.name),
-    fill(typeTestTmpl, {
-      prelude: preludeSource(fakeTestData),
-      schemaVersion: opts.schemaVersion,
-      schemaName: `${view.name}Schema`,
-      viewName: view.name,
-      schemaImport: opts.imports.testSpec(src, view.name),
-      cases:
-        view.kind === "union" ? unionCases(view, opts) : shapedCases(view, opts),
-    }),
-  );
-};
-
-const generateFrom = (
-  deterministic: IDeterministic,
-  settings: Record<string, string>,
-  referenceBackendType: boolean,
-  basePath: string,
-): GenerateEntry[] => {
-  const base = emitBase(settings, basePath);
-  const views = deterministic.expandedViewTypes;
-  const opts: EmitOptions = {
-    ...base,
-    tables: new Map(
-      deterministic.expandedDatasourceTypes.map((t) => [t.name, t]),
-    ),
-    views: new Map(views.map((v) => [v.name, v])),
-    referenceBackendType,
-  };
-  return views.map((view) => renderTests(view, opts));
-};
+}
 
 export const generate = async (
   ctx: GenerateContext,
@@ -231,10 +223,13 @@ export const generate = async (
   referenceBackendType = true,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(VIEW_TYPES_YAML);
-  return generateFrom(
-    await DeterministicParser(ctx.reader).parse(ctx.settings),
+  const deterministic = await DeterministicParser(ctx.reader).parse(
     ctx.settings,
-    referenceBackendType,
-    basePath,
   );
+  return new Generator(
+    ctx.settings,
+    basePath,
+    deterministic,
+    referenceBackendType,
+  ).from();
 };

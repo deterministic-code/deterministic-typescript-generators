@@ -1,6 +1,6 @@
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { FRONTEND_VIEW_DIR } from "./import-generator.ts";
+import { Emit } from "./emit.ts";
 import { generate as generateViewTypesTests } from "./generate-view-types-tests.ts";
 import { referencesBackend } from "./inline-inherited.ts";
 
@@ -10,7 +10,7 @@ export const generate = async (
   const referenceBackendType = referencesBackend(ctx.settings);
   return generateViewTypesTests(
     ctx,
-    FRONTEND_VIEW_DIR,
+    new Emit(ctx.settings).imports.frontend("src/types"),
     referenceBackendType,
   );
 };

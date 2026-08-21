@@ -102,8 +102,8 @@ describe("generate datasource type validators", () => {
   it("emits a zod object schema with system columns and field constraints", async () => {
     const user = await userBody();
     assert.match(user, /import \{ z \} from "zod";/);
-    assert.match(user, /export const userSchema = z\.object\(/);
-    assert.match(user, /export type userValidated = z\.infer<typeof userSchema>/);
+    assert.match(user, /export const UserSchema = z\.object\(/);
+    assert.match(user, /export type UserValidated = z\.infer<typeof UserSchema>/);
     assert.match(user, /id: z\.number\(\)\.int\(\)\.nonnegative\(\)/);
     assert.match(user, /uuid: z\.string\(\)\.uuid\(\)/);
     assert.match(user, /email: z\.string\(\)\.trim\(\)\.min\(3\)\.max\(256\)/);
@@ -136,10 +136,10 @@ describe("generate datasource type validators", () => {
     const index = entryBody(
       requireEntry(indexEntries(await generateWith({})), "index.ts"),
     );
-    assert.match(index, /export \{ userSchema \} from "\.\/user";/);
+    assert.match(index, /export \{ UserSchema \} from "\.\/user";/);
     assert.match(
       index,
-      /export type \{ userValidated \} from "\.\/user";/,
+      /export type \{ UserValidated \} from "\.\/user";/,
     );
   });
 });

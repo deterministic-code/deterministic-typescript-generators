@@ -82,7 +82,7 @@ describe("generate-routes", () => {
     );
 
     const users = textOf(entries, "user.ts");
-    assert.match(users, /export function userRouter/);
+    assert.match(users, /export function UserRouter/);
     assert.match(users, /createCrudRouter/);
     assert.match(users, /router\.get\("\/email\/:email"/);
 
@@ -90,8 +90,8 @@ describe("generate-routes", () => {
     assert.match(roles, /createReadOnlyRouter/);
 
     const index = textOf(entries, "index.ts");
-    assert.match(index, /export \{ userRouter \} from "\.\/user"/);
-    assert.match(index, /export \{ roleRouter \} from "\.\/role"/);
+    assert.match(index, /export \{ UserRouter \} from "\.\/user"/);
+    assert.match(index, /export \{ RoleRouter \} from "\.\/role"/);
   });
 
   it("emits OCC option when enabled", async () => {

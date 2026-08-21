@@ -34,7 +34,7 @@ const byFilename = async (settings: Record<string, string>) => {
 describe("generate datasource types casing", () => {
   it("Auto uses Camel files, Pascal types, Snake fields", async () => {
     const files = await byFilename({});
-    assert.deepEqual([...files.keys()], ["notificationType.ts"]);
+    assert.deepEqual([...files.keys()].sort(), ["index.ts", "notificationType.ts"]);
     const body = files.get("notificationType.ts")!;
     assert.match(body, /export interface NotificationType /);
     assert.match(body, /channel_name: string;/);

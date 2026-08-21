@@ -94,7 +94,7 @@ describe("generate datasource type validators tests", () => {
 
   it("imports the generated schema and covers parse, nullable, and reject cases", async () => {
     const user = await userBody();
-    assert.match(user, /import \{ userSchema \} from "\.\.\/user";/);
+    assert.match(user, /import \{ UserSchema \} from "\.\.\/user";/);
     assert.match(user, /from "vitest"/);
     assert.match(user, /it\("parses a valid payload"/);
     assert.match(user, /it\("accepts null for nullable fields"/);
@@ -110,8 +110,8 @@ describe("generate datasource type validators tests", () => {
       user,
       /it\("rejects when missing required field \\"active\\""/,
     );
-    assert.match(user, /expect\(\(\) => userSchema\.parse\(value\)\)\.not\.toThrow/);
-    assert.match(user, /expect\(\(\) => userSchema\.parse\(value\)\)\.toThrow/);
+    assert.match(user, /expect\(\(\) => UserSchema\.parse\(value\)\)\.not\.toThrow/);
+    assert.match(user, /expect\(\(\) => UserSchema\.parse\(value\)\)\.toThrow/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
