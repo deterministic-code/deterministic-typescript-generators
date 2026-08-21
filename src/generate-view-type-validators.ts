@@ -7,7 +7,6 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   VIEW_TYPES_YAML,
-  type ExpandedViewType,
   type ViewField,
   type ViewType,
 } from "@deterministic-code/generators-common/specification";
@@ -224,7 +223,7 @@ class Generator extends Emit {
 
   private schemaBody(
     view: ViewType,
-    expanded: ExpandedViewType | undefined,
+    expanded: ViewType | undefined,
   ): string {
     const schemaName = this.casing.schemaName(view.name);
     if (view.kind === "union") {

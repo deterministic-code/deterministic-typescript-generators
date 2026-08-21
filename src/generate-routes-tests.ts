@@ -7,7 +7,6 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   ROUTES_YAML,
-  primaryKeyColumn,
   type DatasourceType,
   type RouteByField,
   type RouteCandidate,
@@ -110,7 +109,8 @@ class Generator extends Emit {
 
   private test(candidate: RouteCandidate): GenerateEntry {
     const table = this.datasources.find((d) => d.name === candidate.name);
-    const column = primaryKeyColumn(table);
+    const column =
+      table?.fields.find((f) => f.isPrimaryKey === true)?.name ?? "id";
     const pkType =
       table?.fields.find((f) => f.name === column)?.type ?? "integer";
     const path = this.imports.routeTest(candidate.name);
