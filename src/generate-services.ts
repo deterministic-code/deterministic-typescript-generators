@@ -36,7 +36,7 @@ class Generator extends Emit {
     const { simpleDoc, descriptionDoc, libraryReferenceMode } = this.settings;
     const typeName = this.casing.convertTypes(candidate.name);
     const className = this.casing.serviceClassName(candidate.name);
-    const interfaceName = `I${className}`;
+    const interfaceName = this.casing.serviceInterfaceName(candidate.name);
     const generatePath = this.imports.service(candidate.name);
     const typeImportPath = this.imports.spec(
       this.imports.serviceRel(candidate.name),
@@ -74,8 +74,8 @@ class Generator extends Emit {
 
   private custom(entry: CustomServiceEntry): GenerateEntry {
     const { simpleDoc, descriptionDoc } = this.settings;
-    const className = this.casing.convertTypes(entry.name);
-    const interfaceName = `I${className}`;
+    const className = entry.name;
+    const interfaceName = this.casing.authoredInterfaceName(entry.name);
     return content(
       this.imports.serviceCustom(entry.name, entry.module),
       fill(customStubTmpl, {
@@ -108,6 +108,7 @@ class Generator extends Emit {
             fill(indexTmpl, {
               types: sorted.map((c) => ({
                 className: this.casing.serviceClassName(c.name),
+                interfaceName: this.casing.serviceInterfaceName(c.name),
                 fileBase: this.casing.fileBase(`${c.name}_service`),
               })),
             }),
@@ -129,7 +130,8 @@ class Generator extends Emit {
             index,
             fill(indexTmpl, {
               types: sorted.map((e) => ({
-                className: this.casing.convertTypes(e.name),
+                className: e.name,
+                interfaceName: this.casing.authoredInterfaceName(e.name),
                 fileBase: this.casing.fileBase(e.name),
               })),
             }),

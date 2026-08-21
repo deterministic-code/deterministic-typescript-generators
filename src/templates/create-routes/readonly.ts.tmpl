@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { I{{entity}}Service } from "{{serviceImport}}";
+import { {{serviceInterfaceName}} } from "{{serviceImport}}";
 import { createReadOnlyRouter } from "{{routesImport}}";
 {{#hasByFields}}import { sendItem, sendItems } from "{{responsesImport}}";
 {{/hasByFields}}
@@ -10,7 +10,7 @@ import { createReadOnlyRouter } from "{{routesImport}}";
  * Target: ReadOnlyRouter.
  * Fields: 0.
  */
-{{/descriptionDoc}}export function {{fnName}}(service: I{{entity}}Service): Router {
+{{/descriptionDoc}}export function {{fnName}}(service: {{serviceInterfaceName}}): Router {
 {{^hasByFields}}  return createReadOnlyRouter({
     service,
     entityName: "{{entity}}",{{#occ}}

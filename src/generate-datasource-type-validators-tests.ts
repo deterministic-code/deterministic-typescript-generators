@@ -160,13 +160,12 @@ class Generator extends Emit {
       fieldTok(f, (name) => this.casing.fieldIdent(name)),
     );
     const src = this.imports.datasourceValidator(table.name);
-    const className = this.casing.convertTypes(table.name);
     return content(
       this.imports.test(src, table.name),
       fill(typeTestTmpl, {
         prelude: preludeSource(fakeTestData),
         schemaVersion: this.settings.schemaVersion,
-        schemaName: `${className}Schema`,
+        schemaName: this.casing.schemaName(table.name),
         tableName: table.name,
         schemaImport: this.imports.testSpec(src, table.name),
         cases: casesFor(fields),

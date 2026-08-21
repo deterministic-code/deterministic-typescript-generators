@@ -89,6 +89,7 @@ describe("generate-services", () => {
     const index = textOf(entries, "index.ts");
     assert.match(index, /export \{ RoleService \} from "\.\/roleService"/);
     assert.match(index, /export \{ UserService \} from "\.\/userService"/);
+    assert.match(index, /export type \{ IUserService \} from "\.\/userService"/);
   });
 
   it("omits indexes when codegen.create_index is false", async () => {

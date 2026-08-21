@@ -70,16 +70,16 @@ const tighten = (field: ViewField): string => {
 
 const indexExports = (
   view: ViewType,
-  convertTypes: (text: string) => string,
+  schemaName: (name: string) => string,
 ): string | undefined => {
-  const schema = `${convertTypes(view.name)}Schema`;
+  const schema = schemaName(view.name);
   if (view.kind === "shaped" && view.omit.length > 0) return undefined;
   if (view.kind === "union") return schema;
   return [
     schema,
-    `${convertTypes(`create_${view.name}`)}Schema`,
-    `${convertTypes(`update_${view.name}`)}Schema`,
-    `${convertTypes(`patch_${view.name}`)}Schema`,
+    schemaName(`create_${view.name}`),
+    schemaName(`update_${view.name}`),
+    schemaName(`patch_${view.name}`),
   ].join(", ");
 };
 
@@ -113,7 +113,8 @@ class Generator extends Emit {
           schemaBody: this.schemaBody(view, expandedByName.get(view.name)),
           withTypeAnnotation: true,
           className: this.casing.convertTypes(view.name),
-          schemaName: `${this.casing.convertTypes(view.name)}Schema`,
+          schemaName: this.casing.schemaName(view.name),
+          validatedTypeName: this.casing.validatedTypeName(view.name),
         }),
       ),
     );
@@ -127,13 +128,14 @@ class Generator extends Emit {
           fill(this.templates.indexTmpl, {
             withTypeAnnotation: true,
             types: views.flatMap((view) => {
-              const exports = indexExports(view, (text) =>
-                this.casing.convertTypes(text),
+              const exports = indexExports(view, (name) =>
+                this.casing.schemaName(name),
               );
               if (exports === undefined) return [];
               return [{
                 exports,
                 className: this.casing.convertTypes(view.name),
+                validatedTypeName: this.casing.validatedTypeName(view.name),
                 fileBase: this.casing.fileBase(view.name),
               }];
             }),
@@ -147,8 +149,8 @@ class Generator extends Emit {
   private zodForField(field: ViewField): string {
     const nested =
       field.kind === "datasource" && this.referenceBackendType
-        ? `${this.casing.convertTypes(`datasource_${field.base}`)}Schema`
-        : `${this.casing.convertTypes(field.base)}Schema`;
+        ? this.casing.schemaName(`datasource_${field.base}`)
+        : this.casing.schemaName(field.base);
     let expr =
       field.kind === "primitive"
         ? tighten(field)
@@ -189,8 +191,8 @@ class Generator extends Emit {
       );
       const token =
         kind === "datasource"
-          ? `${this.casing.convertTypes(entity)}Schema as ${this.casing.convertTypes(`datasource_${entity}`)}Schema`
-          : `${this.casing.convertTypes(entity)}Schema`;
+          ? `${this.casing.schemaName(entity)} as ${this.casing.schemaName(`datasource_${entity}`)}`
+          : this.casing.schemaName(entity);
       const set = byPath.get(fromPath) ?? new Set();
       set.add(token);
       byPath.set(fromPath, set);
@@ -214,19 +216,19 @@ class Generator extends Emit {
     view: ViewType,
     expanded: ExpandedViewType | undefined,
   ): string {
-    const schemaName = `${this.casing.convertTypes(view.name)}Schema`;
+    const schemaName = this.casing.schemaName(view.name);
     if (view.kind === "union") {
       return fill(this.templates.schemaUnionTmpl, {
         schemaName,
         members: view.members.map((m) => ({
-          ident: `${this.casing.convertTypes(m)}Schema`,
+          ident: this.casing.schemaName(m),
         })),
       }).trimEnd();
     }
     const t = {
-      create: `${this.casing.convertTypes(`create_${view.name}`)}Schema`,
-      update: `${this.casing.convertTypes(`update_${view.name}`)}Schema`,
-      patch: `${this.casing.convertTypes(`patch_${view.name}`)}Schema`,
+      create: this.casing.schemaName(`create_${view.name}`),
+      update: this.casing.schemaName(`update_${view.name}`),
+      patch: this.casing.schemaName(`patch_${view.name}`),
     };
     const inheritBackend = this.referenceBackendType && view.inherits !== null;
     const inlineFields =
@@ -257,7 +259,7 @@ class Generator extends Emit {
       : ["id", "created", "updated"];
     return fill(this.templates.schemaInheritTmpl, {
       schemaName,
-      dsAlias: `${this.casing.convertTypes(`datasource_${parent}`)}Schema`,
+      dsAlias: this.casing.schemaName(`datasource_${parent}`),
       hasOmits: allOmits.length > 0,
       omitObj: omitObj(allOmits.map((k) => this.casing.convertFields(k))),
       partialId: omits.length > 0 && !omits.includes("id"),

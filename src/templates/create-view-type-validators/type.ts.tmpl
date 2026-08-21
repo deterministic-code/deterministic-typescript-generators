@@ -7,5 +7,5 @@ import { {{names}} } from "{{fromPath}}";
 {{&schemaBody}}
 {{#withTypeAnnotation}}
 
-export type {{className}}Validated = z.infer<typeof {{schemaName}}>;
+export type {{validatedTypeName}} = z.infer<typeof {{schemaName}}>;
 {{/withTypeAnnotation}}

@@ -91,4 +91,26 @@ describe("generate services casing", () => {
       files.has("features/notification-type/NotificationTypeService.ts"),
     );
   });
+
+  it("keeps the YAML custom service class name when types are camel", async () => {
+    const files = new Map<string, string>();
+    for (const entry of await generate({
+      reader: memoryReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "services.yaml": `includes:
+  - view_type_services:
+      filter: 'type is view_type'
+services:
+  - name: ContactImportService
+`,
+      }),
+      settings: { "languages.typescript.casing.types": "Camel" },
+    })) {
+      files.set(entry.filename, entryBody(entry));
+    }
+    const body = files.get("../custom/contactImportService.ts");
+    assert.ok(body, `got ${[...files.keys()].join(", ")}`);
+    assert.match(body, /export class ContactImportService implements IContactImportService/);
+  });
 });

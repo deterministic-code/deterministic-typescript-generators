@@ -22,6 +22,12 @@ export type PackCasing = ICasingStrategy & {
   filePath: (stem: string) => string
   fieldIdent: (field: string) => string
   serviceClassName: (entity: string) => string
+  serviceInterfaceName: (entity: string) => string
+  authoredInterfaceName: (name: string) => string
+  schemaName: (name: string) => string
+  validatedTypeName: (name: string) => string
+  routerFnName: (entity: string) => string
+  hookName: (entity: string, method: string) => string
   finderMethod: (field: string) => string
 };
 
@@ -46,6 +52,15 @@ export const createCasing = (
     filePath,
     fieldIdent,
     serviceClassName: (entity: string) => casing.convertTypes(`${entity}_service`),
+    serviceInterfaceName: (entity: string) =>
+      `I${casing.convertTypes(`${entity}_service`)}`,
+    authoredInterfaceName: (name: string) => `I${name}`,
+    schemaName: (name: string) => casing.convertTypes(`${name}_schema`),
+    validatedTypeName: (name: string) =>
+      casing.convertTypes(`${name}_validated`),
+    routerFnName: (entity: string) => casing.convertTypes(`${entity}_router`),
+    hookName: (entity: string, method: string) =>
+      `use${casing.convertTypes(`${entity}_${method}`)}`,
     finderMethod: (field: string) => `find_by_${convertFields(field)}`,
   };
 };

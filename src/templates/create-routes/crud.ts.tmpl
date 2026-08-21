@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { ZodSchema } from "zod";
-import { I{{entity}}Service } from "{{serviceImport}}";
+import { {{serviceInterfaceName}} } from "{{serviceImport}}";
 import { createCrudRouter } from "{{routesImport}}";
 {{#hasByFields}}import { sendError, sendItem, sendItems } from "{{responsesImport}}";
 {{#needsZod}}import { handleZodError } from "{{errorsImport}}";
@@ -12,7 +12,7 @@ import { createCrudRouter } from "{{routesImport}}";
  * Target: CrudRouter.
  * Fields: 0.
  */
-{{/descriptionDoc}}export function {{fnName}}(service: I{{entity}}Service, createSchema: ZodSchema, updateSchema: ZodSchema): Router {
+{{/descriptionDoc}}export function {{fnName}}(service: {{serviceInterfaceName}}, createSchema: ZodSchema, updateSchema: ZodSchema): Router {
 {{^hasByFields}}  return createCrudRouter({
     service,
     createSchema,

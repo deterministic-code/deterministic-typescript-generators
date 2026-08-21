@@ -107,8 +107,9 @@ class Generator extends Emit {
       this.imports.datasourceValidator(table.name),
       fill(typeTmpl, {
         schemaVersion: this.settings.schemaVersion,
-        schemaName: `${className}Schema`,
+        schemaName: this.casing.schemaName(table.name),
         className,
+        validatedTypeName: this.casing.validatedTypeName(table.name),
         withTypeAnnotation: true,
         fields,
       }),
@@ -126,8 +127,9 @@ class Generator extends Emit {
         types: types.map((t) => {
           const className = this.casing.convertTypes(t.name);
           return {
-            schemaName: `${className}Schema`,
+            schemaName: this.casing.schemaName(t.name),
             className,
+            validatedTypeName: this.casing.validatedTypeName(t.name),
             fileBase: this.casing.fileBase(t.name),
           };
         }),
