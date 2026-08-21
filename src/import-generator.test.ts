@@ -76,10 +76,11 @@ describe("TypeScriptImportGenerator layered (organize_by_feature unset)", () => 
     assert.equal(imports.server(), "server.ts");
     assert.equal(imports.appTest("health"), "__tests__/health.test.ts");
     assert.equal(imports.appTest("app_boot"), "__tests__/appBoot.test.ts");
-    assert.equal(imports.tsconfigInclude("services"), "services/**/*.ts");
-    assert.equal(imports.tsconfigInclude("routes"), "routes/**/*.ts");
-    assert.equal(imports.tsconfigInclude("types"), "types/**/*.ts");
-    assert.equal(imports.tsconfigInclude("features"), undefined);
+    assert.deepEqual(imports.tsconfigIncludes(), [
+      "types/**/*.ts",
+      "services/**/*.ts",
+      "routes/**/*.ts",
+    ]);
   });
 
   it("cases file names from settings for every lane", () => {
@@ -237,10 +238,7 @@ describe("TypeScriptImportGenerator by-feature", () => {
       "./user",
     );
     assert.equal(imports.frontend("src/App.tsx"), "frontend/src/App.tsx");
-    assert.equal(imports.tsconfigInclude("features"), "features/**/*.ts");
-    assert.equal(imports.tsconfigInclude("services"), undefined);
-    assert.equal(imports.tsconfigInclude("routes"), undefined);
-    assert.equal(imports.tsconfigInclude("types"), undefined);
+    assert.deepEqual(imports.tsconfigIncludes(), ["features/**/*.ts"]);
   });
 
   it("cases files and feature directories together for every lane", () => {
@@ -365,8 +363,7 @@ describe("TypeScriptImportGenerator flat basePath", () => {
       imports.test("frontend/src/types/user.ts", "user"),
       "frontend/src/types/user.test.ts",
     );
-    assert.equal(imports.tsconfigInclude("types"), undefined);
-    assert.equal(imports.tsconfigInclude("features"), undefined);
+    assert.deepEqual(imports.tsconfigIncludes(), []);
   });
 
   it("places validators under frontend/src/validators", () => {

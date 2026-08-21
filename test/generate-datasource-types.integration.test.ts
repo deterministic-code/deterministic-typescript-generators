@@ -150,13 +150,8 @@ describe("generate", () => {
     );
     assert.deepEqual(
       [...byName.keys()].sort(),
-      ["index.ts", "role.ts", "tsconfig.json", "user.ts"],
+      ["index.ts", "role.ts", "user.ts"],
     );
-    const tsconfig = requireEntry(byName, "tsconfig.json");
-    assert.equal(tsconfig.kind, "patch");
-    assert.deepEqual(JSON.parse(entryBody(tsconfig)), {
-      include: ["types/**/*.ts"],
-    });
     for (const filename of ["index.ts", "role.ts", "user.ts"]) {
       assert.equal(filename.startsWith("features/"), false, filename);
       assert.equal(requireEntry(byName, filename).kind, "content");

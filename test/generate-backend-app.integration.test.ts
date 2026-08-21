@@ -62,7 +62,14 @@ describe("generate", () => {
     assert.deepEqual(kindsOf(entries, "server.ts"), ["content"]);
     assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content"]);
     const tsconfig = JSON.parse(entryBody(requireEntry(byName, "tsconfig.json")));
-    assert.deepEqual(tsconfig.include, ["app.ts", "server.ts"]);
+    assert.deepEqual(tsconfig.include, [
+      "app.ts",
+      "server.ts",
+      "types/**/*.ts",
+      "services/**/*.ts",
+      "routes/**/*.ts",
+      "perf-server.ts",
+    ]);
     assert.deepEqual(kindsOf(entries, "__tests__/health.test.ts"), ["content"]);
     assert.deepEqual(kindsOf(entries, "Dockerfile"), ["patch"]);
     for (const filename of uniqueNames(entries)) {
@@ -252,7 +259,7 @@ describe("generate minimal", () => {
 });
 
 describe("generate by-feature", () => {
-  it("patches tsconfig.json with features/**/*.ts", async () => {
+  it("covers features in the scaffold tsconfig include", async () => {
     const entries = await generate({
       reader: memoryReader({}),
       settings: {
@@ -260,14 +267,13 @@ describe("generate by-feature", () => {
         "other.organize_by_feature": "true",
       },
     });
-    assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content", "patch"]);
-    const include = entries.find(
-      (e) => e.kind === "patch" && e.filename === "tsconfig.json",
-    );
-    assert.ok(include);
-    assert.equal(include.kind, "patch");
-    assert.deepEqual(JSON.parse(include.content), {
-      include: ["features/**/*.ts"],
-    });
+    assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content"]);
+    const tsconfig = JSON.parse(entryBody(requireEntry(lastByName(entries), "tsconfig.json")));
+    assert.deepEqual(tsconfig.include, [
+      "app.ts",
+      "server.ts",
+      "features/**/*.ts",
+      "perf-server.ts",
+    ]);
   });
 });
