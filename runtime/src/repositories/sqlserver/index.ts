@@ -2,7 +2,6 @@ export { SqlserverSetup } from './SqlserverSetup';
 export type { SqlserverSetupOptions } from './SqlserverSetup';
 export { SqlserverDatasource } from './SqlserverDatasource';
 export type { SqlserverDatasourceOptions } from './SqlserverDatasource';
-export { SqlserverRepository } from './SqlserverRepository';
 export { SqlserverCrudRepository } from './SqlserverCrudRepository';
 export {
   SqlserverStandardRepository,

@@ -33,7 +33,6 @@ const entries: Record<string, string> = {
   types: 'src/types/index.ts',
   converters: 'src/converters/index.ts',
   migrate: 'src/migrate/index.ts',
-  bindings: 'src/bindings/index.ts',
 };
 
 export default defineConfig({
@@ -48,7 +47,17 @@ export default defineConfig({
     },
     sourcemap: true,
     rollupOptions: {
-      external: [/^node:/, ...runtimeDeps, 'fs', 'path', 'crypto', 'os', 'url', 'util'],
+      external: [
+        /^node:/,
+        /^@deterministic-code\/generator-sdk/,
+        ...runtimeDeps,
+        'fs',
+        'path',
+        'crypto',
+        'os',
+        'url',
+        'util',
+      ],
       onwarn(warning, defaultHandler) {
         if (
           warning.code === 'EMPTY_BUNDLE' &&

@@ -44,22 +44,17 @@ describe('deterministic entry', () => {
   });
 
   it('exports repositories and routes', () => {
-    expect(lib.InMemoryRepository).toBeDefined();
     expect(lib.InMemoryCrudRepository).toBeDefined();
-    expect(lib.InMemoryStandardRepository).toBeDefined();
     expect(lib.SqliteSetup).toBeDefined();
     expect(lib.SqliteDatasource).toBeDefined();
-    expect(lib.SqliteRepository).toBeDefined();
     expect(lib.SqliteCrudRepository).toBeDefined();
     expect(lib.SqliteStandardRepository).toBeDefined();
     expect(lib.PostgresSetup).toBeDefined();
     expect(lib.PostgresDatasource).toBeDefined();
-    expect(lib.PostgresRepository).toBeDefined();
     expect(lib.PostgresCrudRepository).toBeDefined();
     expect(lib.PostgresStandardRepository).toBeDefined();
     expect(lib.MysqlSetup).toBeDefined();
     expect(lib.MysqlDatasource).toBeDefined();
-    expect(lib.MysqlRepository).toBeDefined();
     expect(lib.MysqlCrudRepository).toBeDefined();
     expect(lib.MysqlStandardRepository).toBeDefined();
     expect(lib.buildRepoForBackend).toBeDefined();

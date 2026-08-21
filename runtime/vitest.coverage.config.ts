@@ -35,7 +35,6 @@ export default defineConfig({
         '**/routes/iterateCombinedRoutes.ts': FULL,
         '**/services/EagerChildWritingService.ts': FULL,
         '**/services/BaseService.ts': FULL,
-        '**/repositories/inmemory/InMemoryStandardRepository.ts': FULL,
       },
     },
   },

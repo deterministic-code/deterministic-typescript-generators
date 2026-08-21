@@ -2,10 +2,9 @@ import type { InMemoryTable } from './InMemoryDatasource';
 import { columnValueMatches } from './columnValueMatches';
 
 /**
- * The row-scan bodies of `InMemoryCrudRepository`, lifted out of the class so its
- * custom-primary-key variants don't structurally clone `InMemoryStandardRepository`'s
- * `id`-keyed equivalents. Each takes a caller-bound predicate/comparator rather than
- * a column+value pair, keeping the argument count small and the classes decoupled.
+ * The row-scan bodies of `InMemoryCrudRepository`, lifted out of the class so
+ * custom-primary-key variants share one implementation. Each takes a caller-bound
+ * predicate/comparator rather than a column+value pair.
  */
 
 /** Rows satisfying `matches`, ordered by `compare`. */

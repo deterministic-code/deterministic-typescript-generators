@@ -8,7 +8,6 @@ import * as routes from '../routes';
 import * as services from '../services';
 import * as validators from '../validators';
 import * as converters from '../converters';
-import * as bindings from '../bindings';
 
 describe('subpath barrels', () => {
   it('errors barrel exposes error classes and helpers', () => {
@@ -48,22 +47,17 @@ describe('subpath barrels', () => {
   });
 
   it('repositories barrel exposes the layered classes for every backend', () => {
-    expect(repositories.InMemoryRepository).toBeDefined();
     expect(repositories.InMemoryCrudRepository).toBeDefined();
-    expect(repositories.InMemoryStandardRepository).toBeDefined();
     expect(repositories.SqliteSetup).toBeDefined();
     expect(repositories.SqliteDatasource).toBeDefined();
-    expect(repositories.SqliteRepository).toBeDefined();
     expect(repositories.SqliteCrudRepository).toBeDefined();
     expect(repositories.SqliteStandardRepository).toBeDefined();
     expect(repositories.PostgresSetup).toBeDefined();
     expect(repositories.PostgresDatasource).toBeDefined();
-    expect(repositories.PostgresRepository).toBeDefined();
     expect(repositories.PostgresCrudRepository).toBeDefined();
     expect(repositories.PostgresStandardRepository).toBeDefined();
     expect(repositories.MysqlSetup).toBeDefined();
     expect(repositories.MysqlDatasource).toBeDefined();
-    expect(repositories.MysqlRepository).toBeDefined();
     expect(repositories.MysqlCrudRepository).toBeDefined();
     expect(repositories.MysqlStandardRepository).toBeDefined();
     expect(repositories.buildRepoForBackend).toBeDefined();
@@ -72,7 +66,6 @@ describe('subpath barrels', () => {
   it('repositories/sqlserver subpath exposes the sqlserver layered classes', () => {
     expect(repositoriesSqlserver.SqlserverSetup).toBeDefined();
     expect(repositoriesSqlserver.SqlserverDatasource).toBeDefined();
-    expect(repositoriesSqlserver.SqlserverRepository).toBeDefined();
     expect(repositoriesSqlserver.SqlserverCrudRepository).toBeDefined();
     expect(repositoriesSqlserver.SqlserverStandardRepository).toBeDefined();
   });
@@ -80,7 +73,6 @@ describe('subpath barrels', () => {
   it('repositories/oracle subpath exposes the oracle layered classes', () => {
     expect(repositoriesOracle.OracleSetup).toBeDefined();
     expect(repositoriesOracle.OracleDatasource).toBeDefined();
-    expect(repositoriesOracle.OracleRepository).toBeDefined();
     expect(repositoriesOracle.OracleCrudRepository).toBeDefined();
     expect(repositoriesOracle.OracleStandardRepository).toBeDefined();
   });
@@ -109,10 +101,5 @@ describe('subpath barrels', () => {
     expect(converters.binaryFieldConverter).toBeDefined();
     expect(converters.uuidFieldConverter).toBeDefined();
     expect(typeof converters.getDefaultConverters).toBe('function');
-  });
-
-  it('bindings barrel exposes the route-row converter', () => {
-    expect(typeof bindings.openApiToRouteRows).toBe('function');
-    expect(typeof bindings.crudFor).toBe('function');
   });
 });

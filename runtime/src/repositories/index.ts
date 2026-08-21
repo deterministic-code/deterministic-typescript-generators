@@ -15,15 +15,12 @@ export type { DatabaseBackendType, DatabaseConnection } from './buildRepoForBack
 
 export { InMemoryDatasource } from './inmemory/InMemoryDatasource';
 export type { InMemoryTable } from './inmemory/InMemoryDatasource';
-export { InMemoryRepository } from './inmemory/InMemoryRepository';
 export { InMemoryCrudRepository } from './inmemory/InMemoryCrudRepository';
-export { InMemoryStandardRepository } from './inmemory/InMemoryStandardRepository';
 
 export { SqliteSetup } from './sqlite/SqliteSetup';
 export type { SqliteSetupOptions } from './sqlite/SqliteSetup';
 export { SqliteDatasource } from './sqlite/SqliteDatasource';
 export type { SqliteDatasourceOptions } from './sqlite/SqliteDatasource';
-export { SqliteRepository } from './sqlite/SqliteRepository';
 export { SqliteCrudRepository } from './sqlite/SqliteCrudRepository';
 export { SqliteStandardRepository } from './sqlite/SqliteStandardRepository';
 
@@ -31,7 +28,6 @@ export { PostgresSetup } from './postgres/PostgresSetup';
 export type { PostgresSetupOptions } from './postgres/PostgresSetup';
 export { PostgresDatasource } from './postgres/PostgresDatasource';
 export type { PostgresDatasourceOptions } from './postgres/PostgresDatasource';
-export { PostgresRepository } from './postgres/PostgresRepository';
 export { PostgresCrudRepository } from './postgres/PostgresCrudRepository';
 export { PostgresStandardRepository } from './postgres/PostgresStandardRepository';
 
@@ -39,6 +35,5 @@ export { MysqlSetup } from './mysql/MysqlSetup';
 export type { MysqlSetupOptions } from './mysql/MysqlSetup';
 export { MysqlDatasource } from './mysql/MysqlDatasource';
 export type { MysqlDatasourceOptions } from './mysql/MysqlDatasource';
-export { MysqlRepository } from './mysql/MysqlRepository';
 export { MysqlCrudRepository } from './mysql/MysqlCrudRepository';
 export { MysqlStandardRepository } from './mysql/MysqlStandardRepository';
