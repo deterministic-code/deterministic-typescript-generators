@@ -11,6 +11,7 @@ import {
   datasourceTypePath,
   dumpContactsTrace,
   requireAppFile,
+  viewValidatorPath,
   type BootedContactsApp,
 } from "./contacts-sample-app.ts";
 import {
@@ -122,6 +123,15 @@ const assertContactsLayout = async (
     requireAppFile(
       appDir,
       datasourceTypePath("contact_group", variant, settings),
+    ),
+    requireAppFile(appDir, viewValidatorPath("contact", variant, settings)),
+    requireAppFile(
+      appDir,
+      viewValidatorPath("contact_source", variant, settings),
+    ),
+    requireAppFile(
+      appDir,
+      viewValidatorPath("legacy_contact", variant, settings),
     ),
     requireAppFile(
       appDir,

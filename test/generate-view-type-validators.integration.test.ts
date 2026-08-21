@@ -249,7 +249,7 @@ types: []
     assert.doesNotMatch(summary, /update_UserSummarySchema/);
   });
 
-  it("emits CRUD trio for inherited pass-through views", async () => {
+  it("emits only the read schema for inherited pass-through views", async () => {
     const user = await bodyOf("user.ts");
     assert.match(
       user,
@@ -259,12 +259,29 @@ types: []
       user,
       /export const UserSchema = DatasourceUserSchema\.omit\(\{ "role_id": true \}\)\.extend\(\{\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
     );
+    assert.doesNotMatch(user, /export const UpdateUserSchema/);
+    assert.doesNotMatch(user, /export const CreateUserSchema/);
+    assert.doesNotMatch(user, /export const PatchUserSchema/);
+  });
+
+  it("omits only parent stamps on parser-derived update views", async () => {
+    const updateUser = await bodyOf("updateUser.ts");
     assert.match(
-      user,
-      /export const UpdateUserSchema = DatasourceUserSchema\.omit\(\{ "id": true, "uuid": true, "created": true, "updated": true, "role_id": true \}\)\.extend\(\{\n  "role_name": z\.string\(\)\.trim\(\),\n\}\);/,
+      updateUser,
+      /export const UpdateUserSchema = DatasourceUserSchema\.omit\(\{ "role_id": true, "id": true, "uuid": true, "created": true, "updated": true \}\)\.extend\(\{\n  role_name: z\.string\(\)\.trim\(\),\n\}\);/,
     );
-    assert.match(user, /export const CreateUserSchema = UpdateUserSchema;/);
-    assert.match(user, /export const PatchUserSchema = UpdateUserSchema\.partial\(\);/);
+    assert.doesNotMatch(updateUser, /export const CreateUserSchema/);
+    assert.doesNotMatch(updateUser, /export const PatchUserSchema/);
+  });
+
+  it("does not omit missing audit columns on readonly-lookup views", async () => {
+    const role = await bodyOf("role.ts");
+    assert.match(role, /export const RoleSchema = DatasourceRoleSchema;/);
+    assert.doesNotMatch(role, /\.omit\(/);
+    assert.doesNotMatch(role, /created/);
+    assert.doesNotMatch(role, /updated/);
+    assert.doesNotMatch(role, /export const UpdateRoleSchema/);
+    assert.doesNotMatch(role, /export const CreateRoleSchema/);
   });
 
   it("skips the barrel when codegen.create_index is false", async () => {
@@ -282,11 +299,15 @@ types: []
       /export \{ CardPaymentSchema, CreateCardPaymentSchema, UpdateCardPaymentSchema, PatchCardPaymentSchema \} from "\.\/cardPayment";/,
     );
     assert.match(index, /export \{ PaymentSchema \} from "\.\/payment";/);
+    assert.match(index, /export \{ UserSchema \} from "\.\/user";/);
+    assert.match(index, /export \{ UpdateUserSchema \} from "\.\/updateUser";/);
+    assert.match(index, /export \{ RoleSchema \} from "\.\/role";/);
     assert.match(
       index,
       /export type \{ CardPaymentValidated \} from "\.\/cardPayment";/,
     );
-    assert.doesNotMatch(index, /user_summary/);
+    assert.doesNotMatch(index, /export \{ UserSummarySchema \}/);
+    assert.doesNotMatch(index, /from "\.\/userSummary"/);
   });
 
   it("writes codegen.schema_version into the file header", async () => {
@@ -297,15 +318,74 @@ types: []
   });
 
   it("datasource.id_type=uuid drops uuid from inherited update omits", async () => {
-    const user = await bodyOf("user.ts", { "datasource.id_type": "uuid" });
+    const updateUser = await bodyOf("updateUser.ts", {
+      "datasource.id_type": "uuid",
+    });
     assert.match(
-      user,
-      /export const UpdateUserSchema = DatasourceUserSchema\.omit\(\{ "id": true, "created": true, "updated": true, "role_id": true \}\)/,
+      updateUser,
+      /export const UpdateUserSchema = DatasourceUserSchema\.omit\(\{ "role_id": true, "id": true, "created": true, "updated": true \}\)/,
     );
     assert.doesNotMatch(
-      user,
+      updateUser,
       /UpdateUserSchema = DatasourceUserSchema\.omit\(\{[^}]*"uuid"/,
     );
+  });
+
+  it("omits only keys present on a custom-PK parent when OCC is off", async () => {
+    const dsYaml = `types:
+  - legacy_contact:
+      fields:
+        - key:
+            type: string
+            size: 64
+            primary_key: true
+        - first_name:
+            type: string
+`;
+    const viewYaml = `includes:
+  - datasource_types:
+      include: "*"
+types: []
+`;
+    const settings = { "datasource.use_optimistic_concurrency": "false" };
+    const passThrough = await bodyOf(
+      "legacyContact.ts",
+      settings,
+      viewYaml,
+      dsYaml,
+    );
+    assert.match(
+      passThrough,
+      /export const LegacyContactSchema = DatasourceLegacyContactSchema;/,
+    );
+    assert.doesNotMatch(passThrough, /export const UpdateLegacyContactSchema/);
+    assert.doesNotMatch(passThrough, /\.omit\(/);
+
+    const update = await bodyOf(
+      "updateLegacyContact.ts",
+      settings,
+      viewYaml,
+      dsYaml,
+    );
+    assert.match(
+      update,
+      /export const UpdateLegacyContactSchema = DatasourceLegacyContactSchema\.omit\(\{ "key": true \}\);/,
+    );
+    assert.doesNotMatch(update, /"id": true/);
+    assert.doesNotMatch(update, /"created": true/);
+    assert.doesNotMatch(update, /"updated": true/);
+
+    const create = await bodyOf(
+      "createLegacyContact.ts",
+      settings,
+      viewYaml,
+      dsYaml,
+    );
+    assert.match(
+      create,
+      /export const CreateLegacyContactSchema = DatasourceLegacyContactSchema;/,
+    );
+    assert.doesNotMatch(create, /\.omit\(/);
   });
 
 });

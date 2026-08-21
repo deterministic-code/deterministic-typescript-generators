@@ -7,12 +7,26 @@ import type { GenerateEntry } from "@deterministic-code/generators-common/genera
 import { generate as generateSql } from "../../generators-sql/src/generate-sql.ts";
 import { createImportGenerator } from "../src/import-generator.ts";
 import { generate as generateBackendApp } from "../src/generate-backend-app.ts";
+import { generate as generateClientBindingsLiveTests } from "../src/generate-client-bindings-live-tests.ts";
+import { generate as generateClientBindingsMockTests } from "../src/generate-client-bindings-mock-tests.ts";
 import { generate as generateClientBindings } from "../src/generate-client-bindings.ts";
+import { generate as generateDatasourceTypeValidatorsTests } from "../src/generate-datasource-type-validators-tests.ts";
+import { generate as generateDatasourceTypeValidators } from "../src/generate-datasource-type-validators.ts";
+import { generate as generateDatasourceTypesTests } from "../src/generate-datasource-types-tests.ts";
 import { generate as generateDatasourceTypes } from "../src/generate-datasource-types.ts";
 import { generate as generateFrontendApp } from "../src/generate-frontend-app.ts";
+import { generate as generateFrontendTypesTests } from "../src/generate-frontend-types-tests.ts";
 import { generate as generateFrontendTypes } from "../src/generate-frontend-types.ts";
+import { generate as generateFrontendValidatorsTests } from "../src/generate-frontend-validators-tests.ts";
+import { generate as generateFrontendValidators } from "../src/generate-frontend-validators.ts";
+import { generate as generateRoutesTests } from "../src/generate-routes-tests.ts";
 import { generate as generateRoutes } from "../src/generate-routes.ts";
+import { generate as generateServiceIntegrationTests } from "../src/generate-service-integration-tests.ts";
+import { generate as generateServiceTests } from "../src/generate-service-tests.ts";
 import { generate as generateServices } from "../src/generate-services.ts";
+import { generate as generateViewTypeValidatorsTests } from "../src/generate-view-type-validators-tests.ts";
+import { generate as generateViewTypeValidators } from "../src/generate-view-type-validators.ts";
+import { generate as generateViewTypesTests } from "../src/generate-view-types-tests.ts";
 import { generate as generateViewTypes } from "../src/generate-view-types.ts";
 import { removeE2eTempDirs } from "./cleanup-temp.ts";
 import {
@@ -128,22 +142,10 @@ const pinLocalRuntime = async (appDir: string): Promise<void> => {
   pkg.dependencies = {
     ...pkg.dependencies,
     "@deterministic-code/deterministic": `file:${RUNTIME_ROOT}`,
+    zod: pkg.dependencies?.zod ?? "^3.23.8",
   };
   await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 };
-
-const isCustomStub = (filename: string): boolean =>
-  filename.startsWith("../") || filename.includes("/custom/");
-
-const excludeGeneratedTypesFromBuild = async (appDir: string): Promise<void> => {
-  const tsconfigPath = join(appDir, "tsconfig.json");
-  const tsconfig = JSON.parse(await readFile(tsconfigPath, "utf8")) as {
-    exclude?: string[];
-  };
-  tsconfig.exclude = [...(tsconfig.exclude ?? []), "types/**"];
-  await writeFile(tsconfigPath, `${JSON.stringify(tsconfig, null, 2)}\n`, "utf8");
-};
-
 
 const placeLayered = (
   dir: string,
@@ -153,9 +155,23 @@ const placeLayered = (
 
 export type ContactsLaneEntries = {
   datasource: GenerateEntry[];
+  datasourceValidators: GenerateEntry[];
+  datasourceTests: GenerateEntry[];
+  datasourceValidatorTests: GenerateEntry[];
   views: GenerateEntry[];
+  viewTests: GenerateEntry[];
+  viewValidators: GenerateEntry[];
+  viewValidatorTests: GenerateEntry[];
   services: GenerateEntry[];
+  serviceTests: GenerateEntry[];
+  serviceIntegrationTests: GenerateEntry[];
   routes: GenerateEntry[];
+  routeTests: GenerateEntry[];
+  frontendValidators: GenerateEntry[];
+  frontendTypeTests: GenerateEntry[];
+  frontendValidatorTests: GenerateEntry[];
+  clientBindingLiveTests: GenerateEntry[];
+  clientBindingMockTests: GenerateEntry[];
 };
 
 export type BootedContactsApp = BootedApp & {
@@ -171,21 +187,75 @@ const generateLanes = async (
     reader: memoryReader(sample.yaml),
     settings: sample.settings,
   };
-  const [datasource, views, services, routes] = await Promise.all([
+  const [
+    datasource,
+    datasourceValidators,
+    datasourceTests,
+    datasourceValidatorTests,
+    views,
+    viewTests,
+    viewValidators,
+    viewValidatorTests,
+    services,
+    serviceTests,
+    serviceIntegrationTests,
+    routes,
+    routeTests,
+    frontendValidators,
+    frontendTypeTests,
+    frontendValidatorTests,
+    clientBindingLiveTests,
+    clientBindingMockTests,
+  ] = await Promise.all([
     generateDatasourceTypes(ctx),
+    generateDatasourceTypeValidators(ctx),
+    generateDatasourceTypesTests(ctx),
+    generateDatasourceTypeValidatorsTests(ctx),
     generateViewTypes(ctx),
+    generateViewTypesTests(ctx),
+    generateViewTypeValidators(ctx),
+    generateViewTypeValidatorsTests(ctx),
     generateServices(ctx),
+    generateServiceTests(ctx),
+    generateServiceIntegrationTests(ctx),
     generateRoutes(ctx),
+    generateRoutesTests(ctx),
+    generateFrontendValidators(ctx),
+    generateFrontendTypesTests(ctx),
+    generateFrontendValidatorsTests(ctx),
+    generateClientBindingsLiveTests(ctx),
+    generateClientBindingsMockTests(ctx),
   ]);
   requireNamed(datasource, "contact");
+  requireNamed(datasourceValidators, "contact");
   requireNamed(views, "contact");
+  requireNamed(viewValidators, "contact");
   requireNamedAny(services, ["contact-import-service", "ContactImportService"]);
   requireNamedAny(services, [
     "legacy-migration-service",
     "LegacyMigrationService",
   ]);
   requireNamed(routes, "contact");
-  return { datasource, views, services, routes };
+  return {
+    datasource,
+    datasourceValidators,
+    datasourceTests,
+    datasourceValidatorTests,
+    views,
+    viewTests,
+    viewValidators,
+    viewValidatorTests,
+    services,
+    serviceTests,
+    serviceIntegrationTests,
+    routes,
+    routeTests,
+    frontendValidators,
+    frontendTypeTests,
+    frontendValidatorTests,
+    clientBindingLiveTests,
+    clientBindingMockTests,
+  };
 };
 
 export const bootContactsSample = async (
@@ -220,16 +290,57 @@ export const bootContactsSample = async (
   requireNamed(migrateEntries, "migraters/typescript/src/bin/migrate-up.ts");
 
   const byFeature = variant.organizeByFeature;
-  const datasourceOnDisk = placeLayered(
-    "types/generated/datasource",
-    lanes.datasource,
-    byFeature,
-  );
-  const servicesOnDisk = placeLayered(
-    "services/generated",
-    lanes.services.filter((entry) => isCustomStub(entry.filename)),
-    byFeature,
-  );
+  const layered = {
+    datasource: placeLayered(
+      "types/generated/datasource",
+      lanes.datasource,
+      byFeature,
+    ),
+    datasourceValidators: placeLayered(
+      "types/generated/datasource/validators",
+      lanes.datasourceValidators,
+      byFeature,
+    ),
+    datasourceTests: placeLayered(
+      "types/generated/datasource",
+      lanes.datasourceTests,
+      byFeature,
+    ),
+    datasourceValidatorTests: placeLayered(
+      "types/generated/datasource/validators",
+      lanes.datasourceValidatorTests,
+      byFeature,
+    ),
+    views: placeLayered("types/generated/views", lanes.views, byFeature),
+    viewTests: placeLayered("types/generated/views", lanes.viewTests, byFeature),
+    viewValidators: placeLayered(
+      "types/generated/views/validators",
+      lanes.viewValidators,
+      byFeature,
+    ),
+    viewValidatorTests: placeLayered(
+      "types/generated/views/validators",
+      lanes.viewValidatorTests,
+      byFeature,
+    ),
+    services: placeLayered("services/generated", lanes.services, byFeature),
+    serviceTests: placeLayered(
+      "services/generated/__tests__",
+      lanes.serviceTests,
+      byFeature,
+    ),
+    serviceIntegrationTests: placeLayered(
+      "services/generated/__tests__",
+      lanes.serviceIntegrationTests,
+      byFeature,
+    ),
+    routes: placeLayered("routes/generated", lanes.routes, byFeature),
+    routeTests: placeLayered(
+      "routes/generated/__tests__",
+      lanes.routeTests,
+      byFeature,
+    ),
+  };
 
   await removeE2eTempDirs([tempPrefix]);
   const appDir = await mkdtemp(join(tmpdir(), tempPrefix));
@@ -238,8 +349,24 @@ export const bootContactsSample = async (
     ...frontendEntries,
     ...typeEntries,
     ...bindingEntries,
-    ...datasourceOnDisk,
-    ...servicesOnDisk,
+    ...lanes.frontendValidators,
+    ...lanes.frontendTypeTests,
+    ...lanes.frontendValidatorTests,
+    ...lanes.clientBindingLiveTests,
+    ...lanes.clientBindingMockTests,
+    ...layered.datasource,
+    ...layered.datasourceValidators,
+    ...layered.datasourceTests,
+    ...layered.datasourceValidatorTests,
+    ...layered.views,
+    ...layered.viewTests,
+    ...layered.viewValidators,
+    ...layered.viewValidatorTests,
+    ...layered.services,
+    ...layered.serviceTests,
+    ...layered.serviceIntegrationTests,
+    ...layered.routes,
+    ...layered.routeTests,
     ...withSqlRoot(sqlEntries),
     ...migrateEntries,
   ];
@@ -250,7 +377,6 @@ export const bootContactsSample = async (
     appDir,
     customModulePathsFor(variant, sample.settings),
   );
-  await excludeGeneratedTypesFromBuild(appDir);
   await pinLocalRuntime(appDir);
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
@@ -273,6 +399,17 @@ export const requireAppFile = async (
   rel: string,
 ): Promise<void> => {
   await access(join(appDir, rel));
+};
+
+export const viewValidatorPath = (
+  entity: string,
+  variant: ContactsVariant,
+  settings: Record<string, string>,
+): string => {
+  const laid = createImportGenerator(".", settings).viewValidator(entity);
+  return variant.organizeByFeature
+    ? laid
+    : `types/generated/views/validators/${laid}`;
 };
 
 export const datasourceTypePath = (

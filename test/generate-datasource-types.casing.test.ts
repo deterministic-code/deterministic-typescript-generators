@@ -106,7 +106,7 @@ describe("generate datasource types casing", () => {
       "languages.typescript.casing.directories": "Kebab",
     });
     assert.ok(
-      files.has("features/notification-type/NotificationType.ts"),
+      files.has("features/notification-type/NotificationType.datasource.ts"),
     );
   });
 
@@ -117,7 +117,7 @@ describe("generate datasource types casing", () => {
       "languages.typescript.casing.directories": "Camel",
     });
     assert.ok(
-      files.has("features/notificationType/notification_type.ts"),
+      files.has("features/notificationType/notification_type.datasource.ts"),
     );
   });
 });

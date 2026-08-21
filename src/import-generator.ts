@@ -29,7 +29,9 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   datasource(entity: string): string {
-    const file = this.tsFile(entity);
+    const file = this.organizeByFeature
+      ? `${this.casing.fileBase(entity)}.datasource.ts`
+      : this.tsFile(entity);
     const path = this.organizeByFeature
       ? this.featurePath(entity, file)
       : file;
@@ -46,7 +48,7 @@ export class TypeScriptImportGenerator implements IImportGenerator {
 
   datasourceValidator(entity: string): string {
     const file = this.organizeByFeature
-      ? `${this.casing.fileBase(entity)}.validator.ts`
+      ? `${this.casing.fileBase(entity)}.datasource.validator.ts`
       : this.tsFile(entity);
     const path = this.organizeByFeature
       ? this.featurePath(entity, file)
@@ -135,7 +137,9 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   route(entity: string): string {
-    const file = this.tsFile(entity);
+    const file = this.organizeByFeature
+      ? `${this.casing.fileBase(entity)}.route.ts`
+      : this.tsFile(entity);
     const path = this.organizeByFeature
       ? this.featurePath(entity, file)
       : file;
@@ -163,8 +167,8 @@ export class TypeScriptImportGenerator implements IImportGenerator {
   }
 
   test(srcFile: string, fileBase: string): string {
-    const stem = this.casing.fileBase(fileBase);
     if (this.organizeByFeature) {
+      const stem = posix.basename(srcFile).replace(/\.ts$/, "");
       return `${posix.dirname(srcFile)}/__tests__/${stem}.test.ts`;
     }
     return srcFile.replace(/\.ts$/, ".test.ts");
