@@ -1,0 +1,258 @@
+project_name: contacts-backend
+iteration_template_vars:
+  - randSuffix
+  - i
+steps:
+  - id: lookup-contact-sources
+    phase: lookup
+    op: GET
+    path: /api/contact-sources
+    capture:
+      lookups.contact_source.ids: $.items[*].id
+      lookups.contact_source.first_id: $.items[0].id
+      lookups.contact_source.first_name: $.items[0].name
+  - id: lookup-contact-source-by-id
+    phase: lookup
+    op: GET
+    path: /api/contact-sources/${lookups.contact_source.first_id}
+  - id: post-contact-group
+    phase: iter
+    op: POST
+    path: /api/contact-groups
+    body:
+      name: perf-contact_group-name-${randSuffix()}
+    capture:
+      ids.contact_group[i]: $.id
+  - id: get-contact-groups
+    phase: iter
+    op: GET
+    path: /api/contact-groups
+  - id: get-contact-group-by-id
+    phase: iter
+    op: GET
+    path: /api/contact-groups/${ids.contact_group[i]}
+  - id: patch-contact-group
+    phase: iter
+    op: PATCH
+    path: /api/contact-groups/${ids.contact_group[i]}
+    body:
+      name: perf-patch-contact_group-name-${randSuffix()}
+  - id: put-contact-group
+    phase: iter
+    op: PUT
+    path: /api/contact-groups/${ids.contact_group[i]}
+    body:
+      name: perf-upd-contact_group-name-${randSuffix()}
+  - id: eager-get-contact-groups
+    phase: iter
+    op: GET
+    path: /api/contact-groups
+  - id: eager-get-contact-group-by-id
+    phase: iter
+    op: GET
+    path: /api/contact-groups/${ids.contact_group[i]}
+  - id: post-legacy-contact
+    phase: iter
+    op: POST
+    path: /api/legacy-contacts
+    body:
+      key: perf-legacy_contact-key-${randSuffix()}
+      first_name: perf-legacy_contact-first_name-${randSuffix()}
+      last_name: perf-legacy_contact-last_name-${randSuffix()}
+    capture:
+      ids.legacy_contact[i]: $.key
+  - id: get-legacy-contacts
+    phase: iter
+    op: GET
+    path: /api/legacy-contacts
+  - id: get-legacy-contact-by-id
+    phase: iter
+    op: GET
+    path: /api/legacy-contacts/${ids.legacy_contact[i]}
+  - id: patch-legacy-contact
+    phase: iter
+    op: PATCH
+    path: /api/legacy-contacts/${ids.legacy_contact[i]}
+    body:
+      key: ${ids.legacy_contact[i]}
+      first_name: perf-patch-legacy_contact-first_name-${randSuffix()}
+      last_name: perf-patch-legacy_contact-last_name-${randSuffix()}
+  - id: put-legacy-contact
+    phase: iter
+    op: PUT
+    path: /api/legacy-contacts/${ids.legacy_contact[i]}
+    body:
+      key: ${ids.legacy_contact[i]}
+      first_name: perf-upd-legacy_contact-first_name-${randSuffix()}
+      last_name: perf-upd-legacy_contact-last_name-${randSuffix()}
+  - id: post-contact
+    phase: iter
+    op: POST
+    path: /api/contacts
+    body:
+      contact_source_name: ${lookups.contact_source.first_name}
+      first_name: perf-contact-first_name-${randSuffix()}
+      last_name: perf-contact-last_name-${randSuffix()}
+    capture:
+      ids.contact[i]: $.id
+  - id: get-contacts
+    phase: iter
+    op: GET
+    path: /api/contacts
+  - id: get-contact-by-id
+    phase: iter
+    op: GET
+    path: /api/contacts/${ids.contact[i]}
+  - id: patch-contact
+    phase: iter
+    op: PATCH
+    path: /api/contacts/${ids.contact[i]}
+    body:
+      contact_source_name: ${lookups.contact_source.first_name}
+      first_name: perf-patch-contact-first_name-${randSuffix()}
+      last_name: perf-patch-contact-last_name-${randSuffix()}
+  - id: put-contact
+    phase: iter
+    op: PUT
+    path: /api/contacts/${ids.contact[i]}
+    body:
+      contact_source_name: ${lookups.contact_source.first_name}
+      first_name: perf-upd-contact-first_name-${randSuffix()}
+      last_name: perf-upd-contact-last_name-${randSuffix()}
+  - id: eager-get-contacts
+    phase: iter
+    op: GET
+    path: /api/contacts
+  - id: eager-get-contact-by-id
+    phase: iter
+    op: GET
+    path: /api/contacts/${ids.contact[i]}
+  - id: eager-post-contact-eager
+    phase: iter
+    op: POST
+    path: /api/contacts
+    body:
+      contact_source_name: ${lookups.contact_source.first_name}
+      first_name: perf-contact-first_name-${randSuffix()}
+      last_name: perf-contact-last_name-${randSuffix()}
+      addresses:
+        - line1: perf-address-line1-${randSuffix()}
+          city: perf-address-city-${randSuffix()}
+      phones:
+        - number: perf-phone-numbe${randSuffix()}
+    capture:
+      ids.contact_eager[i]: $.id
+  - id: eager-patch-contact-eager
+    phase: iter
+    op: PATCH
+    path: /api/contacts/${ids.contact_eager[i]}
+    body:
+      contact_source_name: ${lookups.contact_source.first_name}
+      first_name: perf-patch-contact-first_name-${randSuffix()}
+      last_name: perf-patch-contact-last_name-${randSuffix()}
+      addresses:
+        - line1: perf-patch-address-line1-${randSuffix()}
+          city: perf-patch-address-city-${randSuffix()}
+      phones:
+        - number: perf-patch-phone${randSuffix()}
+  - id: eager-put-contact-eager
+    phase: iter
+    op: PUT
+    path: /api/contacts/${ids.contact_eager[i]}
+    body:
+      contact_source_name: ${lookups.contact_source.first_name}
+      first_name: perf-upd-contact-first_name-${randSuffix()}
+      last_name: perf-upd-contact-last_name-${randSuffix()}
+      addresses:
+        - line1: perf-upd-address-line1-${randSuffix()}
+          city: perf-upd-address-city-${randSuffix()}
+      phones:
+        - number: perf-upd-phone-n${randSuffix()}
+  - id: post-address-nested
+    phase: iter
+    op: POST
+    path: /api/contacts/${ids.contact[i]}/addresses
+    body:
+      contact_id: 1
+      line1: perf-address-line1-${randSuffix()}
+      city: perf-address-city-${randSuffix()}
+    capture:
+      ids.address[i]: $.id
+  - id: get-addresses-nested
+    phase: iter
+    op: GET
+    path: /api/contacts/${ids.contact[i]}/addresses
+  - id: put-address-nested
+    phase: iter
+    op: PUT
+    path: /api/contacts/${ids.contact[i]}/addresses/${ids.address[i]}
+    body:
+      contact_id: 1
+      line1: perf-upd-address-line1-${randSuffix()}
+      city: perf-upd-address-city-${randSuffix()}
+  - id: post-phone-nested
+    phase: iter
+    op: POST
+    path: /api/contacts/${ids.contact[i]}/phones
+    body:
+      contact_id: 1
+      number: perf-phone-numbe${randSuffix()}
+    capture:
+      ids.phone[i]: $.id
+  - id: get-phones-nested
+    phase: iter
+    op: GET
+    path: /api/contacts/${ids.contact[i]}/phones
+  - id: put-phone-nested
+    phase: iter
+    op: PUT
+    path: /api/contacts/${ids.contact[i]}/phones/${ids.phone[i]}
+    body:
+      contact_id: 1
+      number: perf-upd-phone-n${randSuffix()}
+  - id: link-contact-to-contact-group
+    phase: iter
+    op: POST
+    path: /api/contact-groups/${ids.contact_group[i]}/members
+    body:
+      contact_id: ${ids.contact[i]}
+  - id: link-contact-to-contact-group-by-id
+    phase: iter
+    op: POST
+    path: /api/contact-groups/${ids.contact_group[i]}/members/${ids.contact[i]}
+  - id: get-contact-group-contacts-list
+    phase: iter
+    op: GET
+    path: /api/contact-groups/${ids.contact_group[i]}/members
+  - id: get-contact-group-contact-by-id
+    phase: iter
+    op: GET
+    path: /api/contact-groups/${ids.contact_group[i]}/members/${ids.contact[i]}
+  - id: unlink-contact-from-contact-group
+    phase: iter
+    op: DELETE
+    path: /api/contact-groups/${ids.contact_group[i]}/members/${ids.contact[i]}
+  - id: delete-phone-nested
+    phase: iter_teardown
+    op: DELETE
+    path: /api/contacts/${ids.contact[i]}/phones/${ids.phone[i]}
+  - id: delete-address-nested
+    phase: iter_teardown
+    op: DELETE
+    path: /api/contacts/${ids.contact[i]}/addresses/${ids.address[i]}
+  - id: eager-delete-contact-eager
+    phase: iter_teardown
+    op: DELETE
+    path: /api/contacts/${ids.contact_eager[i]}
+  - id: delete-contact
+    phase: iter_teardown
+    op: DELETE
+    path: /api/contacts/${ids.contact[i]}
+  - id: delete-legacy-contact
+    phase: iter_teardown
+    op: DELETE
+    path: /api/legacy-contacts/${ids.legacy_contact[i]}
+  - id: delete-contact-group
+    phase: iter_teardown
+    op: DELETE
+    path: /api/contact-groups/${ids.contact_group[i]}

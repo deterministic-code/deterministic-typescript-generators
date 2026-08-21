@@ -1,0 +1,11 @@
+version: 1.0.0
+seeds:
+  - contact_source:
+      - id1:
+          name: Manual
+      - id2:
+          name: Imported
+          description: Loaded from a CSV or vCard import.
+      - id3:
+          name: OAuth
+          description: Synced from a third-party provider.

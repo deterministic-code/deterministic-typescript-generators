@@ -1,0 +1,33 @@
+settings:
+  application_tier: full-stack
+  backend:
+    languages:
+      - typescript
+      - rust
+    datasources:
+      - sqlite
+      - mysql
+      - postgres
+  datasource:
+    id_type: integer
+    uuid: string
+    datetime: native
+    pluralize_datatable_names: true
+    use_stored_procedures: false
+    use_optimistic_concurrency: false
+  comments: simple
+  other:
+    organize_by_feature: false
+    generate_file_hash_list: true
+    error_on_hash_overwrite: true
+    reverse_proxy: nginx
+  languages:
+    typescript:
+      casing:
+        file_names: kebab
+        types: pascal
+      library_reference_mode: npm
+      package_manager: auto
+  frontend:
+    framework: React
+    generate_validators: true

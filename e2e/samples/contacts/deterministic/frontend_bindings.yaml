@@ -1,0 +1,7 @@
+version: 1.0.0
+datasources:
+  - datasource_1:
+      type: REST
+      schema_type: OpenAPI
+      schema: id:contacts-backend
+      clients: [fetch, axios, tanstack]

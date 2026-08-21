@@ -4,3 +4,7 @@ dist
 .DS_Store
 runtime/dist
 runtime/node_modules
+coverage/
+**/.profile/
+**/*.db
+**/.deterministic-identity.json

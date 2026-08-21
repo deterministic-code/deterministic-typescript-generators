@@ -1,0 +1,49 @@
+version: 1.0.0
+includes:
+  - view_type_routes:
+      filter: type inherits datasource_types
+      eager_path:
+        - contact.addresses
+        - contact.phones
+        - contact_group.members
+      eager_write_path:
+        - contact.addresses
+        - contact.phones
+
+combined_routes:
+  - contact:
+      route: /api/contacts/{id}
+      combined_types:
+        - address:
+            route: /addresses
+        - phone:
+            route: /phones
+  - contact_group:
+      route: /api/contact-groups/{id}
+      combined_types:
+        - contact:
+            via: contact_group_member
+            target: contact
+            route: /members
+
+routes:
+  - import_contacts:
+      path: /api/contacts/import
+      method: POST
+      description: Bulk-import contacts from a CSV or vCard payload.
+      request: import_contacts_request
+      response: import_contacts_result
+      service: ContactImportService
+      serviceMethod: import
+      x-implementation: stub
+
+  - migrate_legacy_contacts:
+      path: /api/legacy-contacts/migrate
+      method: POST
+      description:
+        Migrate rows from the legacy OldContactsTbl into the canonical
+        contacts table.
+      response: legacy_migration_result
+      service: LegacyMigrationService
+      serviceMethod: migrate
+      x-implementation: stub

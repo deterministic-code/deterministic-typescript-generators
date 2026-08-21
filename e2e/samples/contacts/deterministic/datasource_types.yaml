@@ -1,0 +1,157 @@
+version: 1.0.0
+types:
+  # readonly-lookup — origin classifier for a contact.
+  - contact_source:
+      datasource_type: "readonly-lookup"
+      fields:
+        - name:
+            type: string
+            size: 64
+            is_unique: true
+        - description:
+            type: string
+            size: unlimited
+            is_nullable: true
+
+  # CRUD — primary contact record.
+  - contact:
+      fields:
+        - contact_source_id:
+            type: number
+            references: contact_source.id
+        - first_name:
+            type: string
+            size: 128
+        - last_name:
+            type: string
+            size: 128
+        - email:
+            type: string
+            size: 256
+            is_nullable: true
+        - notes:
+            type: string
+            size: unlimited
+            is_nullable: true
+
+  # CRUD — postal address attached to a contact.
+  - address:
+      fields:
+        - contact_id:
+            type: number
+            references: contact.id
+        - line1:
+            type: string
+            size: 256
+        - line2:
+            type: string
+            size: 256
+            is_nullable: true
+        - city:
+            type: string
+            size: 128
+        - region:
+            type: string
+            size: 128
+            is_nullable: true
+        - postal_code:
+            type: string
+            size: 32
+            is_nullable: true
+        - country:
+            type: string
+            size: 64
+            is_nullable: true
+
+  # CRUD — phone number attached to a contact.
+  - phone:
+      fields:
+        - contact_id:
+            type: number
+            references: contact.id
+        - number:
+            type: string
+            size: 32
+        - label:
+            type: string
+            size: 32
+            is_nullable: true
+
+  # CRUD — user-defined group of contacts.
+  - contact_group:
+      fields:
+        - name:
+            type: string
+            size: 128
+            is_unique: true
+        - description:
+            type: string
+            size: unlimited
+            is_nullable: true
+
+  # M2M — membership in a contact_group.
+  - contact_group_member:
+      datasource_type: "many-to-many"
+      fields:
+        - contact_id:
+            type: number
+            references: contact.id
+        - contact_group_id:
+            type: number
+            references: contact_group.id
+
+  # Non-CRUD — legacy contact table imported from an older application.
+  # Physical table `OldContactsTbl` keeps PascalCase + truncated names;
+  # datasource_mappings below bridges those to canonical snake_case.
+  - legacy_contact:
+      skip_migrations: true
+      target: Crud
+      fields:
+        - key:
+            type: string
+            size: 64
+            primary_key: true
+        - first_name:
+            type: string
+            size: 128
+        - last_name:
+            type: string
+            size: 128
+        - email:
+            type: string
+            size: 256
+            is_nullable: true
+        - imported_at:
+            type: datetime
+            is_nullable: true
+
+  # No-PK append-only audit fixture — exercises target: None.
+  - contact_change_log:
+      skip_migrations: true
+      target: None
+      fields:
+        - occurred_at:
+            type: datetime
+        - contact_id:
+            type: number
+        - changed_by:
+            type: string
+            size: 128
+        - change_summary:
+            type: string
+            size: unlimited
+
+datasource_mappings:
+  - legacy_contact:
+      source: OldContactsTbl
+      field_mappings:
+        - key:
+            source: CntID
+        - first_name:
+            source: FirstNm
+        - last_name:
+            source: LastNm
+        - email:
+            source: EmailAddr
+        - imported_at:
+            source: ImpDate

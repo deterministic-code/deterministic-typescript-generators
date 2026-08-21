@@ -1,0 +1,9 @@
+version: 1.0.0
+middleware:
+  - securityHeaders
+  - cors:
+      enabled: false
+  - jsonBody
+  - formBody
+
+# handlers: NotFoundMiddlewareService + ErrorHandlerMiddlewareService auto-mount.
