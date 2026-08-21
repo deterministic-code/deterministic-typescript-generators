@@ -35,6 +35,22 @@ describe("createCasing Auto defaults", () => {
     );
     assert.equal(casing.routerFnName("contact_group"), "ContactGroupRouter");
     assert.equal(casing.hookName("contact_group", "list"), "UseContactGroupList");
+    assert.equal(casing.customClassName("getHealth"), "getHealth");
+    assert.equal(casing.customClassName("import_contacts"), "import_contacts");
+    assert.equal(
+      casing.customClassName("ContactImportService"),
+      "ContactImportService",
+    );
+    assert.equal(casing.baseTypeName("contact"), "ContactBase");
+    assert.equal(casing.clientName("contact_source"), "ContactSourceClient");
+    assert.equal(
+      casing.clientQueryOptionsName("contact_source"),
+      "ContactSourceClientQueryOptions",
+    );
+    assert.equal(
+      casing.clientMutationOptionsName("contact_source"),
+      "ContactSourceClientMutationOptions",
+    );
   });
 });
 
@@ -85,6 +101,18 @@ describe("createCasing overrides", () => {
     assert.equal(
       casing.authoredInterfaceName("ContactImportService"),
       "i_contact_import_service",
+    );
+    assert.equal(casing.customClassName("getHealth"), "getHealth");
+    assert.equal(casing.customClassName("import_contacts"), "import_contacts");
+    assert.equal(
+      casing.customClassName("ContactImportService"),
+      "ContactImportService",
+    );
+    assert.equal(casing.baseTypeName("contact"), "contact_base");
+    assert.equal(casing.clientName("contact_source"), "contact_source_client");
+    assert.equal(
+      casing.clientQueryOptionsName("contact_source"),
+      "contact_source_client_query_options",
     );
   });
 

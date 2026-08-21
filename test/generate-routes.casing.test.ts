@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { createCasing } from "../src/common/default-casing.ts";
 import { generate } from "../src/generate-routes.ts";
 import { createImportGenerator } from "../src/import-generator.ts";
 
@@ -31,6 +32,13 @@ types: []
 const ROUTES_YAML = `includes:
   - view_type_routes:
       filter: 'type is view_type || type is datasource_type'
+routes:
+  - import_contacts:
+      path: /api/contacts/import
+      method: POST
+  - migrate_legacy_contacts:
+      path: /api/legacy-contacts/migrate
+      method: POST
 `;
 
 const fixtureReader = () =>
@@ -150,5 +158,39 @@ describe("generate routes casing", () => {
     assert.ok(files.has("features/contact/Contact.route.ts"));
     assert.ok(files.has("features/contact-group/ContactGroup.route.ts"));
     assert.match(files.get("features/contact/Contact.route.ts")!, /IContactService/);
+  });
+
+  it("keeps authored custom route class names for runtime load", async () => {
+    const settings = { "languages.typescript.casing.types": "Snake" };
+    const files = new Map<string, string>();
+    for (const entry of await generate({
+      reader: memoryReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "routes.yaml": `includes:
+  - view_type_routes:
+      filter: 'type is view_type || type is datasource_type'
+routes:
+  - echo:
+      path: /api/echo
+      method: GET
+      routeClass: EchoRoute
+      module: ./routes/echo-route
+  - import_contacts:
+      path: /api/contacts/import
+      method: POST
+`,
+      }),
+      settings,
+    })) {
+      files.set(entry.filename, entryBody(entry));
+    }
+    const casing = createCasing(settings);
+    const echo = files.get("../echo-route.ts");
+    assert.ok(echo, `missing echo-route; got ${[...files.keys()].join(", ")}`);
+    assert.match(echo, /export class EchoRoute /);
+    assert.doesNotMatch(echo, /export class echo_route /);
+    const importPath = `../custom/${casing.fileBase("import_contacts_route")}.ts`;
+    assert.match(files.get(importPath)!, /export class import_contacts /);
   });
 });

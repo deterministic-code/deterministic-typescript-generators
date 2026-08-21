@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { createCasing } from "../src/common/default-casing.ts";
 import { generate } from "../src/generate-services.ts";
 
 const DS_YAML = `types:
@@ -92,7 +93,8 @@ describe("generate services casing", () => {
     );
   });
 
-  it("keeps the YAML custom service class name when types are camel", async () => {
+  it("Pascal types convert custom service class and interface together", async () => {
+    const settings = { "languages.typescript.casing.types": "Pascal" };
     const files = new Map<string, string>();
     for (const entry of await generate({
       reader: memoryReader({
@@ -103,17 +105,72 @@ describe("generate services casing", () => {
       filter: 'type is view_type'
 services:
   - name: ContactImportService
+  - name: report_service
 `,
       }),
-      settings: { "languages.typescript.casing.types": "Camel" },
+      settings,
     })) {
       files.set(entry.filename, entryBody(entry));
     }
-    const body = files.get("../custom/contactImportService.ts");
-    assert.ok(body, `got ${[...files.keys()].join(", ")}`);
+    const casing = createCasing(settings);
+    const index = files.get("../custom/index.ts");
+    assert.ok(index, `got ${[...files.keys()].join(", ")}`);
+    for (const stem of ["ContactImportService", "report_service"]) {
+      const interfaceName = casing.authoredInterfaceName(stem);
+      const path = `../custom/${casing.fileBase(stem)}.ts`;
+      const body = files.get(path);
+      assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
+      assert.match(
+        body,
+        new RegExp(`export class ${stem} implements ${interfaceName}`),
+      );
+      assert.match(index, new RegExp(`export \\{ ${stem} \\} from`));
+      assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
+    }
+    assert.equal(
+      casing.customClassName("ContactImportService"),
+      "ContactImportService",
+    );
+    assert.equal(casing.customClassName("report_service"), "report_service");
+  });
+
+  it("Snake types keep the authored custom class name for runtime load", async () => {
+    const settings = { "languages.typescript.casing.types": "Snake" };
+    const files = new Map<string, string>();
+    for (const entry of await generate({
+      reader: memoryReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "services.yaml": `includes:
+  - view_type_services:
+      filter: 'type is view_type'
+services:
+  - name: ContactImportService
+  - name: report_service
+`,
+      }),
+      settings,
+    })) {
+      files.set(entry.filename, entryBody(entry));
+    }
+    const casing = createCasing(settings);
+    const index = files.get("../custom/index.ts");
+    assert.ok(index, `got ${[...files.keys()].join(", ")}`);
+    for (const stem of ["ContactImportService", "report_service"]) {
+      const interfaceName = casing.authoredInterfaceName(stem);
+      const path = `../custom/${casing.fileBase(stem)}.ts`;
+      const body = files.get(path);
+      assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
+      assert.match(
+        body,
+        new RegExp(`export class ${stem} implements ${interfaceName}`),
+      );
+      assert.match(index, new RegExp(`export \\{ ${stem} \\} from`));
+      assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
+    }
     assert.match(
-      body,
-      /export class ContactImportService implements iContactImportService/,
+      files.get(`../custom/${casing.fileBase("ContactImportService")}.ts`)!,
+      /export class ContactImportService /,
     );
   });
 });

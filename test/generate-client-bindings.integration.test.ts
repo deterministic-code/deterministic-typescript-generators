@@ -182,7 +182,7 @@ describe("generate-client-bindings", () => {
     assert.ok(paths.includes("frontend/src/client/index.ts"));
 
     const fetchUser = textOf(entries, "frontend/src/client/fetch/user.ts");
-    assert.match(fetchUser, /export const userClient/);
+    assert.match(fetchUser, /export const UserClient/);
     assert.match(fetchUser, /list: \(\) =>/);
     assert.match(fetchUser, /getByEmail: \(email: string \| number\)/);
     assert.match(fetchUser, /method: "POST"/);
@@ -297,7 +297,7 @@ describe("generate-client-bindings-mock-tests", () => {
     assert.ok(paths.includes("frontend/src/client/tanstack/project.mock.test.ts"));
     const user = textOf(entries, "frontend/src/client/fetch/user.mock.test.ts");
     assert.match(user, /from "vitest"/);
-    assert.match(user, /userClient mock/);
+    assert.match(user, /UserClient mock/);
     assert.match(user, /getByEmail/);
     const tanstack = textOf(
       entries,

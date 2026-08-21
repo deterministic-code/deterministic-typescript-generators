@@ -11,6 +11,7 @@ import {
   type RouteByField,
   type RouteCandidate,
 } from "@deterministic-code/generators-common/specification";
+import type { PackCasing } from "./common/default-casing.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { Emit } from "./emit.ts";
 import {
@@ -52,12 +53,12 @@ const byFieldsBlock = (entity: string, entries: RouteByField[]): string =>
 const byFieldsNeedsZod = (entries: RouteByField[]): boolean =>
   entries.some((e) => methodsOf(e, ["GET", "PUT", "DELETE"]).includes("PUT"));
 
-const customRouteMeta = (entry: CustomRouteEntry, authoredInterfaceName: (name: string) => string) => {
+const customRouteMeta = (entry: CustomRouteEntry, casing: PackCasing) => {
   const className = entry.routeClass || entry.name;
   return {
     module: entry.module,
     className,
-    interfaceName: authoredInterfaceName(className),
+    interfaceName: casing.authoredInterfaceName(className),
   };
 };
 
@@ -147,7 +148,7 @@ class Generator extends Emit {
     const { simpleDoc, descriptionDoc } = this.settings;
     const { module, className, interfaceName } = customRouteMeta(
       entry,
-      this.casing.authoredInterfaceName,
+      this.casing,
     );
     const path = this.imports.routeCustom(entry.name, module);
     return content(
@@ -201,7 +202,7 @@ class Generator extends Emit {
       }
     }
     const customDir = customs.filter((e) => {
-      const { module } = customRouteMeta(e, this.casing.authoredInterfaceName);
+      const { module } = customRouteMeta(e, this.casing);
       return module === undefined || !module.startsWith(".");
     });
     if (customDir.length > 0) {
@@ -212,7 +213,7 @@ class Generator extends Emit {
           .flatMap((e) => {
             const { className, interfaceName } = customRouteMeta(
               e,
-              this.casing.authoredInterfaceName,
+              this.casing,
             );
             return [className, interfaceName];
           })
@@ -224,7 +225,7 @@ class Generator extends Emit {
               types: sorted.map((e) => {
                 const { className, interfaceName } = customRouteMeta(
                   e,
-                  this.casing.authoredInterfaceName,
+                  this.casing,
                 );
                 return {
                   className,
