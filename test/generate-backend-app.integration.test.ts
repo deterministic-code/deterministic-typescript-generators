@@ -87,7 +87,8 @@ describe("generate", () => {
     );
     assert.doesNotMatch(app, /app-wiring/);
     assert.doesNotMatch(app, /composeRouter/);
-    assert.doesNotMatch(app, /customModulePaths/);
+    assert.doesNotMatch(app, /customModulePaths:/);
+    assert.match(app, /BEGIN APP_CUSTOM_MODULE_PATHS/);
     assert.doesNotMatch(app, /_deterministic\/app/);
     assert.match(app, /BEGIN APP_DB_IMPORTS/);
     assert.match(app, /BEGIN APP_BEFORE_HOOK/);

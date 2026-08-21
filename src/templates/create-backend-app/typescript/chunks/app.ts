@@ -30,6 +30,8 @@ export async function createBackendApp(): Promise<Express> {
   return createDeterministicApp({
     deterministicRoot: await resolveDeterministicRoot(),
     srcRoot: process.env.SRC_ROOT ?? process.cwd(),
+    // === BEGIN APP_CUSTOM_MODULE_PATHS ===
+    // === END APP_CUSTOM_MODULE_PATHS ===
     // === BEGIN APP_BEFORE_HOOK — see PATCH_PLAN in create-migrate-scripts.mjs ===
     // === END APP_BEFORE_HOOK ===
     // === BEGIN APP_AFTER_HOOK — see PATCH_PLAN in create-migrate-scripts.mjs ===

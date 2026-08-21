@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { execFile } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -141,43 +141,12 @@ export const sqliteAppEnv = (appDir: string): Record<string, string> => ({
   DB_PATH: join(appDir, SQLITE_DB_FILE),
 });
 
-const rewriteBundledMigratePrepare = async (appDir: string): Promise<void> => {
-  const pkgPath = join(appDir, "migraters/typescript/package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
-    scripts?: Record<string, string>;
-  };
-  // Bundled migrate omits generate-help.ts; keep prepare as build so
-  // `npm run migrate:build` can install better-sqlite3 and compile the CLI.
-  pkg.scripts = { ...pkg.scripts, prepare: "npm run build" };
-  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-};
-
-export const addBetterSqliteDependency = async (appDir: string): Promise<void> => {
-  const pkgPath = join(appDir, "package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
-    dependencies?: Record<string, string>;
-  };
-  pkg.dependencies = { ...pkg.dependencies, "better-sqlite3": "^12.10.0" };
-  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-};
-
 export const installBuildAndMigrateSqlite = async (
   appDir: string,
 ): Promise<string> => {
   const dbPath = join(appDir, SQLITE_DB_FILE);
-  await addBetterSqliteDependency(appDir);
-  await rewriteBundledMigratePrepare(appDir);
+  await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir);
   await npm(["run", "migrate:build"], appDir);
-  await npm(
-    [
-      "install",
-      "./migraters/typescript",
-      "--no-audit",
-      "--no-fund",
-      "--prefer-offline",
-    ],
-    appDir,
-  );
   const env = sqliteAppEnv(appDir);
   await npm(["run", "migrate:setup"], appDir, env);
   await npm(["run", "migrate"], appDir, env);

@@ -1,7 +1,7 @@
 import { toNative } from "./base-type-converter.ts";
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
-import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { content, patch, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -29,7 +29,32 @@ class Generator extends Emit {
     if (this.settings.createIndex) {
       entries.push(...this.indexes(generics, customs));
     }
+    const modulePaths = this.customModulePathsPatch(customs);
+    if (modulePaths !== undefined) entries.push(modulePaths);
     return entries;
+  }
+
+  /** By-feature emit paths are project-root relative; remap YAML `module:` so runtime load matches. */
+  private customModulePathsPatch(
+    customs: CustomServiceEntry[],
+  ): GenerateEntry | undefined {
+    const paths: Record<string, string> = {};
+    for (const entry of customs) {
+      if (entry.module === undefined || entry.module === "") continue;
+      const laid = this.imports
+        .serviceCustom(entry.name, entry.module)
+        .replace(/\.ts$/, "");
+      if (!laid.startsWith("features/")) continue;
+      const mapped = `./${laid}`;
+      if (mapped !== entry.module) paths[entry.module] = mapped;
+    }
+    if (Object.keys(paths).length === 0) return undefined;
+    const literal = JSON.stringify(paths, null, 2).replace(/\n/g, "\n    ");
+    return patch(
+      "app.ts",
+      `customModulePaths: ${literal},\n`,
+      "APP_CUSTOM_MODULE_PATHS",
+    );
   }
 
   private typeModule(candidate: ServiceCandidate): string {

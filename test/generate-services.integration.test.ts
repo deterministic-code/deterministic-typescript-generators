@@ -73,6 +73,10 @@ describe("generate-services", () => {
     assert.ok(paths.includes("../custom/health-check-service.ts"));
     assert.ok(paths.includes("index.ts"));
     assert.ok(paths.includes("../custom/index.ts"));
+    assert.equal(
+      entries.some((e) => e.kind === "patch" && e.filename === "app.ts"),
+      false,
+    );
 
     const user = textOf(entries, "userService.ts");
     assert.match(user, /export class UserService extends BaseService<User>/);
@@ -141,5 +145,37 @@ services: []
     });
     const user = textOf(entries, "userService.ts");
     assert.ok(!user.includes("/**"));
+  });
+
+  it("patches app.ts customModulePaths when by-feature relocates a custom module", async () => {
+    const entries = await generate({
+      reader: fixtureReader({
+        "datasource_types.yaml": DS_YAML,
+        "view_types.yaml": VIEW_YAML,
+        "services.yaml": `includes:
+  - view_type_services:
+      filter: 'type is view_type'
+services:
+  - name: ContactImportService
+    module: ./services/contact-import-service
+`,
+        "routes.yaml": ROUTES_YAML,
+      }),
+      settings: { "other.organize_by_feature": "true" },
+    });
+    const remap = entries.find(
+      (e) =>
+        e.kind === "patch" &&
+        e.filename === "app.ts" &&
+        e.section === "APP_CUSTOM_MODULE_PATHS",
+    );
+    assert.ok(remap, "missing APP_CUSTOM_MODULE_PATHS patch");
+    assert.equal(remap.kind, "patch");
+    assert.match(remap.content, /customModulePaths:/);
+    assert.match(
+      remap.content,
+      /"\.\/services\/contact-import-service"/,
+    );
+    assert.match(remap.content, /features\//);
   });
 });
