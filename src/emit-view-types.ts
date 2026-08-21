@@ -79,6 +79,16 @@ class Generator extends Emit {
               fileBase: this.casing.fileBase(v.name),
             })),
           }),
+          {
+            module: this.imports
+              .viewRel(views[0]?.name ?? "index")
+              .replace(/[^/]+$/, "index.ts"),
+            exports: views
+              .map((v) => this.casing.convertTypes(v.name))
+              .join(", "),
+            imports: views.map((v) => this.imports.viewRel(v.name)).join(", "),
+            uses: views.map((v) => this.casing.convertTypes(v.name)).join(", "),
+          },
         ),
       );
     }
@@ -187,8 +197,9 @@ class Generator extends Emit {
         : expanded?.kind === "shaped"
           ? expanded.fields
           : view.fields;
+    const path = this.imports.view(view.name);
     return content(
-      this.imports.view(view.name),
+      path,
       fill(this.templates.typeTmpl, {
         schemaVersion,
         imports,
@@ -213,6 +224,7 @@ class Generator extends Emit {
           ? view.members.map((m) => this.casing.convertTypes(m)).join(" | ")
           : "",
       }),
+      { module: this.imports.viewRel(view.name), exports: className },
     );
   }
 }

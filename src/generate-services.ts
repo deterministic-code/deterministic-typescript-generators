@@ -32,12 +32,20 @@ class Generator extends Emit {
     return entries;
   }
 
+  private typeModule(candidate: ServiceCandidate): string {
+    return candidate.kind === "datasource_type"
+      ? this.imports.datasourceRel(candidate.name)
+      : this.imports.viewRel(candidate.name);
+  }
+
   private generic(candidate: ServiceCandidate): GenerateEntry {
     const { simpleDoc, descriptionDoc, libraryReferenceMode } = this.settings;
     const typeName = this.casing.convertTypes(candidate.name);
     const className = this.casing.serviceClassName(candidate.name);
     const interfaceName = this.casing.serviceInterfaceName(candidate.name);
     const generatePath = this.imports.service(candidate.name);
+    const module = this.imports.serviceRel(candidate.name);
+    const typeModule = this.typeModule(candidate);
     const typeImportPath = this.imports.spec(
       this.imports.serviceRel(candidate.name),
       candidate.kind === "datasource_type"
@@ -69,6 +77,12 @@ class Generator extends Emit {
           typeName,
         })),
       }),
+      {
+        module,
+        exports: `${className}, ${interfaceName}`,
+        imports: typeModule,
+        uses: typeName,
+      },
     );
   }
 
@@ -76,8 +90,9 @@ class Generator extends Emit {
     const { simpleDoc, descriptionDoc } = this.settings;
     const className = entry.name;
     const interfaceName = this.casing.authoredInterfaceName(entry.name);
+    const path = this.imports.serviceCustom(entry.name, entry.module);
     return content(
-      this.imports.serviceCustom(entry.name, entry.module),
+      path,
       fill(customStubTmpl, {
         simpleDoc,
         descriptionDoc,
@@ -86,6 +101,10 @@ class Generator extends Emit {
         hasMethods: entry.methods.length > 0,
         methods: entry.methods.map((name) => ({ name })),
       }),
+      {
+        module: path,
+        exports: `${className}, ${interfaceName}`,
+      },
     );
   }
 
@@ -102,6 +121,12 @@ class Generator extends Emit {
       );
       const index = this.imports.index(this.imports.service(sorted[0]!.name));
       if (index) {
+        const exports = sorted
+          .flatMap((c) => [
+            this.casing.serviceClassName(c.name),
+            this.casing.serviceInterfaceName(c.name),
+          ])
+          .join(", ");
         entries.push(
           content(
             index,
@@ -112,6 +137,16 @@ class Generator extends Emit {
                 fileBase: this.casing.fileBase(`${c.name}_service`),
               })),
             }),
+            {
+              module: this.imports
+                .serviceRel(sorted[0]!.name)
+                .replace(/[^/]+$/, "index.ts"),
+              exports,
+              imports: sorted
+                .map((c) => this.imports.serviceRel(c.name))
+                .join(", "),
+              uses: exports,
+            },
           ),
         );
       }
@@ -125,6 +160,12 @@ class Generator extends Emit {
       );
       const index = this.imports.index(this.imports.serviceCustom(sorted[0]!.name));
       if (index) {
+        const exports = sorted
+          .flatMap((e) => [
+            e.name,
+            this.casing.authoredInterfaceName(e.name),
+          ])
+          .join(", ");
         entries.push(
           content(
             index,
@@ -135,6 +176,14 @@ class Generator extends Emit {
                 fileBase: this.casing.fileBase(e.name),
               })),
             }),
+            {
+              module: index,
+              exports,
+              imports: sorted
+                .map((e) => this.imports.serviceCustom(e.name, e.module))
+                .join(", "),
+              uses: exports,
+            },
           ),
         );
       }
@@ -143,6 +192,7 @@ class Generator extends Emit {
   }
 }
 
+/** Returns attributed entries. Cross-lane type imports need host `finalizeEntries` with views/datasource entries. */
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {

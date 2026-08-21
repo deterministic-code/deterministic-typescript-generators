@@ -5,7 +5,7 @@ alwaysApply: true
 
 # src/common
 
-Cross-pack helpers (`deterministic-reader`, `generate-context`, `generate-entry`, `fill`, `specification`, `compile-filter`, `default-token`) live in `@deterministic-code/generators-common`. Import them from that package. Do not re-export them from this repo.
+Cross-pack helpers (`deterministic-reader`, `generate-context`, `generate-entry`, `fill`, `specification`, `compile-filter`, `default-token`, `reference-verifier`) live in `@deterministic-code/generators-common`. Import them from that package. Do not re-export them from this repo.
 
 Keep pack-specific modules here: `http-path.ts` and `type-converter` / `type-converters`. YAML parsing (`specification-parser`, `parse-*`) lives in generators-common. HTTP path casing (kebab segments, camel params) lives in `http-path.ts`. File layout and import specifiers live in pack `src/import-generator.ts` (`TypeScriptImportGenerator` / `createImportGenerator`). `IImportGenerator` is imported from generators-common. `other.organize_by_feature` is read only in that class constructor — never in generate-*.ts or `PackCasing`. Generators must not compose prefixes, `features/`, or relative import paths; they only call ImportGenerator methods. Do not copy generators-common sources back into this repo. Do not put new files under `src/sdk/`.
 

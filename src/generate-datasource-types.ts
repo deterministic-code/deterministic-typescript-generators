@@ -1,6 +1,7 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { ReferenceVerifier } from "@deterministic-code/generators-common/reference-verifier";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -31,6 +32,8 @@ class Generator extends Emit {
     const { schemaVersion, simpleDoc, descriptionDoc, libraryReferenceMode } =
       this.settings;
     const className = this.casing.convertTypes(dsType.name);
+    const path = this.imports.datasource(dsType.name);
+    const module = this.imports.datasourceRel(dsType.name);
     const fields = dsType.fields.map((f) => ({
       name: f.name,
       ident: this.casing.fieldIdent(f.name),
@@ -51,7 +54,7 @@ class Generator extends Emit {
         ? ""
         : ` extends StandardDataSource<${typeArgs.join(", ")}>`;
     return content(
-      this.imports.datasource(dsType.name),
+      path,
       fill(typeTmpl, {
         schemaVersion,
         libraryImport: libraryImportSpecifier(
@@ -67,10 +70,13 @@ class Generator extends Emit {
         extendsClause,
         fields,
       }),
+      { module, exports: className },
     );
   }
 
   private index(types: ExpandedDatasourceType[], index: string): GenerateEntry {
+    const modules = types.map((t) => this.imports.datasourceRel(t.name));
+    const exports = types.map((t) => this.casing.convertTypes(t.name)).join(", ");
     return content(
       index,
       fill(indexTmpl, {
@@ -79,15 +85,27 @@ class Generator extends Emit {
           fileBase: this.casing.fileBase(t.name),
         })),
       }),
+      {
+        module: this.imports.datasourceRel(types[0]?.name ?? "index").replace(
+          /[^/]+$/,
+          "index.ts",
+        ),
+        exports,
+        imports: modules.join(", "),
+        uses: exports,
+      },
     );
   }
 }
 
+/** Self-checks references; keeps attributes for host `finalizeEntries` before write. */
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(DATASOURCE_TYPES_YAML);
-  return new Generator(ctx.settings).from(
+  const entries = new Generator(ctx.settings).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
   );
+  new ReferenceVerifier().verify(entries);
+  return entries;
 };
