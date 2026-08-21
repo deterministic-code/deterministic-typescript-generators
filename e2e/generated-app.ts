@@ -49,6 +49,28 @@ export const npm = async (
   });
 };
 
+export const installFrontend = async (appDir: string): Promise<void> => {
+  await npm(
+    ["install", "--no-audit", "--no-fund", "--prefer-offline"],
+    join(appDir, "frontend"),
+  );
+};
+
+export const testFrontend = async (
+  appDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<void> => {
+  await npm(["test"], join(appDir, "frontend"), extraEnv);
+};
+
+export const installAndTestFrontend = async (
+  appDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<void> => {
+  await installFrontend(appDir);
+  await testFrontend(appDir, extraEnv);
+};
+
 export const freePort = async (): Promise<number> => {
   const server = createServer();
   await new Promise<void>((resolve) => {

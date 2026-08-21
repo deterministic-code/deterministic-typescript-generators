@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
@@ -15,6 +15,7 @@ import { generate as generateFrontendValidators } from "../src/generate-frontend
 import { removeE2eTempDirs } from "./cleanup-temp.ts";
 import {
   freePort,
+  installAndTestFrontend,
   npm,
   waitForUrl,
   type BootedApp,
@@ -28,58 +29,6 @@ import { writeGenerateEntries } from "./write-generate-entries.ts";
 
 const nestUnder = (dir: string, entries: GenerateEntry[]): GenerateEntry[] =>
   entries.map((entry) => ({ ...entry, filename: `${dir}/${entry.filename}` }));
-
-const writeVitestConfig = async (frontendDir: string): Promise<void> => {
-  await writeFile(
-    join(frontendDir, "vitest.config.ts"),
-    `import { defineConfig } from "vitest/config";
-
-export default defineConfig({
-  test: {
-    environment: "node",
-    include: ["src/**/*.test.ts"],
-  },
-});
-`,
-    "utf8",
-  );
-};
-
-const addFrontendSampleDeps = async (frontendDir: string): Promise<void> => {
-  const pkgPath = join(frontendDir, "package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
-    scripts?: Record<string, string>;
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
-  };
-  pkg.scripts = { ...pkg.scripts, test: "vitest run" };
-  pkg.dependencies = {
-    ...pkg.dependencies,
-    "@deterministic-code/deterministic": "^0.0.6",
-    zod: "^3.23.8",
-  };
-  pkg.devDependencies = {
-    ...pkg.devDependencies,
-    "@faker-js/faker": "^9.9.0",
-    vitest: "^2.1.8",
-  };
-  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-};
-
-const excludeFrontendTestsFromBuild = async (
-  frontendDir: string,
-): Promise<void> => {
-  const tsconfigPath = join(frontendDir, "tsconfig.json");
-  const tsconfig = JSON.parse(await readFile(tsconfigPath, "utf8")) as {
-    exclude?: string[];
-  };
-  tsconfig.exclude = [...(tsconfig.exclude ?? []), "src/**/*.test.ts"];
-  await writeFile(
-    tsconfigPath,
-    `${JSON.stringify(tsconfig, null, 2)}\n`,
-    "utf8",
-  );
-};
 
 export const generateFrontendSampleEntries = async (args: {
   yaml: Record<string, string>;
@@ -134,9 +83,6 @@ export const bootGeneratedFrontend = async (args: {
   await writeGenerateEntries(appDir, entries);
   const frontendDir = join(appDir, "frontend");
   if (args.yaml !== undefined) {
-    await addFrontendSampleDeps(frontendDir);
-    await excludeFrontendTestsFromBuild(frontendDir);
-    await writeVitestConfig(frontendDir);
     await writeFile(
       join(appDir, "package.json"),
       `${JSON.stringify(
@@ -158,12 +104,14 @@ export const bootGeneratedFrontend = async (args: {
 
   if (args.yaml !== undefined) {
     await Promise.all([
-      npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], frontendDir),
+      installAndTestFrontend(appDir),
       npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir),
     ]);
-    await npm(["test"], frontendDir);
   } else {
-    await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], frontendDir);
+    await npm(
+      ["install", "--no-audit", "--no-fund", "--prefer-offline"],
+      frontendDir,
+    );
   }
   await npm(["run", "build"], frontendDir);
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import { {{clientName}} } from "./{{fileBase}}.ts";
 
 describe("{{clientName}} mock", () => {
@@ -9,7 +9,7 @@ describe("{{clientName}} mock", () => {
     const http = {
       request: async <T>(input: { method: string; path: string; body?: unknown }) => {
         calls.push(input);
-        return {{&mockReturn}} as T;
+        return ({{&mockReturn}} as T);
       },
     };
     await {{clientName}}(http).{{methodName}}({{&liveArgs}});

@@ -36,7 +36,9 @@ import {
 } from "./contacts-sample-yaml.ts";
 import {
   generateBundledMigrate,
+  installFrontend,
   installBuildAndMigrateSqlite,
+  testFrontend,
   npm,
   sqliteAppEnv,
   startGeneratedServer,
@@ -380,11 +382,17 @@ export const bootContactsSample = async (
   await pinLocalRuntime(appDir);
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
-  await installBuildAndMigrateSqlite(appDir);
+  await Promise.all([
+    installFrontend(appDir),
+    installBuildAndMigrateSqlite(appDir),
+  ]);
   const booted = await startGeneratedServer(appDir, {
     ...sqliteAppEnv(appDir),
     DETERMINISTIC_TRACE: "route,service,datasource",
     SRC_ROOT: join(appDir, "dist"),
+  });
+  await testFrontend(appDir, {
+    CLIENT_BINDINGS_BASE_URL: `http://127.0.0.1:${booted.port}`,
   });
   return {
     ...booted,

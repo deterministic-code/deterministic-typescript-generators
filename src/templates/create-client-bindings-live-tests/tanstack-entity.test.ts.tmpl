@@ -1,19 +1,29 @@
-import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { describe, it } from "vitest";
 import { createHttp } from "../fetch/http.ts";
 import { {{mutationOptionsName}}, {{queryOptionsName}} } from "./{{fileBase}}.ts";
 
-const BASE_URL = process.env.CLIENT_BINDINGS_BASE_URL ?? "http://127.0.0.1:3000";
+const baseUrl = process.env.CLIENT_BINDINGS_BASE_URL;
 
-describe("{{clientName}} tanstack live", () => {
-{{#queries}}
-  it("{{methodName}} queryFn", async () => {
-    const http = createHttp(BASE_URL);
-    await {{queryOptionsName}}.{{methodName}}(http{{#hasArgs}}, {{&liveArgs}}{{/hasArgs}}).queryFn().catch(() => undefined);
+describe.skipIf(baseUrl === undefined || baseUrl.length === 0)("{{clientName}} tanstack live", () => {
+  it("hits the server", async () => {
+    assert.ok(baseUrl);
+    const http = createHttp(baseUrl);
+{{#methods}}
+{{#isQuery}}
+{{^hasArgs}}
+    await {{queryOptionsName}}.{{methodName}}(http).queryFn();
+{{/hasArgs}}
+{{/isQuery}}
+{{/methods}}
+{{#methods}}
+{{^isQuery}}
+{{^hasArgs}}
+{{^hasBody}}
+    await {{mutationOptionsName}}.{{methodName}}(http).mutationFn();
+{{/hasBody}}
+{{/hasArgs}}
+{{/isQuery}}
+{{/methods}}
   });
-{{/queries}}{{#mutations}}
-  it("{{methodName}} mutationFn", async () => {
-    const http = createHttp(BASE_URL);
-    await {{mutationOptionsName}}.{{methodName}}(http).mutationFn({{&liveMutationArg}}).catch(() => undefined);
-  });
-{{/mutations}}
 });

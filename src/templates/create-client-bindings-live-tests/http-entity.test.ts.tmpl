@@ -1,13 +1,29 @@
-import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { describe, it } from "vitest";
 import { {{clientName}} } from "./{{fileBase}}.ts";
 import { createHttp } from "./http.ts";
 
-const BASE_URL = process.env.CLIENT_BINDINGS_BASE_URL ?? "http://127.0.0.1:3000";
+const baseUrl = process.env.CLIENT_BINDINGS_BASE_URL;
 
-describe("{{clientName}} live", () => {
+describe.skipIf(baseUrl === undefined || baseUrl.length === 0)("{{clientName}} live", () => {
+  it("hits the server", async () => {
+    assert.ok(baseUrl);
+    const http = createHttp(baseUrl);
 {{#methods}}
-  it("{{methodName}} {{httpMethod}} {{pathPattern}}", async () => {
-    await {{clientName}}(createHttp(BASE_URL)).{{methodName}}({{&liveArgs}}).catch(() => undefined);
-  });
+{{#isList}}
+{{^hasArgs}}
+    await {{clientName}}(http).{{methodName}}();
+{{/hasArgs}}
+{{/isList}}
 {{/methods}}
+{{#methods}}
+{{^isList}}
+{{^hasArgs}}
+{{^hasBody}}
+    await {{clientName}}(http).{{methodName}}();
+{{/hasBody}}
+{{/hasArgs}}
+{{/isList}}
+{{/methods}}
+  });
 });

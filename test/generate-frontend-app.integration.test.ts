@@ -29,6 +29,36 @@ const requireEntry = (
   return entry;
 };
 
+type FrontendPackageJson = {
+  name: string;
+  scripts: Record<string, string>;
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+};
+
+const packageJsonOf = (
+  map: Map<string, GenerateEntry>,
+): FrontendPackageJson =>
+  JSON.parse(entryBody(requireEntry(map, "frontend/package.json"))) as FrontendPackageJson;
+
+const assertFrontendTestHarness = (
+  pkg: FrontendPackageJson,
+  opts: { react: boolean } = { react: true },
+): void => {
+  assert.equal(pkg.scripts.test, "vitest run");
+  assert.ok(pkg.dependencies.axios);
+  assert.ok(pkg.dependencies["@tanstack/react-query"]);
+  assert.ok(pkg.dependencies.zod);
+  assert.ok(pkg.devDependencies["@faker-js/faker"]);
+  assert.ok(pkg.devDependencies.vitest);
+  if (opts.react) {
+    assert.ok(pkg.dependencies.react);
+    return;
+  }
+  assert.equal(pkg.dependencies.react, undefined);
+  assert.equal(pkg.dependencies["react-dom"], undefined);
+};
+
 describe("generate frontend app", () => {
   it("scaffolds a React Vite app under frontend/", async () => {
     const byName = indexEntries(
@@ -50,9 +80,16 @@ describe("generate frontend app", () => {
       ],
     );
     assert.equal(requireEntry(byName, "frontend/package.json").kind, "patch");
-    assert.equal(
-      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
-      "catalog-ui",
+    const pkg = packageJsonOf(byName);
+    assert.equal(pkg.name, "catalog-ui");
+    assertFrontendTestHarness(pkg);
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/vite.config.ts")),
+      /include: \["src\/\*\*\/\*\.test\.ts"\]/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/tsconfig.json")),
+      /src\/\*\*\/\*\.test\.ts/,
     );
     assert.match(
       entryBody(requireEntry(byName, "frontend/src/App.tsx")),
@@ -125,9 +162,12 @@ describe("generate frontend app", () => {
         "frontend/tsconfig.json",
       ],
     );
-    assert.equal(
-      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
-      "catalog-ui",
+    const pkg = packageJsonOf(byName);
+    assert.equal(pkg.name, "catalog-ui");
+    assertFrontendTestHarness(pkg);
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/tsconfig.json")),
+      /\*\*\/\*\.test\.ts/,
     );
     assert.match(
       entryBody(requireEntry(byName, "frontend/app/page.tsx")),
@@ -201,9 +241,16 @@ describe("generate frontend app", () => {
         "frontend/vite.config.ts",
       ],
     );
-    assert.equal(
-      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
-      "catalog-ui",
+    const pkg = packageJsonOf(byName);
+    assert.equal(pkg.name, "catalog-ui");
+    assertFrontendTestHarness(pkg, { react: false });
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/vite.config.ts")),
+      /include: \["src\/\*\*\/\*\.test\.ts"\]/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/tsconfig.json")),
+      /src\/\*\*\/\*\.test\.ts/,
     );
     assert.match(
       entryBody(requireEntry(byName, "frontend/src/App.svelte")),
@@ -236,9 +283,12 @@ describe("generate frontend app", () => {
         "frontend/tsconfig.json",
       ],
     );
-    assert.equal(
-      JSON.parse(entryBody(requireEntry(byName, "frontend/package.json"))).name,
-      "catalog-ui",
+    const pkg = packageJsonOf(byName);
+    assert.equal(pkg.name, "catalog-ui");
+    assertFrontendTestHarness(pkg, { react: false });
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/tsconfig.app.json")),
+      /src\/\*\*\/\*\.test\.ts/,
     );
     assert.match(
       entryBody(requireEntry(byName, "frontend/src/app/app.ts")),
