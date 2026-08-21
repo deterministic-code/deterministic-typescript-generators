@@ -53,15 +53,15 @@ export const createCasing = (
     fieldIdent,
     serviceClassName: (entity: string) => casing.convertTypes(`${entity}_service`),
     serviceInterfaceName: (entity: string) =>
-      `I${casing.convertTypes(`${entity}_service`)}`,
-    authoredInterfaceName: (name: string) => `I${name}`,
+      casing.convertTypes(`i_${entity}_service`),
+    authoredInterfaceName: (name: string) => casing.convertTypes(`i_${name}`),
     schemaName: (name: string) => casing.convertTypes(`${name}_schema`),
     validatedTypeName: (name: string) =>
       casing.convertTypes(`${name}_validated`),
     routerFnName: (entity: string) => casing.convertTypes(`${entity}_router`),
     hookName: (entity: string, method: string) =>
-      `use${casing.convertTypes(`${entity}_${method}`)}`,
-    finderMethod: (field: string) => `find_by_${convertFields(field)}`,
+      casing.convertTypes(`use_${entity}_${method}`),
+    finderMethod: (field: string) => convertFields(`find_by_${field}`),
   };
 };
 

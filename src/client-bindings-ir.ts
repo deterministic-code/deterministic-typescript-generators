@@ -173,7 +173,7 @@ const projectMethod = (
   const method: ClientMethodIr = {
     methodName,
     pascalName: pascalIdent(methodName),
-    hookName: `use${pascalIdent(`${def.entity ?? "custom"}_${methodName}`)}`,
+    hookName: pascalIdent(`use_${def.entity ?? "custom"}_${methodName}`),
     httpMethod,
     pathPattern,
     pathExpr: pathExpr(pathPattern, params),
@@ -214,7 +214,7 @@ export const projectClientBindings = (
     const fileBase = def.entity ?? "custom";
     const bucket = grouped.get(fileBase) ?? {
       fileBase,
-      clientName: `${camelIdent(fileBase)}Client`,
+      clientName: camelIdent(`${fileBase}_client`),
       pascalEntity: pascalIdent(fileBase),
       methods: [],
       typeNames: new Set<string>(),
@@ -229,8 +229,8 @@ export const projectClientBindings = (
     .map((bucket) => ({
       fileBase: bucket.fileBase,
       clientName: bucket.clientName,
-      queryOptionsName: `${bucket.clientName}QueryOptions`,
-      mutationOptionsName: `${bucket.clientName}MutationOptions`,
+      queryOptionsName: camelIdent(`${bucket.fileBase}_client_query_options`),
+      mutationOptionsName: camelIdent(`${bucket.fileBase}_client_mutation_options`),
       pascalEntity: bucket.pascalEntity,
       methods: bucket.methods,
       queries: bucket.methods.filter((method) => method.isQuery),
@@ -260,8 +260,10 @@ export const loadClientBindingsIr = async (
       return {
         ...entity,
         fileBase,
-        queryOptionsName: `${entity.clientName}QueryOptions`,
-        mutationOptionsName: `${entity.clientName}MutationOptions`,
+        queryOptionsName: camelIdent(`${originalEntity}_client_query_options`),
+        mutationOptionsName: camelIdent(
+          `${originalEntity}_client_mutation_options`,
+        ),
         pascalEntity: casing.convertTypes(originalEntity),
         methods,
         queries: methods.filter((method) => method.isQuery),

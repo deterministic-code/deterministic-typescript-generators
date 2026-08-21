@@ -53,7 +53,7 @@ describe("generate client bindings casing", () => {
       "frontend/src/client/tanstack/contactSource.ts",
     );
     assert.match(tanstack, /export const contactSourceClientQueryOptions/);
-    assert.match(tanstack, /export const useContactSourceList/);
+    assert.match(tanstack, /export const UseContactSourceList/);
     assert.doesNotMatch(tanstack, /use\{\{/);
   });
 
@@ -89,7 +89,8 @@ describe("generate client bindings casing", () => {
       entries,
       "frontend/src/client/tanstack/contactSource.ts",
     );
-    assert.match(tanstack, /export const usecontact_source_list/);
+    assert.match(tanstack, /export const use_contact_source_list/);
     assert.doesNotMatch(tanstack, /useContactSourceList/);
+    assert.doesNotMatch(tanstack, /usecontact_source_list/);
   });
 });

@@ -19,7 +19,11 @@ describe("createCasing Auto defaults", () => {
       casing.serviceInterfaceName("contact_group"),
       "IContactGroupService",
     );
-    assert.equal(casing.authoredInterfaceName("ContactImportService"), "IContactImportService");
+    assert.equal(
+      casing.authoredInterfaceName("ContactImportService"),
+      "IContactImportService",
+    );
+    assert.equal(casing.finderMethod("channel_name"), "find_by_channel_name");
     assert.equal(casing.schemaName("contact_group"), "ContactGroupSchema");
     assert.equal(
       casing.schemaName("create_contact_group"),
@@ -30,7 +34,7 @@ describe("createCasing Auto defaults", () => {
       "ContactGroupValidated",
     );
     assert.equal(casing.routerFnName("contact_group"), "ContactGroupRouter");
-    assert.equal(casing.hookName("contact_group", "list"), "useContactGroupList");
+    assert.equal(casing.hookName("contact_group", "list"), "UseContactGroupList");
   });
 });
 
@@ -59,10 +63,10 @@ describe("createCasing overrides", () => {
     });
     assert.equal(casing.convertTypes(NAME), "notification_type");
     assert.equal(casing.serviceClassName("contact"), "contact_service");
-    assert.equal(casing.serviceInterfaceName("contact"), "Icontact_service");
+    assert.equal(casing.serviceInterfaceName("contact"), "i_contact_service");
     assert.equal(
       casing.serviceInterfaceName("contact_group"),
-      "Icontact_group_service",
+      "i_contact_group_service",
     );
     assert.equal(casing.schemaName("contact_group"), "contact_group_schema");
     assert.equal(
@@ -76,7 +80,11 @@ describe("createCasing overrides", () => {
     assert.equal(casing.routerFnName("contact"), "contact_router");
     assert.equal(
       casing.hookName("contact_group", "list"),
-      "usecontact_group_list",
+      "use_contact_group_list",
+    );
+    assert.equal(
+      casing.authoredInterfaceName("ContactImportService"),
+      "i_contact_import_service",
     );
   });
 
@@ -86,6 +94,7 @@ describe("createCasing overrides", () => {
     });
     assert.equal(casing.convertFields("role_id"), "roleId");
     assert.equal(casing.fieldIdent("role_id"), "roleId");
+    assert.equal(casing.finderMethod("channel_name"), "findByChannelName");
   });
 
   it("pascals fields", () => {

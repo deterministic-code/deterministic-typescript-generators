@@ -11,7 +11,8 @@ export type ContactsVariantId =
   | "baseline"
   | "by-feature-pascal"
   | "occ-snake"
-  | "singular-camel";
+  | "singular-camel"
+  | "snake-test";
 
 export type ContactsVariant = {
   id: ContactsVariantId;
@@ -54,6 +55,14 @@ export const CONTACTS_VARIANTS: Record<ContactsVariantId, ContactsVariant> = {
     pluralizeDatatableNames: false,
     fileNames: "camel",
     types: "camel",
+  },
+  "snake-test": {
+    id: "snake-test",
+    organizeByFeature: false,
+    useOptimisticConcurrency: false,
+    pluralizeDatatableNames: true,
+    fileNames: "snake",
+    types: "snake",
   },
 };
 
