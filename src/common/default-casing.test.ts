@@ -13,6 +13,24 @@ describe("createCasing Auto defaults", () => {
     assert.equal(casing.convertDirectories(NAME), "notificationType");
     assert.equal(casing.filePath(NAME), "notificationType.ts");
     assert.equal(casing.serviceClassName("user"), "UserService");
+    assert.equal(casing.serviceInterfaceName("user"), "IUserService");
+    assert.equal(casing.serviceInterfaceName("contact"), "IContactService");
+    assert.equal(
+      casing.serviceInterfaceName("contact_group"),
+      "IContactGroupService",
+    );
+    assert.equal(casing.authoredInterfaceName("ContactImportService"), "IContactImportService");
+    assert.equal(casing.schemaName("contact_group"), "ContactGroupSchema");
+    assert.equal(
+      casing.schemaName("create_contact_group"),
+      "CreateContactGroupSchema",
+    );
+    assert.equal(
+      casing.validatedTypeName("contact_group"),
+      "ContactGroupValidated",
+    );
+    assert.equal(casing.routerFnName("contact_group"), "ContactGroupRouter");
+    assert.equal(casing.hookName("contact_group", "list"), "useContactGroupList");
   });
 });
 
@@ -40,6 +58,26 @@ describe("createCasing overrides", () => {
       "languages.typescript.casing.types": "Snake",
     });
     assert.equal(casing.convertTypes(NAME), "notification_type");
+    assert.equal(casing.serviceClassName("contact"), "contact_service");
+    assert.equal(casing.serviceInterfaceName("contact"), "Icontact_service");
+    assert.equal(
+      casing.serviceInterfaceName("contact_group"),
+      "Icontact_group_service",
+    );
+    assert.equal(casing.schemaName("contact_group"), "contact_group_schema");
+    assert.equal(
+      casing.schemaName("create_contact_group"),
+      "create_contact_group_schema",
+    );
+    assert.equal(
+      casing.validatedTypeName("contact_group"),
+      "contact_group_validated",
+    );
+    assert.equal(casing.routerFnName("contact"), "contact_router");
+    assert.equal(
+      casing.hookName("contact_group", "list"),
+      "usecontact_group_list",
+    );
   });
 
   it("camels fields", () => {

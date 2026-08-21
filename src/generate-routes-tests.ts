@@ -120,7 +120,7 @@ class Generator extends Emit {
         this.settings.libraryReferenceMode,
         path,
       )}";`,
-      fnName: this.casing.convertTypes(`${candidate.name}_router`),
+      fnName: this.casing.routerFnName(candidate.name),
       fileBase,
       mockFactory: mockFactoryTmpl,
       pkExpr: `new PrimaryKey(${JSON.stringify(column)}, ${JSON.stringify(pkType)})`,

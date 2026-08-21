@@ -205,7 +205,7 @@ class Generator extends Emit implements ShapeOpts {
       fill(typeTestTmpl, {
         prelude: preludeSource(fakeTestData),
         schemaVersion: this.settings.schemaVersion,
-        schemaName: `${this.casing.convertTypes(view.name)}Schema`,
+        schemaName: this.casing.schemaName(view.name),
         viewName: view.name,
         schemaImport: this.imports.testSpec(src, view.name),
         cases:

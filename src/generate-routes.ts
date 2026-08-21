@@ -52,9 +52,13 @@ const byFieldsBlock = (entity: string, entries: RouteByField[]): string =>
 const byFieldsNeedsZod = (entries: RouteByField[]): boolean =>
   entries.some((e) => methodsOf(e, ["GET", "PUT", "DELETE"]).includes("PUT"));
 
-const customRouteMeta = (entry: CustomRouteEntry) => {
+const customRouteMeta = (entry: CustomRouteEntry, authoredInterfaceName: (name: string) => string) => {
   const className = entry.routeClass || entry.name;
-  return { module: entry.module, className, interfaceName: `I${className}` };
+  return {
+    module: entry.module,
+    className,
+    interfaceName: authoredInterfaceName(className),
+  };
 };
 
 class Generator extends Emit {
@@ -108,7 +112,8 @@ class Generator extends Emit {
         descriptionDoc,
         ...this.libImports(entity, customServices.has(entity)),
         entity,
-        fnName: this.casing.convertTypes(`${entity}_router`),
+        fnName: this.casing.routerFnName(entity),
+        serviceInterfaceName: this.casing.serviceInterfaceName(entity),
         datasourceType:
           candidate.datasourceType || (readOnly ? "readonly-lookup" : "standard"),
         occ,
@@ -121,7 +126,10 @@ class Generator extends Emit {
 
   private custom(entry: CustomRouteEntry): GenerateEntry {
     const { simpleDoc, descriptionDoc } = this.settings;
-    const { module, className, interfaceName } = customRouteMeta(entry);
+    const { module, className, interfaceName } = customRouteMeta(
+      entry,
+      this.casing.authoredInterfaceName,
+    );
     return content(
       this.imports.routeCustom(entry.name, module),
       fill(customStubTmpl, {
@@ -147,7 +155,7 @@ class Generator extends Emit {
             index,
             fill(indexTmpl, {
               routers: sorted.map((c) => ({
-                fnName: this.casing.convertTypes(`${c.name}_router`),
+                fnName: this.casing.routerFnName(c.name),
                 fileBase: this.casing.fileBase(c.name),
               })),
             }),
@@ -156,7 +164,7 @@ class Generator extends Emit {
       }
     }
     const customDir = customs.filter((e) => {
-      const { module } = customRouteMeta(e);
+      const { module } = customRouteMeta(e, this.casing.authoredInterfaceName);
       return module === undefined || !module.startsWith(".");
     });
     if (customDir.length > 0) {
@@ -168,8 +176,15 @@ class Generator extends Emit {
             index,
             fill(indexTmpl, {
               types: sorted.map((e) => {
-                const { className } = customRouteMeta(e);
-                return { className, fileBase: `${e.name}_route` };
+                const { className, interfaceName } = customRouteMeta(
+                  e,
+                  this.casing.authoredInterfaceName,
+                );
+                return {
+                  className,
+                  interfaceName,
+                  fileBase: this.casing.fileBase(`${e.name}_route`),
+                };
               }),
             }),
           ),

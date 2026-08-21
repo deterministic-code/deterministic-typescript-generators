@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate as generateSql } from "../../generators-sql/src/generate-sql.ts";
+import { createCasing } from "../src/common/default-casing.ts";
 import { generate as generateBackendApp } from "../src/generate-backend-app.ts";
 import { generate as generateDatasourceTypes } from "../src/generate-datasource-types.ts";
 import { generate as generateRoutes } from "../src/generate-routes.ts";
@@ -56,8 +57,9 @@ export const assertParentChildGenerators = async (): Promise<void> => {
   requireNamed(datasource, "task");
   requireNamed(datasource, "status");
   requireNamed(views, "project");
-  requireNamed(services, "project_service");
-  requireNamed(services, "task_service");
+  const casing = createCasing(settings);
+  requireNamed(services, casing.fileBase("project_service"));
+  requireNamed(services, casing.fileBase("task_service"));
   requireNamed(routes, "project");
 };
 

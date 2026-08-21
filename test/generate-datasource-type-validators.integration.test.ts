@@ -142,4 +142,17 @@ describe("generate datasource type validators", () => {
       /export type \{ UserValidated \} from "\.\/user";/,
     );
   });
+
+  it("snakes schema and validated type names", async () => {
+    const user = await userBody({
+      "languages.typescript.casing.types": "Snake",
+    });
+    assert.match(user, /export const user_schema = z\.object\(/);
+    assert.match(
+      user,
+      /export type user_validated = z\.infer<typeof user_schema>/,
+    );
+    assert.doesNotMatch(user, /userSchema/);
+    assert.doesNotMatch(user, /UserValidated/);
+  });
 });

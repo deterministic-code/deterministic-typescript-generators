@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import { createHttp } from "../fetch/http.ts";
-import { {{clientName}}MutationOptions, {{clientName}}QueryOptions } from "./{{fileBase}}.ts";
+import { {{mutationOptionsName}}, {{queryOptionsName}} } from "./{{fileBase}}.ts";
 
 const BASE_URL = process.env.CLIENT_BINDINGS_BASE_URL ?? "http://127.0.0.1:3000";
 
@@ -8,12 +8,12 @@ describe("{{clientName}} tanstack live", () => {
 {{#queries}}
   it("{{methodName}} queryFn", async () => {
     const http = createHttp(BASE_URL);
-    await {{clientName}}QueryOptions.{{methodName}}(http{{#hasArgs}}, {{&liveArgs}}{{/hasArgs}}).queryFn().catch(() => undefined);
+    await {{queryOptionsName}}.{{methodName}}(http{{#hasArgs}}, {{&liveArgs}}{{/hasArgs}}).queryFn().catch(() => undefined);
   });
 {{/queries}}{{#mutations}}
   it("{{methodName}} mutationFn", async () => {
     const http = createHttp(BASE_URL);
-    await {{clientName}}MutationOptions.{{methodName}}(http).mutationFn({{&liveMutationArg}}).catch(() => undefined);
+    await {{mutationOptionsName}}.{{methodName}}(http).mutationFn({{&liveMutationArg}}).catch(() => undefined);
   });
 {{/mutations}}
 });

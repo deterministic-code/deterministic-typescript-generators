@@ -83,6 +83,7 @@ describe("generate-routes", () => {
 
     const users = textOf(entries, "user.ts");
     assert.match(users, /export function UserRouter/);
+    assert.match(users, /IUserService/);
     assert.match(users, /createCrudRouter/);
     assert.match(users, /router\.get\("\/email\/:email"/);
 

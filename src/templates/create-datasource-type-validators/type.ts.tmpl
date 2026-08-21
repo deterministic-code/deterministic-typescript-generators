@@ -8,5 +8,5 @@ export const {{schemaName}} = z.object({
 });
 {{#withTypeAnnotation}}
 
-export type {{className}}Validated = z.infer<typeof {{schemaName}}>;
+export type {{validatedTypeName}} = z.infer<typeof {{schemaName}}>;
 {{/withTypeAnnotation}}

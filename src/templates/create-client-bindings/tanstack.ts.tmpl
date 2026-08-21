@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 {{/typeImports}}import { {{clientName}} } from "../fetch/{{fileBase}}.ts";
 import type { Http } from "../fetch/http.ts";
 
-export const {{clientName}}QueryOptions = {
+export const {{queryOptionsName}} = {
 {{#queries}}
   {{methodName}}: (http: Http{{#hasArgs}}, {{&args}}{{/hasArgs}}) => ({
     queryKey: {{&queryKeyExpr}},
@@ -12,7 +12,7 @@ export const {{clientName}}QueryOptions = {
 {{/queries}}
 };
 
-export const {{clientName}}MutationOptions = {
+export const {{mutationOptionsName}} = {
 {{#mutations}}
   {{methodName}}: (http: Http) => ({
     mutationFn: ({{&mutationArg}}) => {{clientName}}(http).{{methodName}}({{&mutationCall}}),
@@ -20,9 +20,9 @@ export const {{clientName}}MutationOptions = {
 {{/mutations}}
 };
 {{#queries}}
-export const use{{pascalEntity}}{{pascalName}} = (http: Http{{#hasArgs}}, {{&args}}{{/hasArgs}}) =>
-  useQuery({{clientName}}QueryOptions.{{methodName}}(http{{#hasArgs}}, {{&callArgs}}{{/hasArgs}}));
+export const {{hookName}} = (http: Http{{#hasArgs}}, {{&args}}{{/hasArgs}}) =>
+  useQuery({{queryOptionsName}}.{{methodName}}(http{{#hasArgs}}, {{&callArgs}}{{/hasArgs}}));
 {{/queries}}{{#mutations}}
-export const use{{pascalEntity}}{{pascalName}} = (http: Http) =>
-  useMutation({{clientName}}MutationOptions.{{methodName}}(http));
+export const {{hookName}} = (http: Http) =>
+  useMutation({{mutationOptionsName}}.{{methodName}}(http));
 {{/mutations}}

@@ -71,6 +71,7 @@ const bodyName = (body: RoutesApiBody | undefined): string | undefined =>
 export type ClientMethodIr = {
   methodName: string;
   pascalName: string;
+  hookName: string;
   httpMethod: string;
   pathPattern: string;
   pathExpr: string;
@@ -96,6 +97,8 @@ export type ClientMethodIr = {
 export type ClientEntityIr = {
   fileBase: string;
   clientName: string;
+  queryOptionsName: string;
+  mutationOptionsName: string;
   pascalEntity: string;
   methods: ClientMethodIr[];
   queries: ClientMethodIr[];
@@ -170,6 +173,7 @@ const projectMethod = (
   const method: ClientMethodIr = {
     methodName,
     pascalName: pascalIdent(methodName),
+    hookName: `use${pascalIdent(`${def.entity ?? "custom"}_${methodName}`)}`,
     httpMethod,
     pathPattern,
     pathExpr: pathExpr(pathPattern, params),
@@ -225,6 +229,8 @@ export const projectClientBindings = (
     .map((bucket) => ({
       fileBase: bucket.fileBase,
       clientName: bucket.clientName,
+      queryOptionsName: `${bucket.clientName}QueryOptions`,
+      mutationOptionsName: `${bucket.clientName}MutationOptions`,
       pascalEntity: bucket.pascalEntity,
       methods: bucket.methods,
       queries: bucket.methods.filter((method) => method.isQuery),
@@ -244,16 +250,19 @@ export const loadClientBindingsIr = async (
   const casing = createCasing(ctx.settings);
   return {
     entities: ir.entities.map((entity) => {
-      const fileBase = casing.fileBase(entity.fileBase);
+      const originalEntity = entity.fileBase;
+      const fileBase = casing.fileBase(originalEntity);
       const methods = entity.methods.map((method) => ({
         ...method,
         pascalName: casing.convertTypes(method.methodName),
+        hookName: casing.hookName(originalEntity, method.methodName),
       }));
       return {
         ...entity,
         fileBase,
-        clientName: `${fileBase}Client`,
-        pascalEntity: casing.convertTypes(entity.fileBase),
+        queryOptionsName: `${entity.clientName}QueryOptions`,
+        mutationOptionsName: `${entity.clientName}MutationOptions`,
+        pascalEntity: casing.convertTypes(originalEntity),
         methods,
         queries: methods.filter((method) => method.isQuery),
         mutations: methods.filter((method) => !method.isQuery),
