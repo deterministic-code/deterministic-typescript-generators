@@ -88,18 +88,27 @@ export class EagerChildLoadingService<
     return itemRecord as T;
   }
 
-  async update(id: number | string, data: Partial<TMutate>): Promise<T | null> {
-    const item = await this.base.update(id, data);
+  async update(
+    id: number | string,
+    data: Partial<TMutate>,
+    opts?: { expectedUpdated?: string },
+  ): Promise<T | null> {
+    const item =
+      opts === undefined ? await this.base.update(id, data) : await this.base.update(id, data, opts);
     if (item === null) return null;
     return this.attachChildren(item);
   }
 
-  async patch(id: number | string, data: Partial<TMutate>): Promise<T | null> {
-    return this.update(id, data);
+  async patch(
+    id: number | string,
+    data: Partial<TMutate>,
+    opts?: { expectedUpdated?: string },
+  ): Promise<T | null> {
+    return this.update(id, data, opts);
   }
 
-  async delete(id: number | string): Promise<boolean> {
-    return this.base.delete(id);
+  async delete(id: number | string, opts?: { expectedUpdated?: string }): Promise<boolean> {
+    return opts === undefined ? this.base.delete(id) : this.base.delete(id, opts);
   }
 
   async updateBy(whereArgs: NameValue[], data: Partial<TMutate>): Promise<number> {

@@ -9,6 +9,8 @@ import { updateByMatched } from './crudUpdateBy';
 import { randomUUID } from 'node:crypto';
 import type { PrimaryKey } from './PrimaryKey';
 import type { IPrimaryKeyService } from './IPrimaryKeyService';
+import type { OptimisticConcurrencyOptions } from './ICrudRepository';
+import { PreconditionFailedError } from '../errors/AppError';
 
 export interface SqlCrudRepositoryOptions {
   middlewares?: readonly IDataSourceMiddleware[];
@@ -277,20 +279,58 @@ export abstract class AbstractSqlCrudRepository<
     return this.resolveInsertedRow(raw, source);
   }
 
-  async update(id: TId, data: Partial<Omit<T, 'id'>>): Promise<T | null> {
+  async update(
+    id: TId,
+    data: Partial<Omit<T, 'id'>>,
+    opts?: OptimisticConcurrencyOptions,
+  ): Promise<T | null> {
     const entries = Object.entries(data as Record<string, unknown>);
     if (entries.length === 0) return this.find(id);
 
     const { setClauses, boundValues } = this.mutationSet(entries);
-    const values = [...boundValues, this.applyTo(this.primaryKeyColumn, id)];
-    const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')} WHERE ${this.quotedPrimaryKey} = ${this.placeholder(values.length - 1)}${this.mutationReturning()}`;
+    const expectedUpdated = opts?.expectedUpdated;
+    const values =
+      expectedUpdated === undefined
+        ? [...boundValues, this.applyTo(this.primaryKeyColumn, id)]
+        : [
+            ...boundValues,
+            this.applyTo(this.primaryKeyColumn, id),
+            expectedUpdated,
+          ];
+    const idPlaceholder = this.placeholder(
+      expectedUpdated === undefined ? values.length - 1 : values.length - 2,
+    );
+    const where =
+      expectedUpdated === undefined
+        ? `WHERE ${this.quotedPrimaryKey} = ${idPlaceholder}`
+        : `WHERE ${this.quotedPrimaryKey} = ${idPlaceholder} AND ${this.quotedColumn('updated')} = ${this.placeholder(values.length - 1)}`;
+    const sql = `UPDATE ${this.tableName} SET ${setClauses.join(', ')} ${where}${this.mutationReturning()}`;
     const raw = await this.runQuery<unknown>(sql, values);
+    if (expectedUpdated !== undefined && this.affectedOf(raw) === 0) {
+      throw new PreconditionFailedError(
+        `optimistic concurrency conflict on update for ${this.entityName}`,
+      );
+    }
     return this.resolveMutatedRow(raw, id);
   }
 
-  async delete(id: TId): Promise<boolean> {
-    const sql = `DELETE FROM ${this.tableName} WHERE ${this.quotedPrimaryKey} = ${this.placeholder(0)}${this.deleteReturning()}`;
-    const raw = await this.runQuery<unknown>(sql, [this.applyTo(this.primaryKeyColumn, id)]);
+  async delete(id: TId, opts?: OptimisticConcurrencyOptions): Promise<boolean> {
+    const expectedUpdated = opts?.expectedUpdated;
+    const values =
+      expectedUpdated === undefined
+        ? [this.applyTo(this.primaryKeyColumn, id)]
+        : [this.applyTo(this.primaryKeyColumn, id), expectedUpdated];
+    const where =
+      expectedUpdated === undefined
+        ? `WHERE ${this.quotedPrimaryKey} = ${this.placeholder(0)}`
+        : `WHERE ${this.quotedPrimaryKey} = ${this.placeholder(0)} AND ${this.quotedColumn('updated')} = ${this.placeholder(1)}`;
+    const sql = `DELETE FROM ${this.tableName} ${where}${this.deleteReturning()}`;
+    const raw = await this.runQuery<unknown>(sql, values);
+    if (expectedUpdated !== undefined && this.affectedOf(raw) === 0) {
+      throw new PreconditionFailedError(
+        `optimistic concurrency conflict on delete for ${this.entityName}`,
+      );
+    }
     return this.affectedOf(raw) > 0;
   }
 

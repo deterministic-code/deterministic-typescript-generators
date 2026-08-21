@@ -79,10 +79,7 @@ export const fullstackSampleSettings = (
 export const loadFullstackSampleYaml = async (
   name: FullstackSampleName,
 ): Promise<Record<string, string>> => {
-  const dir = new URL(
-    `../../generators-openapi/src/samples/${name}/`,
-    import.meta.url,
-  );
+  const dir = new URL(`./samples/${name}/`, import.meta.url);
   const texts = await Promise.all(
     SAMPLE_FILES.map((file) => readFile(new URL(file, dir), "utf8")),
   );

@@ -69,20 +69,33 @@ export class LookupEnrichedService<
     return enriched;
   }
 
-  async update(id: number | string, data: Partial<TMutate>): Promise<T | null> {
+  async update(
+    id: number | string,
+    data: Partial<TMutate>,
+    opts?: { expectedUpdated?: string },
+  ): Promise<T | null> {
     const resolved = await this.resolveInboundNames(data);
-    const item = await this.baseService.update(id, resolved);
+    const item =
+      opts === undefined
+        ? await this.baseService.update(id, resolved)
+        : await this.baseService.update(id, resolved, opts);
     if (item === null) return null;
     const [enriched] = await this.enrichItems([item]);
     return enriched;
   }
 
-  async patch(id: number | string, data: Partial<TMutate>): Promise<T | null> {
-    return this.update(id, data);
+  async patch(
+    id: number | string,
+    data: Partial<TMutate>,
+    opts?: { expectedUpdated?: string },
+  ): Promise<T | null> {
+    return this.update(id, data, opts);
   }
 
-  async delete(id: number | string): Promise<boolean> {
-    return this.baseService.delete(id);
+  async delete(id: number | string, opts?: { expectedUpdated?: string }): Promise<boolean> {
+    return opts === undefined
+      ? this.baseService.delete(id)
+      : this.baseService.delete(id, opts);
   }
 
   async updateBy(whereArgs: NameValue[], data: Partial<TMutate>): Promise<number> {

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { pathExists } from "@deterministic-code/generator-sdk/path-exists";
+import { pathExists } from "../repositories/pathExists";
 import {
   normalizeDialect,
   q,

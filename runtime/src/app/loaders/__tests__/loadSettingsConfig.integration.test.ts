@@ -40,7 +40,13 @@ describe('parseSettingsConfig — explicit values', () => {
       parseSettingsConfig({
         settings: { datasource: { pluralize_datatable_names: true, id_type: 'integer' } },
       }),
-    ).toEqual({ pluralizeTableNames: true, datetime: 'native', uuid: 'native', idType: 'integer' });
+    ).toEqual({
+      pluralizeTableNames: true,
+      datetime: 'native',
+      uuid: 'native',
+      idType: 'integer',
+      useOptimisticConcurrency: false,
+    });
   });
 
   it('returns pluralizeTableNames: false when the flag is explicitly false', () => {
@@ -53,6 +59,7 @@ describe('parseSettingsConfig — explicit values', () => {
       datetime: 'native',
       uuid: 'native',
       idType: 'integer',
+      useOptimisticConcurrency: false,
     });
   });
 
@@ -66,6 +73,7 @@ describe('parseSettingsConfig — explicit values', () => {
       datetime: 'string',
       uuid: 'string',
       idType: 'integer',
+      useOptimisticConcurrency: false,
     });
   });
 
@@ -73,6 +81,29 @@ describe('parseSettingsConfig — explicit values', () => {
     expect(parseSettingsConfig({ settings: { datasource: { id_type: 'uuid' } } }).idType).toBe(
       'uuid',
     );
+  });
+
+  it('defaults useOptimisticConcurrency to false when the flag is omitted', () => {
+    expect(
+      parseSettingsConfig({ settings: { datasource: { id_type: 'integer' } } })
+        .useOptimisticConcurrency,
+    ).toBe(false);
+  });
+
+  it('reads use_optimistic_concurrency: true from the datasource block', () => {
+    expect(
+      parseSettingsConfig({
+        settings: { datasource: { id_type: 'integer', use_optimistic_concurrency: true } },
+      }).useOptimisticConcurrency,
+    ).toBe(true);
+  });
+
+  it('throws when use_optimistic_concurrency is not a boolean', () => {
+    expect(() =>
+      parseSettingsConfig({
+        settings: { datasource: { id_type: 'integer', use_optimistic_concurrency: 'true' } },
+      }),
+    ).toThrow(/'settings.datasource.use_optimistic_concurrency' must be a boolean/);
   });
 });
 
@@ -183,6 +214,7 @@ describe('loadSettingsConfig — file I/O', () => {
       datetime: 'native',
       uuid: 'native',
       idType: 'integer',
+      useOptimisticConcurrency: false,
     });
   });
 
@@ -198,6 +230,7 @@ describe('loadSettingsConfig — file I/O', () => {
       datetime: 'native',
       uuid: 'native',
       idType: 'integer',
+      useOptimisticConcurrency: false,
     });
   });
 

@@ -12,6 +12,8 @@ export interface SettingsConfig {
   uuid?: DatasourceRepr;
   /** The project-wide primary-key representation (`settings.datasource.id_type`). Required — no default; a custom `primary_key` field overrides it per entity. */
   idType: IdType;
+  /** When true, PUT/PATCH/DELETE require `If-Match` (428 without it, 412 on a stale token). Lookup and M2M skip this even when the flag is on. Omitted/false keeps current non-OCC behavior. */
+  useOptimisticConcurrency?: boolean;
 }
 
 type ReprDefaults = {
@@ -41,6 +43,21 @@ function requireIdType(datasource: Record<string, unknown>): IdType {
     );
   }
   return raw as IdType;
+}
+
+function readOptionalBoolean(
+  datasource: Record<string, unknown>,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const raw = datasource[key];
+  if (raw === undefined) return fallback;
+  if (typeof raw !== 'boolean') {
+    throw new Error(
+      `settings.yaml: 'settings.datasource.${key}' must be a boolean, got ${typeof raw} (${JSON.stringify(raw)})`,
+    );
+  }
+  return raw;
 }
 
 function readReprSetting(
@@ -87,14 +104,21 @@ export function parseSettingsConfig(raw: unknown): SettingsConfig {
   const datetime = readReprSetting(ds, 'datetime');
   const uuid = readReprSetting(ds, 'uuid');
   const idType = requireIdType(ds);
+  const useOptimisticConcurrency = readOptionalBoolean(
+    ds,
+    'use_optimistic_concurrency',
+    false,
+  );
   const flag = ds.pluralize_datatable_names;
-  if (flag === undefined) return { ...REPR_DEFAULTS, datetime, uuid, idType };
+  if (flag === undefined) {
+    return { ...REPR_DEFAULTS, datetime, uuid, idType, useOptimisticConcurrency };
+  }
   if (typeof flag !== 'boolean') {
     throw new Error(
       `settings.yaml: 'settings.datasource.pluralize_datatable_names' must be a boolean, got ${typeof flag} (${JSON.stringify(flag)})`,
     );
   }
-  return { pluralizeTableNames: flag, datetime, uuid, idType };
+  return { pluralizeTableNames: flag, datetime, uuid, idType, useOptimisticConcurrency };
 }
 
 export async function loadSettingsConfig(yamlPath: string): Promise<SettingsConfig> {

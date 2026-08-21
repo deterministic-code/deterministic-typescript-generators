@@ -16,8 +16,20 @@ export type BindingClient = Record<
   (...args: unknown[]) => Promise<unknown>
 >;
 
-const camelIdent = (name: string): string =>
-  name.replace(/_([a-z0-9])/gi, (_, ch: string) => ch.toUpperCase());
+const camelIdent = (name: string): string => {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_\-.]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.toLowerCase());
+  return words
+    .map((word, i) =>
+      i === 0 ? word : `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`,
+    )
+    .join("");
+};
 
 export const asRecord = (value: unknown): Record<string, unknown> => {
   assert.equal(typeof value, "object");

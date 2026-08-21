@@ -122,7 +122,11 @@ export class EagerChildWritingService<
     });
   }
 
-  async update(id: number | string, data: Partial<TMutate>): Promise<T | null> {
+  async update(
+    id: number | string,
+    data: Partial<TMutate>,
+    opts?: { expectedUpdated?: string },
+  ): Promise<T | null> {
     this.validateRowsRecursively(data as Record<string, unknown>, this.deps.children, 'update');
     const { base: parentData } = splitRow(data as Record<string, unknown>, this.deps.children);
 
@@ -135,7 +139,9 @@ export class EagerChildWritingService<
 
       const updatedParent =
         Object.keys(parentData).length > 0
-          ? await txnParentService.update(id, parentData as any)
+          ? opts === undefined
+            ? await txnParentService.update(id, parentData as any)
+            : await txnParentService.update(id, parentData as any, opts)
           : existingParent;
       if (updatedParent === null) return null;
 
@@ -154,7 +160,11 @@ export class EagerChildWritingService<
     });
   }
 
-  async patch(id: number | string, data: Partial<TMutate>): Promise<T | null> {
+  async patch(
+    id: number | string,
+    data: Partial<TMutate>,
+    opts?: { expectedUpdated?: string },
+  ): Promise<T | null> {
     this.validateRowsRecursively(data as Record<string, unknown>, this.deps.children, 'patch');
     const { base: parentData } = splitRow(data as Record<string, unknown>, this.deps.children);
 
@@ -167,7 +177,9 @@ export class EagerChildWritingService<
 
       const updatedParent =
         Object.keys(parentData).length > 0
-          ? await txnParentService.update(id, parentData as any)
+          ? opts === undefined
+            ? await txnParentService.update(id, parentData as any)
+            : await txnParentService.update(id, parentData as any, opts)
           : existingParent;
       if (updatedParent === null) return null;
 
@@ -186,12 +198,14 @@ export class EagerChildWritingService<
     });
   }
 
-  async delete(id: number | string): Promise<boolean> {
+  async delete(id: number | string, opts?: { expectedUpdated?: string }): Promise<boolean> {
     return this.deps.datasource.runInTransaction(async (txn) => {
       await this.deleteChildrenForParent(this.deps.children, id, txn);
       const txnParentRepo = this.deps.parentWithTxnRepoFn(this.deps.parentRepository, txn);
       const txnParentService = this.cloneService(this.deps.base, txnParentRepo);
-      return txnParentService.delete(id);
+      return opts === undefined
+        ? txnParentService.delete(id)
+        : txnParentService.delete(id, opts);
     });
   }
 

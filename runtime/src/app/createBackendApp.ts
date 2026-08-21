@@ -825,7 +825,14 @@ class BackendAppBuilder {
         mountByFieldRoutes(app, spec, ctx.repos, fullWriteServices);
       }
       if (!spec.nestedOnly) {
-        mountCrudRouter(app, spec, { repos: ctx.repos, fullWriteServices });
+        mountCrudRouter(app, spec, {
+          repos: ctx.repos,
+          fullWriteServices,
+          useOptimisticConcurrency: usesOptimisticConcurrency(
+            spec,
+            this.settingsConfig,
+          ),
+        });
       }
     }
   }
@@ -1301,12 +1308,18 @@ function mountByFieldRoutes(
 interface MountCrudRouterDeps {
   repos: Record<string, unknown>;
   fullWriteServices: Map<string, IStandardCrudService<any, any>>;
+  useOptimisticConcurrency: boolean;
+}
+
+function usesOptimisticConcurrency(spec: CrudRouteSpec, settings: SettingsConfig): boolean {
+  if (spec.readonly || spec.m2m) return false;
+  return settings.useOptimisticConcurrency === true;
 }
 
 function mountCrudRouter(
   app: Express,
   spec: CrudRouteSpec,
-  { repos, fullWriteServices }: MountCrudRouterDeps,
+  { repos, fullWriteServices, useOptimisticConcurrency }: MountCrudRouterDeps,
 ): void {
   const serviceKey = serviceKeyFor(spec.entityName);
   if (!repos[serviceKey]) {
@@ -1342,6 +1355,7 @@ function mountCrudRouter(
       createSchema,
       updateSchema: partialUpdateSchema,
       entityName: spec.entityName,
+      useOptimisticConcurrency,
     }),
   );
 }

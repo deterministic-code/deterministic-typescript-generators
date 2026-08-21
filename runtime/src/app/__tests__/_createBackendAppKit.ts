@@ -22,6 +22,7 @@ interface BootSettings {
   pluralizeTableNames?: boolean;
   datetime?: 'native' | 'string';
   uuid?: 'native' | 'string';
+  useOptimisticConcurrency?: boolean;
 }
 
 interface BootOptions {
@@ -59,6 +60,7 @@ export async function bootCrudApp({
     datetime: settingsConfig.datetime ?? 'native',
     uuid: settingsConfig.uuid ?? 'native',
     idType: settingsConfig.idType,
+    useOptimisticConcurrency: settingsConfig.useOptimisticConcurrency ?? false,
   };
   const crudSpecs = parseCrudRouteSpecs(datasourceData, routesData, {
     projectIdType: settingsConfig.idType,

@@ -32,6 +32,7 @@ const child = spawn(
   [
     "--experimental-strip-types",
     "--test",
+    "--test-concurrency=1",
     "--test-timeout=360000",
     ...tests,
     ...extra,
