@@ -38,6 +38,5 @@ export const generate = async (
         scripts: { "test:perf": "vitest run --config vitest.perf.config.ts" },
       }),
     ),
-    patch("tsconfig.json", JSON.stringify({ include: ["perf-server.ts"] })),
   ];
 };

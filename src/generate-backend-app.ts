@@ -46,16 +46,24 @@ class Generator extends Emit {
   }
 
   private tokens(appName: string) {
+    const appFile = this.imports.app();
+    const serverFile = this.imports.server();
     return {
       appName,
       appFnName: this.casing.appFnName(),
-      appFile: this.imports.app(),
+      appFile,
       appFileBase: this.casing.fileBase("app"),
-      serverFile: this.imports.server(),
+      serverFile,
       serverFileBase: this.casing.fileBase("server"),
       healthTestFile: this.imports.appTest("health"),
       appBootTestFile: this.imports.appTest("app_boot"),
       statusField: this.casing.convertFields("status"),
+      includeJson: JSON.stringify([
+        appFile,
+        serverFile,
+        ...this.imports.tsconfigIncludes(),
+        "perf-server.ts",
+      ]),
     };
   }
 
@@ -77,14 +85,12 @@ class Generator extends Emit {
       "tsconfig.json",
       named.healthTestFile,
     ]);
-    const featuresInclude = this.tsconfigIncludePatch("features");
     return [
       ...this.minimal(appName).filter((e) => !owned.has(e.filename)),
       patch(named.appFile, fill(appTs, named)),
       content(named.serverFile, fill(serverTs, named)),
       patch("package.json", fill(packageJson, named)),
       content("tsconfig.json", fill(tsconfigJson, named)),
-      ...(featuresInclude === undefined ? [] : [featuresInclude]),
       patch("Dockerfile", fill(dockerfile, named)),
       patch(".dockerignore", "node_modules"),
       patch("scripts/entrypoint.sh", entrypointSh),

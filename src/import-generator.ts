@@ -224,15 +224,11 @@ export class TypeScriptImportGenerator implements IImportGenerator {
     return `__tests__/${this.casing.fileBase(stem)}.test.ts`;
   }
 
-  /** Layered services/routes/types globs, or features when by-feature. Undefined when flat. */
-  tsconfigInclude(
-    layer: "services" | "routes" | "types" | "features",
-  ): string | undefined {
-    if (this.flat) return undefined;
-    if (this.organizeByFeature) {
-      return layer === "features" ? "features/**/*.ts" : undefined;
-    }
-    return layer === "features" ? undefined : `${layer}/**/*.ts`;
+  /** Layered types/services/routes globs, or features when by-feature. Empty when flat. */
+  tsconfigIncludes(): string[] {
+    if (this.flat) return [];
+    if (this.organizeByFeature) return ["features/**/*.ts"];
+    return ["types/**/*.ts", "services/**/*.ts", "routes/**/*.ts"];
   }
 
   private rel(prefix: string, file: string): string {

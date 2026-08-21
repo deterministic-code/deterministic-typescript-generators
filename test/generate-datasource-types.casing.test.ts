@@ -36,7 +36,7 @@ describe("generate datasource types casing", () => {
     const files = await byFilename({});
     assert.deepEqual(
       [...files.keys()].sort(),
-      ["index.ts", "notificationType.ts", "tsconfig.json"],
+      ["index.ts", "notificationType.ts"],
     );
     const body = files.get("notificationType.ts")!;
     assert.match(body, /export interface NotificationType /);

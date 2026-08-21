@@ -25,7 +25,7 @@ class Generator extends Emit {
     if (this.settings.createIndex && index) {
       entries.push(this.index(types, index));
     }
-    return this.withTsconfigInclude(entries, "types");
+    return entries;
   }
 
   private type(dsType: DatasourceType): GenerateEntry {
