@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { createCasing } from "../src/common/default-casing.ts";
 import { generate } from "../src/generate-client-bindings.ts";
 
 const yaml = {
@@ -43,54 +44,94 @@ const textOf = (entries: GenerateEntry[], path: string): string => {
 const fetchPath = (fileBase: string): string =>
   `frontend/src/client/fetch/${fileBase}.ts`;
 
+const assertClientNames = (
+  fetchBody: string,
+  tanstackBody: string,
+  settings: Record<string, string>,
+  entity: string,
+): void => {
+  const casing = createCasing(settings);
+  const clientName = casing.clientName(entity);
+  const queryOptions = casing.clientQueryOptionsName(entity);
+  const mutationOptions = casing.clientMutationOptionsName(entity);
+  const hookName = casing.hookName(entity, "list");
+  assert.match(fetchBody, new RegExp(`export const ${clientName}`));
+  assert.match(tanstackBody, new RegExp(`export const ${queryOptions}`));
+  assert.match(tanstackBody, new RegExp(`export const ${mutationOptions}`));
+  assert.match(tanstackBody, new RegExp(`export const ${hookName}`));
+  assert.match(tanstackBody, new RegExp(`import \\{ ${clientName} \\}`));
+};
+
 describe("generate client bindings casing", () => {
-  it("Auto uses Camel files and a camel client factory", async () => {
-    const entries = await generate(ctx({}));
+  it("Auto uses Camel files and convertTypes client factories", async () => {
+    const settings = {};
+    const entries = await generate(ctx(settings));
     const body = textOf(entries, fetchPath("contactSource"));
-    assert.match(body, /export const contactSourceClient/);
     const tanstack = textOf(
       entries,
       "frontend/src/client/tanstack/contactSource.ts",
     );
-    assert.match(tanstack, /export const contactSourceClientQueryOptions/);
+    assertClientNames(body, tanstack, settings, "contact_source");
+    assert.match(body, /export const ContactSourceClient/);
+    assert.match(tanstack, /export const ContactSourceClientQueryOptions/);
     assert.match(tanstack, /export const UseContactSourceList/);
     assert.doesNotMatch(tanstack, /use\{\{/);
   });
 
-  it("Kebab file names keep a camel client factory", async () => {
-    const entries = await generate(
-      ctx({ "languages.typescript.casing.file_names": "Kebab" }),
-    );
+  it("Kebab file names keep convertTypes client factories", async () => {
+    const settings = { "languages.typescript.casing.file_names": "Kebab" };
+    const entries = await generate(ctx(settings));
     const body = textOf(entries, fetchPath("contact-source"));
-    assert.match(body, /export const contactSourceClient/);
+    const tanstack = textOf(
+      entries,
+      "frontend/src/client/tanstack/contact-source.ts",
+    );
+    assertClientNames(body, tanstack, settings, "contact_source");
+    assert.match(body, /export const ContactSourceClient/);
   });
 
-  it("Pascal file names keep a camel client factory", async () => {
-    const entries = await generate(
-      ctx({ "languages.typescript.casing.file_names": "Pascal" }),
-    );
+  it("Pascal file names keep convertTypes client factories", async () => {
+    const settings = { "languages.typescript.casing.file_names": "Pascal" };
+    const entries = await generate(ctx(settings));
     const body = textOf(entries, fetchPath("ContactSource"));
-    assert.match(body, /export const contactSourceClient/);
+    assert.match(body, /export const ContactSourceClient/);
   });
 
-  it("Snake file names keep a camel client factory", async () => {
-    const entries = await generate(
-      ctx({ "languages.typescript.casing.file_names": "Snake" }),
-    );
+  it("Snake file names keep convertTypes client factories", async () => {
+    const settings = { "languages.typescript.casing.file_names": "Snake" };
+    const entries = await generate(ctx(settings));
     const body = textOf(entries, fetchPath("contact_source"));
-    assert.match(body, /export const contactSourceClient/);
+    assert.match(body, /export const ContactSourceClient/);
   });
 
-  it("Snake types use convertTypes stems for tanstack hooks", async () => {
-    const entries = await generate(
-      ctx({ "languages.typescript.casing.types": "Snake" }),
-    );
+  it("Pascal types keep client, options, and hooks on the same stem", async () => {
+    const settings = { "languages.typescript.casing.types": "Pascal" };
+    const entries = await generate(ctx(settings));
+    const body = textOf(entries, fetchPath("contactSource"));
     const tanstack = textOf(
       entries,
       "frontend/src/client/tanstack/contactSource.ts",
     );
+    assertClientNames(body, tanstack, settings, "contact_source");
+    assert.match(body, /export const ContactSourceClient/);
+    assert.match(tanstack, /export const UseContactSourceList/);
+    assert.doesNotMatch(tanstack, /contactSourceClientQueryOptions/);
+  });
+
+  it("Snake types keep client, options, and hooks on the same stem", async () => {
+    const settings = { "languages.typescript.casing.types": "Snake" };
+    const entries = await generate(ctx(settings));
+    const body = textOf(entries, fetchPath("contactSource"));
+    const tanstack = textOf(
+      entries,
+      "frontend/src/client/tanstack/contactSource.ts",
+    );
+    assertClientNames(body, tanstack, settings, "contact_source");
+    assert.match(body, /export const contact_source_client/);
+    assert.match(tanstack, /export const contact_source_client_query_options/);
     assert.match(tanstack, /export const use_contact_source_list/);
     assert.doesNotMatch(tanstack, /useContactSourceList/);
     assert.doesNotMatch(tanstack, /usecontact_source_list/);
+    assert.doesNotMatch(tanstack, /ContactSourceClientQueryOptions/);
   });
 });

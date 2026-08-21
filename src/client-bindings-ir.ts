@@ -260,10 +260,9 @@ export const loadClientBindingsIr = async (
       return {
         ...entity,
         fileBase,
-        queryOptionsName: camelIdent(`${originalEntity}_client_query_options`),
-        mutationOptionsName: camelIdent(
-          `${originalEntity}_client_mutation_options`,
-        ),
+        clientName: casing.clientName(originalEntity),
+        queryOptionsName: casing.clientQueryOptionsName(originalEntity),
+        mutationOptionsName: casing.clientMutationOptionsName(originalEntity),
         pascalEntity: casing.convertTypes(originalEntity),
         methods,
         queries: methods.filter((method) => method.isQuery),

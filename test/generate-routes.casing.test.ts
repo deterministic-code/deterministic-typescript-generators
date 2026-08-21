@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { createCasing } from "../src/common/default-casing.ts";
 import { generate } from "../src/generate-routes.ts";
 import { createImportGenerator } from "../src/import-generator.ts";
 
@@ -31,6 +32,13 @@ types: []
 const ROUTES_YAML = `includes:
   - view_type_routes:
       filter: 'type is view_type || type is datasource_type'
+routes:
+  - import_contacts:
+      path: /api/contacts/import
+      method: POST
+  - migrate_legacy_contacts:
+      path: /api/legacy-contacts/migrate
+      method: POST
 `;
 
 const fixtureReader = () =>
@@ -150,5 +158,65 @@ describe("generate routes casing", () => {
     assert.ok(files.has("features/contact/Contact.route.ts"));
     assert.ok(files.has("features/contact-group/ContactGroup.route.ts"));
     assert.match(files.get("features/contact/Contact.route.ts")!, /IContactService/);
+  });
+
+  it("Pascal types convert mixed custom route keys to matching class and interface", async () => {
+    const settings = { "languages.typescript.casing.types": "Pascal" };
+    const files = await byFilename(settings);
+    const casing = createCasing(settings);
+    const stems = ["getHealth", "import_contacts", "migrate_legacy_contacts"];
+    const index = files.get("../custom/index.ts");
+    assert.ok(index, `missing custom index; got ${[...files.keys()].join(", ")}`);
+    for (const stem of stems) {
+      const className = casing.customClassName(stem);
+      const interfaceName = casing.authoredInterfaceName(stem);
+      const path = `../custom/${casing.fileBase(`${stem}_route`)}.ts`;
+      const body = files.get(path);
+      assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
+      assert.match(
+        body,
+        new RegExp(`export class ${className} implements ${interfaceName}`),
+      );
+      assert.match(index, new RegExp(`export \\{ ${className} \\} from`));
+      assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
+      assert.doesNotMatch(body, /export class getHealth /);
+      assert.doesNotMatch(body, /export class import_contacts /);
+    }
+    assert.equal(casing.customClassName("getHealth"), "GetHealth");
+    assert.equal(casing.customClassName("import_contacts"), "ImportContacts");
+    assert.equal(
+      casing.customClassName("migrate_legacy_contacts"),
+      "MigrateLegacyContacts",
+    );
+  });
+
+  it("Snake types convert mixed custom route keys to matching class and interface", async () => {
+    const settings = { "languages.typescript.casing.types": "Snake" };
+    const files = await byFilename(settings);
+    const casing = createCasing(settings);
+    const stems = ["getHealth", "import_contacts", "migrate_legacy_contacts"];
+    const index = files.get("../custom/index.ts");
+    assert.ok(index, `missing custom index; got ${[...files.keys()].join(", ")}`);
+    for (const stem of stems) {
+      const className = casing.customClassName(stem);
+      const interfaceName = casing.authoredInterfaceName(stem);
+      const path = `../custom/${casing.fileBase(`${stem}_route`)}.ts`;
+      const body = files.get(path);
+      assert.ok(body, `missing ${path}; got ${[...files.keys()].join(", ")}`);
+      assert.match(
+        body,
+        new RegExp(`export class ${className} implements ${interfaceName}`),
+      );
+      assert.match(index, new RegExp(`export \\{ ${className} \\} from`));
+      assert.match(index, new RegExp(`export type \\{ ${interfaceName} \\} from`));
+      assert.doesNotMatch(body, /export class GetHealth /);
+      assert.doesNotMatch(body, /export class IImportContacts /);
+    }
+    assert.equal(casing.customClassName("getHealth"), "get_health");
+    assert.equal(casing.customClassName("import_contacts"), "import_contacts");
+    assert.equal(
+      casing.customClassName("migrate_legacy_contacts"),
+      "migrate_legacy_contacts",
+    );
   });
 });
