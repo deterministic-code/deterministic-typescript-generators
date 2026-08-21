@@ -47,7 +47,7 @@ describe("generate", () => {
       ".env.example",
       ".gitignore",
       "Dockerfile",
-      "__tests__/app-boot.test.ts",
+      "__tests__/appBoot.test.ts",
       "__tests__/health.test.ts",
       "app.ts",
       "docker-compose.yml",
@@ -93,7 +93,7 @@ describe("generate", () => {
     assert.match(app, /BEGIN APP_DB_IMPORTS/);
     assert.match(app, /BEGIN APP_BEFORE_HOOK/);
     assert.match(app, /BEGIN APP_AFTER_HOOK/);
-    assert.match(app, /export async function createBackendApp/);
+    assert.match(app, /export async function CreateBackendApp/);
   });
 
   it("renders server.ts with the typescript lane port and application name", () => {
@@ -101,7 +101,7 @@ describe("generate", () => {
     assert.equal(requireEntry(byName, "server.ts").kind, "content");
     assert.match(server, /process\.env\.PORT \?\? 4001/);
     assert.match(server, /catalog-api listening on http:\/\/localhost:/);
-    assert.match(server, /await createBackendApp\(\)/);
+    assert.match(server, /await CreateBackendApp\(\)/);
     assert.doesNotMatch(server, /\.then\(/);
     assert.match(server, /app\.listen\(port\)/);
   });
@@ -138,11 +138,11 @@ describe("generate", () => {
   it("emits health and boot tests from templates", () => {
     const health = entryBody(requireEntry(byName, "__tests__/health.test.ts"));
     assert.match(health, /GET \/api\/health/);
-    assert.match(health, /await createBackendApp\(\)/);
+    assert.match(health, /await CreateBackendApp\(\)/);
     assert.doesNotMatch(health, /\.then\(/);
-    const boot = entryBody(requireEntry(byName, "__tests__/app-boot.test.ts"));
-    assert.match(boot, /createBackendApp/);
-    assert.match(boot, /await createBackendApp\(\)/);
+    const boot = entryBody(requireEntry(byName, "__tests__/appBoot.test.ts"));
+    assert.match(boot, /CreateBackendApp/);
+    assert.match(boot, /await CreateBackendApp\(\)/);
   });
 
   it("treats omitted app_generate_complexity as deterministic", async () => {
@@ -233,7 +233,7 @@ describe("generate minimal", () => {
     assert.match(health, /GET \/api\/health/);
     assert.match(health, /from "node:test"/);
     const server = entryBody(requireEntry(byName, "server.ts"));
-    assert.match(server, /await createBackendApp\(\)/);
+    assert.match(server, /await CreateBackendApp\(\)/);
     assert.match(server, /createServer\(app\)/);
     assert.doesNotMatch(server, /\.then\(/);
   });

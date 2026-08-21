@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { createBackendApp } from "../app.js";
+import { {{appFnName}} } from "../{{appFileBase}}.js";
 
-describe("createBackendApp", () => {
+describe("{{appFnName}}", () => {
   it("resolves an Express app without throwing", async () => {
-    const app = await createBackendApp();
+    const app = await {{appFnName}}();
     expect(app).toBeDefined();
     expect(typeof (app as { use?: unknown }).use).toBe("function");
   });

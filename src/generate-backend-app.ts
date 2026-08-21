@@ -22,6 +22,7 @@ import {
   minimalServerTs,
   minimalTsconfigJson,
 } from "./resources/backend-app-minimal.ts";
+import { Emit } from "./emit.ts";
 
 const DEFAULT_APP_NAME = "generated-app";
 const DEFAULT_COMPLEXITY = "deterministic";
@@ -37,54 +38,71 @@ const complexityOf = (settings: Record<string, string>): AppGenerateComplexity =
   );
 };
 
-const emitMinimal = (appName: string): GenerateEntry[] => {
-  const named = { appName };
-  return [
-    content("app.ts", fill(minimalAppTs, named)),
-    content("server.ts", fill(minimalServerTs, named)),
-    content("package.json", fill(minimalPackageJson, named)),
-    content("tsconfig.json", fill(minimalTsconfigJson, named)),
-    content("__tests__/health.test.ts", fill(minimalHealthTestTs, named)),
-  ];
-};
+class Generator extends Emit {
+  from(appName: string, complexity: AppGenerateComplexity): GenerateEntry[] {
+    return complexity === "minimal"
+      ? this.minimal(appName)
+      : this.deterministic(appName);
+  }
 
-// Files the deterministic lane owns outright. Spreading emitMinimal then
-// emitting a second kind:content for the same path trips the orchestrator
-// CONTENT collision guard (server.ts / tsconfig / health.test differ from
-// the scaffold). app.ts and package.json stay content+patch.
-const DETERMINISTIC_CONTENT = new Set([
-  "server.ts",
-  "tsconfig.json",
-  "__tests__/health.test.ts",
-]);
+  private tokens(appName: string) {
+    return {
+      appName,
+      appFnName: this.casing.appFnName(),
+      appFile: this.imports.app(),
+      appFileBase: this.casing.fileBase("app"),
+      serverFile: this.imports.server(),
+      serverFileBase: this.casing.fileBase("server"),
+      healthTestFile: this.imports.appTest("health"),
+      appBootTestFile: this.imports.appTest("app_boot"),
+      statusField: this.casing.convertFields("status"),
+    };
+  }
 
-const emitDeterministic = (appName: string): GenerateEntry[] => {
-  const named = { appName };
-  return [
-    ...emitMinimal(appName).filter((e) => !DETERMINISTIC_CONTENT.has(e.filename)),
-    patch("app.ts", appTs),
-    content("server.ts", fill(serverTs, named)),
-    patch("package.json", fill(packageJson, named)),
-    content("tsconfig.json", tsconfigJson),
-    patch("Dockerfile", dockerfile),
-    patch(".dockerignore", "node_modules"),
-    patch("scripts/entrypoint.sh", entrypointSh),
-    patch("docker-compose.yml", dockerComposeYml),
-    patch(".env", envFile),
-    patch(".env.example", envFile),
-    patch(".gitignore", gitignore),
-    content("vitest.config.ts", vitestConfigTs),
-    content("__tests__/health.test.ts", healthTestTs),
-    content("__tests__/app-boot.test.ts", appBootTestTs),
-  ];
-};
+  private minimal(appName: string): GenerateEntry[] {
+    const named = this.tokens(appName);
+    return [
+      content(named.appFile, fill(minimalAppTs, named)),
+      content(named.serverFile, fill(minimalServerTs, named)),
+      content("package.json", fill(minimalPackageJson, named)),
+      content("tsconfig.json", fill(minimalTsconfigJson, named)),
+      content(named.healthTestFile, fill(minimalHealthTestTs, named)),
+    ];
+  }
+
+  private deterministic(appName: string): GenerateEntry[] {
+    const named = this.tokens(appName);
+    const owned = new Set([
+      named.serverFile,
+      "tsconfig.json",
+      named.healthTestFile,
+    ]);
+    return [
+      ...this.minimal(appName).filter((e) => !owned.has(e.filename)),
+      patch(named.appFile, fill(appTs, named)),
+      content(named.serverFile, fill(serverTs, named)),
+      patch("package.json", fill(packageJson, named)),
+      content("tsconfig.json", fill(tsconfigJson, named)),
+      patch("Dockerfile", fill(dockerfile, named)),
+      patch(".dockerignore", "node_modules"),
+      patch("scripts/entrypoint.sh", entrypointSh),
+      patch("docker-compose.yml", dockerComposeYml),
+      patch(".env", envFile),
+      patch(".env.example", envFile),
+      patch(".gitignore", gitignore),
+      content("vitest.config.ts", vitestConfigTs),
+      content(named.healthTestFile, fill(healthTestTs, named)),
+      content(named.appBootTestFile, fill(appBootTestTs, named)),
+    ];
+  }
+}
 
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   const appName = ctx.settings.application_name || DEFAULT_APP_NAME;
-  const complexity = complexityOf(ctx.settings);
-  return complexity === "minimal"
-    ? emitMinimal(appName)
-    : emitDeterministic(appName);
+  return new Generator(ctx.settings).from(
+    appName,
+    complexityOf(ctx.settings),
+  );
 };

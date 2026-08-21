@@ -5,6 +5,7 @@ import {
   DATASOURCE_TYPES_YAML,
 } from "@deterministic-code/generators-common/specification";
 import { fromSettings } from "@deterministic-code/generators-common/settings";
+import { createCasing } from "./common/default-casing.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { serverTmpl, vitestPerfTmpl } from "./resources/perf-server.ts";
 
@@ -15,13 +16,21 @@ export const generate = async (
     throw new Error("generate-perf-server: datasource_types.yaml is required");
   }
   await ctx.reader.read(DATASOURCE_TYPES_YAML);
+  const casing = createCasing(ctx.settings);
   const appImport = libraryImportSpecifier(
     "app",
     fromSettings(ctx.settings).libraryReferenceMode,
     "perf-server.ts",
   );
   return [
-    content("perf-server.ts", fill(serverTmpl, { appImport })),
+    content(
+      "perf-server.ts",
+      fill(serverTmpl, {
+        appImport,
+        appFnName: casing.appFnName(),
+        appFileBase: casing.fileBase("app"),
+      }),
+    ),
     content("vitest.perf.config.ts", vitestPerfTmpl),
     patch(
       "package.json",

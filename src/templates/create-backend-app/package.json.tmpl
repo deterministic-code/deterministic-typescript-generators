@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=.env server.ts",
+    "dev": "tsx watch --env-file-if-exists=.env {{serverFile}}",
     "build": "tsc",
-    "start": "node --env-file-if-exists=.env dist/server.js",
+    "start": "node --env-file-if-exists=.env dist/{{serverFileBase}}.js",
     "test": "vitest run"
   },
   "dependencies": {

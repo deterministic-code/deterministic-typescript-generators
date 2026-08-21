@@ -217,7 +217,7 @@ export const bootContactsSample = async (
     generateBundledMigrate(sample.settings),
     generateLanes(sample),
   ]);
-  requireNamed(frontendEntries, "frontend/src/App.tsx");
+  requireNamed(frontendEntries, "frontend/src/app.tsx");
   requireNamed(bindingEntries, "frontend/src/client/fetch/http.ts");
   requireNamed(migrateEntries, "migraters/typescript/package.json");
   requireNamed(migrateEntries, "migraters/typescript/src/bin/migrate-up.ts");

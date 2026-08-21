@@ -34,6 +34,11 @@ export type PackCasing = ICasingStrategy & {
   clientName: (entity: string) => string
   clientQueryOptionsName: (entity: string) => string
   clientMutationOptionsName: (entity: string) => string
+  appFnName: () => string
+  appComponentName: () => string
+  homeComponentName: () => string
+  rootLayoutName: () => string
+  appConfigName: () => string
 };
 
 /** Language defaults + settings overrides. Layout (by-feature) lives on ImportGenerator. */
@@ -74,6 +79,11 @@ export const createCasing = (
       casing.convertTypes(`${entity}_client_query_options`),
     clientMutationOptionsName: (entity: string) =>
       casing.convertTypes(`${entity}_client_mutation_options`),
+    appFnName: () => casing.convertTypes("create_backend_app"),
+    appComponentName: () => casing.convertTypes("app"),
+    homeComponentName: () => casing.convertTypes("home"),
+    rootLayoutName: () => casing.convertTypes("root_layout"),
+    appConfigName: () => casing.convertTypes("app_config"),
   };
 };
 

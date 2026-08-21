@@ -73,7 +73,7 @@ describe("generate frontend app", () => {
         "frontend/.gitignore",
         "frontend/index.html",
         "frontend/package.json",
-        "frontend/src/App.tsx",
+        "frontend/src/app.tsx",
         "frontend/src/main.tsx",
         "frontend/tsconfig.json",
         "frontend/vite.config.ts",
@@ -92,7 +92,11 @@ describe("generate frontend app", () => {
       /src\/\*\*\/\*\.test\.ts/,
     );
     assert.match(
-      entryBody(requireEntry(byName, "frontend/src/App.tsx")),
+      entryBody(requireEntry(byName, "frontend/src/app.tsx")),
+      /export default function App/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/app.tsx")),
       /catalog-ui/,
     );
     assert.equal(byName.has("frontend/Dockerfile"), false);
@@ -111,7 +115,7 @@ describe("generate frontend app", () => {
       "generated-frontend",
     );
     assert.match(
-      entryBody(requireEntry(byName, "frontend/src/App.tsx")),
+      entryBody(requireEntry(byName, "frontend/src/app.tsx")),
       /<h1>generated-frontend<\/h1>/,
     );
     assert.match(
@@ -233,7 +237,7 @@ describe("generate frontend app", () => {
         "frontend/.gitignore",
         "frontend/index.html",
         "frontend/package.json",
-        "frontend/src/App.svelte",
+        "frontend/src/app.svelte",
         "frontend/src/main.ts",
         "frontend/src/vite-env.d.ts",
         "frontend/svelte.config.js",
@@ -253,7 +257,7 @@ describe("generate frontend app", () => {
       /src\/\*\*\/\*\.test\.ts/,
     );
     assert.match(
-      entryBody(requireEntry(byName, "frontend/src/App.svelte")),
+      entryBody(requireEntry(byName, "frontend/src/app.svelte")),
       /<h1>catalog-ui<\/h1>/,
     );
   });
@@ -274,8 +278,8 @@ describe("generate frontend app", () => {
         "frontend/.gitignore",
         "frontend/angular.json",
         "frontend/package.json",
-        "frontend/src/app/app.config.ts",
         "frontend/src/app/app.ts",
+        "frontend/src/app/appConfig.ts",
         "frontend/src/index.html",
         "frontend/src/main.ts",
         "frontend/src/styles.css",
@@ -289,6 +293,14 @@ describe("generate frontend app", () => {
     assert.match(
       entryBody(requireEntry(byName, "frontend/tsconfig.app.json")),
       /src\/\*\*\/\*\.test\.ts/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/app/app.ts")),
+      /export class App \{\}/,
+    );
+    assert.match(
+      entryBody(requireEntry(byName, "frontend/src/app/appConfig.ts")),
+      /export const AppConfig/,
     );
     assert.match(
       entryBody(requireEntry(byName, "frontend/src/app/app.ts")),

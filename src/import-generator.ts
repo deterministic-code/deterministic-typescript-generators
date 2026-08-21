@@ -212,6 +212,18 @@ export class TypeScriptImportGenerator implements IImportGenerator {
     return posix.join("frontend", relPath);
   }
 
+  app(): string {
+    return this.casing.filePath("app");
+  }
+
+  server(): string {
+    return this.casing.filePath("server");
+  }
+
+  appTest(stem: string): string {
+    return `__tests__/${this.casing.fileBase(stem)}.test.ts`;
+  }
+
   private rel(prefix: string, file: string): string {
     if (this.organizeByFeature || this.flat) return file;
     return `${prefix}/${file}`;
