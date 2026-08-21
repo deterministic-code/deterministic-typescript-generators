@@ -1,7 +1,6 @@
-import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
-import { fileURLToPath } from "node:url";
 import { memoryReader } from "@deterministic-code/generators-common/deterministic-reader";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { generate as generateSql } from "../../generators-sql/src/generate-sql.ts";
@@ -39,7 +38,6 @@ import {
   installFrontend,
   installBuildAndMigrateSqlite,
   testFrontend,
-  npm,
   sqliteAppEnv,
   startGeneratedServer,
   withSqlRoot,
@@ -80,73 +78,6 @@ const requireNamedAny = (entries: GenerateEntry[], needles: string[]): void => {
   throw new Error(
     `codegen missing ${needles.join(" or ")}; got ${names.join(", ")}`,
   );
-};
-
-const CUSTOM_SERVICE_MODULES = [
-  {
-    name: "ContactImportService",
-    module: "./services/contact-import-service",
-  },
-  {
-    name: "LegacyMigrationService",
-    module: "./services/legacy-migration-service",
-  },
-] as const;
-
-const customModulePathsFor = (
-  variant: ContactsVariant,
-  settings: Record<string, string>,
-): Record<string, string> => {
-  if (!variant.organizeByFeature) return {};
-  const imports = createImportGenerator(".", settings);
-  const paths: Record<string, string> = {};
-  for (const spec of CUSTOM_SERVICE_MODULES) {
-    const laid = imports.serviceCustom(spec.name, spec.module).replace(/\.ts$/, "");
-    paths[spec.module] = `./${laid}`;
-  }
-  return paths;
-};
-
-const injectCustomModulePaths = async (
-  appDir: string,
-  paths: Record<string, string>,
-): Promise<void> => {
-  if (Object.keys(paths).length === 0) return;
-  const appPath = join(appDir, "app.ts");
-  const needle = "srcRoot: process.env.SRC_ROOT ?? process.cwd(),";
-  const text = await readFile(appPath, "utf8");
-  if (!text.includes(needle)) {
-    throw new Error("contacts boot: app.ts is missing srcRoot assignment");
-  }
-  const literal = JSON.stringify(paths, null, 2).replace(/\n/g, "\n    ");
-  await writeFile(
-    appPath,
-    text.replace(needle, `${needle}\n    customModulePaths: ${literal},`),
-    "utf8",
-  );
-};
-
-const RUNTIME_ROOT = fileURLToPath(new URL("../runtime/", import.meta.url));
-
-let runtimeBuild: Promise<void> | undefined;
-
-const ensureLocalRuntime = async (): Promise<void> => {
-  runtimeBuild ??= npm(["run", "build"], RUNTIME_ROOT);
-  await runtimeBuild;
-};
-
-const pinLocalRuntime = async (appDir: string): Promise<void> => {
-  await ensureLocalRuntime();
-  const pkgPath = join(appDir, "package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as {
-    dependencies?: Record<string, string>;
-  };
-  pkg.dependencies = {
-    ...pkg.dependencies,
-    "@deterministic-code/deterministic": `file:${RUNTIME_ROOT}`,
-    zod: pkg.dependencies?.zod ?? "^3.23.8",
-  };
-  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 };
 
 const placeLayered = (
@@ -375,11 +306,6 @@ export const bootContactsSample = async (
   if (verboseOutputEnabled()) dumpCodegenEntries(entries);
   await writeGenerateEntries(appDir, entries);
   await writeDeterministicYaml(appDir, sample.yaml);
-  await injectCustomModulePaths(
-    appDir,
-    customModulePathsFor(variant, sample.settings),
-  );
-  await pinLocalRuntime(appDir);
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
 
   await Promise.all([
