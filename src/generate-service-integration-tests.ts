@@ -1,6 +1,7 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import pluralize from "pluralize";
 import { toNative } from "./base-type-converter.ts";
 import {
   DeterministicParser,
@@ -15,12 +16,26 @@ import { genericTmpl } from "./resources/service-integration-tests.ts";
 import { createCasing } from "./common/default-casing.ts";
 import { Emit } from "./emit.ts";
 
+/** Same last-token rule as SQL `effectiveTableName` — tests must hit the physical table. */
+const physicalTableName = (name: string, pluralizeFlag: boolean): string =>
+  pluralizeFlag && name
+    ? name.replace(/[^_]+$/, (token) => pluralize(token))
+    : name;
+
 const tableByName = (
   name: string,
   datasources: ExpandedDatasourceType[],
 ): ExpandedDatasourceType | undefined => datasources.find((d) => d.name === name);
 
 class Generator extends Emit {
+  private readonly pluralizeTableNames: boolean;
+
+  constructor(raw: Record<string, string>) {
+    super(raw);
+    this.pluralizeTableNames =
+      String(raw["datasource.pluralize_datatable_names"]) !== "false";
+  }
+
   from(deterministic: IDeterministic): GenerateEntry[] {
     const { generics } = deterministic.services;
     const datasources = deterministic.expandedDatasourceTypes;
@@ -48,7 +63,9 @@ class Generator extends Emit {
             ),
             className: this.casing.serviceClassName(c.name),
             serviceImport: joinImport("..", this.casing.fileBase(`${c.name}_service`)),
-            tableNameJson: JSON.stringify(c.name),
+            tableNameJson: JSON.stringify(
+              physicalTableName(c.name, this.pluralizeTableNames),
+            ),
             entityNameJson: JSON.stringify(c.name),
             entityName: c.name,
             pkIdTypeJson: JSON.stringify(isUuid ? "uuid" : "integer"),

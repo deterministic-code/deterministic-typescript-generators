@@ -15,7 +15,7 @@ const generateFrom = (
   settings: Record<string, string>,
 ): GenerateEntry[] => [
   content(
-    "app.integration.test.ts",
+    "__tests__/app.integration.test.ts",
     fill(e2eTmpl, {
       detRoot: libraryImportSpecifier(
         "",

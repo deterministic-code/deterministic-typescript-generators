@@ -18,6 +18,7 @@ import { generate as generateFrontendTypesTests } from "../src/generate-frontend
 import { generate as generateFrontendTypes } from "../src/generate-frontend-types.ts";
 import { generate as generateFrontendValidatorsTests } from "../src/generate-frontend-validators-tests.ts";
 import { generate as generateFrontendValidators } from "../src/generate-frontend-validators.ts";
+import { generate as generateRoutesE2eTest } from "../src/generate-routes-e2e-test.ts";
 import { generate as generateRoutesTests } from "../src/generate-routes-tests.ts";
 import { generate as generateRoutes } from "../src/generate-routes.ts";
 import { generate as generateServiceIntegrationTests } from "../src/generate-service-integration-tests.ts";
@@ -208,6 +209,7 @@ export const bootContactsSample = async (
     sqlEntries,
     migrateEntries,
     lanes,
+    routesE2eEntries,
   ] = await Promise.all([
     generateBackendApp(ctx),
     generateFrontendApp(ctx),
@@ -216,11 +218,13 @@ export const bootContactsSample = async (
     generateSql(ctx),
     generateBundledMigrate(sample.settings),
     generateLanes(sample),
+    generateRoutesE2eTest(ctx),
   ]);
   requireNamed(frontendEntries, "frontend/src/app.tsx");
   requireNamed(bindingEntries, "frontend/src/client/fetch/http.ts");
   requireNamed(migrateEntries, "migraters/typescript/package.json");
   requireNamed(migrateEntries, "migraters/typescript/src/bin/migrate-up.ts");
+  requireNamed(routesE2eEntries, "__tests__/app.integration.test.ts");
 
   const byFeature = variant.organizeByFeature;
   const layered = {
@@ -300,6 +304,7 @@ export const bootContactsSample = async (
     ...layered.serviceIntegrationTests,
     ...layered.routes,
     ...layered.routeTests,
+    ...routesE2eEntries,
     ...withSqlRoot(sqlEntries),
     ...migrateEntries,
   ];

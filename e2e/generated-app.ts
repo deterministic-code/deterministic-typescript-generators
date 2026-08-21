@@ -185,8 +185,22 @@ export const installBuildAndMigrateSqlite = async (
   const env = sqliteAppEnv(appDir);
   await npm(["run", "migrate:setup"], appDir, env);
   await npm(["run", "migrate"], appDir, env);
-  await npm(["run", "build"], appDir);
-  await testBackend(appDir, env);
+  const failures: string[] = [];
+  for (const [label, run] of [
+    ["test", () => testBackend(appDir)],
+    ["build", () => npm(["run", "build"], appDir)],
+  ] as const) {
+    try {
+      await run();
+    } catch (err) {
+      failures.push(
+        `npm ${label} failed:\n${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(failures.join("\n\n"));
+  }
   return dbPath;
 };
 
@@ -244,7 +258,6 @@ export const bootGeneratedApp = async (args: {
   if (verboseOutputEnabled()) await dumpFinalFiles(appDir);
   await npm(["install", "--no-audit", "--no-fund", "--prefer-offline"], appDir);
   await npm(["run", "build"], appDir);
-  await testBackend(appDir);
   return startGeneratedServer(appDir);
 };
 
