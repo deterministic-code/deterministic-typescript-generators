@@ -144,7 +144,7 @@ class Generator extends Emit {
       const typeName = this.casing.convertTypes(entity);
       const alias =
         this.referenceBackendType && kind === "datasource" && entity === self
-          ? `${typeName}Base`
+          ? this.casing.convertTypes(`${entity}_base`)
           : undefined;
       if (alias !== undefined) aliasByClass.set(entity, alias);
       add(typeName, alias, this.typeImport(view.name, { entity, kind }));

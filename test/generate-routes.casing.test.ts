@@ -123,18 +123,19 @@ describe("generate routes casing", () => {
     assertServiceImport(contact, "contact", settings);
   });
 
-  it("Snake types use Icontact_service / Icontact_group_service", async () => {
+  it("Snake types use i_contact_service / i_contact_group_service", async () => {
     const settings = { "languages.typescript.casing.types": "Snake" };
     const files = await byFilename(settings);
     const contact = files.get("contact.ts")!;
     const group = files.get("contactGroup.ts")!;
     const source = files.get("contactSource.ts")!;
-    assert.match(contact, /Icontact_service/);
-    assert.match(group, /Icontact_group_service/);
+    assert.match(contact, /i_contact_service/);
+    assert.match(group, /i_contact_group_service/);
     assert.match(contact, /export function contact_router/);
     assert.match(group, /export function contact_group_router/);
-    assert.match(source, /Icontact_source_service/);
+    assert.match(source, /i_contact_source_service/);
     assert.doesNotMatch(contact, /IcontactService/);
+    assert.doesNotMatch(contact, /Icontact_service/);
     assert.doesNotMatch(group, /Icontact_groupService/);
     assertServiceImport(contact, "contact", settings);
     assertServiceImport(group, "contact_group", settings);

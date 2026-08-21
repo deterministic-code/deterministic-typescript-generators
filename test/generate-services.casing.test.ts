@@ -78,7 +78,7 @@ describe("generate services casing", () => {
       "languages.typescript.casing.fields": "Camel",
     });
     const body = files.get("notificationTypeService.ts")!;
-    assert.match(body, /async find_by_channelName\(channelName: string\)/);
+    assert.match(body, /async findByChannelName\(channelName: string\)/);
   });
 
   it("Kebab directories with Pascal files under by-feature", async () => {
@@ -111,6 +111,9 @@ services:
     }
     const body = files.get("../custom/contactImportService.ts");
     assert.ok(body, `got ${[...files.keys()].join(", ")}`);
-    assert.match(body, /export class ContactImportService implements IContactImportService/);
+    assert.match(
+      body,
+      /export class ContactImportService implements iContactImportService/,
+    );
   });
 });

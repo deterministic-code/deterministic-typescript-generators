@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+import { createCasing } from "../src/common/default-casing.ts";
+import { createImportGenerator } from "../src/import-generator.ts";
 import {
   bootContactsSample,
   customServicePath,
@@ -38,6 +41,47 @@ const namesOf = (rows: unknown[]): string[] =>
 
 const assertNoFk = (row: Record<string, unknown>, fk: string): void => {
   assert.equal(fk in row, false, `expected ${fk} to be omitted`);
+};
+
+const entryBody = (entries: GenerateEntry[], filename: string): string => {
+  const hit = entries.find(
+    (entry) =>
+      entry.filename === filename || entry.filename.endsWith(`/${filename}`),
+  );
+  if (hit === undefined || hit.kind !== "content") {
+    throw new Error(`missing generate entry ${filename}`);
+  }
+  return hit.contents;
+};
+
+const SERVICE_ROUTE_ENTITIES = [
+  "contact",
+  "contact_group",
+  "contact_source",
+] as const;
+
+const assertServiceInterfacesMatchRoutes = (
+  lanes: BootedContactsApp["lanes"],
+  settings: Record<string, string>,
+): void => {
+  const casing = createCasing(settings);
+  const imports = createImportGenerator(".", settings);
+  for (const entity of SERVICE_ROUTE_ENTITIES) {
+    const iface = casing.serviceInterfaceName(entity);
+    const route = entryBody(lanes.routes, imports.route(entity));
+    const service = entryBody(lanes.services, imports.service(entity));
+    assert.match(
+      route,
+      new RegExp(`import \\{ ${iface} \\}`),
+      `${entity} route must import ${iface}`,
+    );
+    assert.match(
+      service,
+      new RegExp(`export type ${iface} =`),
+      `${entity} service must export ${iface}`,
+    );
+    assert.doesNotMatch(route, /IcontactService/);
+  }
 };
 
 const assertSqliteTables = async (
@@ -111,6 +155,7 @@ const assertContactsLayout = async (
     );
   }
   await assertSqliteTables(appDir, variant.pluralizeDatatableNames);
+  assertServiceInterfacesMatchRoutes(lanes, settings);
 };
 
 type GraphClients = {
@@ -545,3 +590,4 @@ runContactsVariant(CONTACTS_VARIANTS.baseline);
 runContactsVariant(CONTACTS_VARIANTS["by-feature-pascal"]);
 runContactsVariant(CONTACTS_VARIANTS["occ-snake"]);
 runContactsVariant(CONTACTS_VARIANTS["singular-camel"]);
+runContactsVariant(CONTACTS_VARIANTS["snake-test"]);

@@ -109,6 +109,8 @@ export const generate = async (
   const entries = new Generator(ctx.settings).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
   );
-  new ReferenceVerifier().verify(referenceAttributesFromEntries(entries));
+  const verifier = new ReferenceVerifier();
+  verifier.verify(referenceAttributesFromEntries(entries));
+  verifier.verifyContents(entries);
   return entries;
 };

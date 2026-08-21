@@ -221,8 +221,8 @@ describe("generate-client-bindings", () => {
     );
     assert.match(tanstackProject, /from "@tanstack\/react-query"/);
     assert.match(tanstackProject, /from "\.\.\/fetch\/project\.ts"/);
-    assert.match(tanstackProject, /useProjectList/);
-    assert.match(tanstackProject, /useProjectCreate/);
+    assert.match(tanstackProject, /UseProjectList/);
+    assert.match(tanstackProject, /UseProjectCreate/);
     assert.match(tanstackProject, /vars\.body/);
 
     const root = textOf(entries, "frontend/src/client/index.ts");

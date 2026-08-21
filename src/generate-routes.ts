@@ -91,6 +91,13 @@ class Generator extends Emit {
     };
   }
 
+  private customModuleKey(emitPath: string): string {
+    if (emitPath.startsWith("../custom/")) {
+      return `routes/custom/${emitPath.slice("../custom/".length)}`;
+    }
+    return emitPath;
+  }
+
   private entityRouter(
     candidate: RouteCandidate,
     customServices: Set<string>,
@@ -105,15 +112,21 @@ class Generator extends Emit {
           methods: methodsOf(e, ["GET"]).filter((m) => m === "GET"),
         }))
       : candidate.byFields;
+    const customService = customServices.has(entity);
+    const fnName = this.casing.routerFnName(entity);
+    const serviceInterfaceName = this.casing.serviceInterfaceName(entity);
+    const serviceRel = customService
+      ? this.imports.serviceCustomRel(entity)
+      : this.imports.serviceRel(entity);
     return content(
       this.imports.route(entity),
       fill(readOnly ? readonlyTmpl : crudTmpl, {
         simpleDoc,
         descriptionDoc,
-        ...this.libImports(entity, customServices.has(entity)),
+        ...this.libImports(entity, customService),
         entity,
-        fnName: this.casing.routerFnName(entity),
-        serviceInterfaceName: this.casing.serviceInterfaceName(entity),
+        fnName,
+        serviceInterfaceName,
         datasourceType:
           candidate.datasourceType || (readOnly ? "readonly-lookup" : "standard"),
         occ,
@@ -121,6 +134,12 @@ class Generator extends Emit {
         hasByFields: byFields.length > 0,
         byFieldsBlock: byFieldsBlock(entity, byFields),
       }),
+      {
+        module: this.imports.routeRel(entity),
+        exports: fnName,
+        imports: serviceRel,
+        uses: serviceInterfaceName,
+      },
     );
   }
 
@@ -130,14 +149,19 @@ class Generator extends Emit {
       entry,
       this.casing.authoredInterfaceName,
     );
+    const path = this.imports.routeCustom(entry.name, module);
     return content(
-      this.imports.routeCustom(entry.name, module),
+      path,
       fill(customStubTmpl, {
         simpleDoc,
         descriptionDoc,
         interfaceName,
         className,
       }),
+      {
+        module: this.customModuleKey(path),
+        exports: `${className}, ${interfaceName}`,
+      },
     );
   }
 
@@ -150,6 +174,9 @@ class Generator extends Emit {
       const sorted = [...candidates].sort((a, b) => a.name.localeCompare(b.name));
       const index = this.imports.index(this.imports.route(sorted[0]!.name));
       if (index) {
+        const exports = sorted
+          .map((c) => this.casing.routerFnName(c.name))
+          .join(", ");
         entries.push(
           content(
             index,
@@ -159,6 +186,16 @@ class Generator extends Emit {
                 fileBase: this.casing.fileBase(c.name),
               })),
             }),
+            {
+              module: this.imports
+                .routeRel(sorted[0]!.name)
+                .replace(/[^/]+$/, "index.ts"),
+              exports,
+              imports: sorted
+                .map((c) => this.imports.routeRel(c.name))
+                .join(", "),
+              uses: exports,
+            },
           ),
         );
       }
@@ -171,6 +208,15 @@ class Generator extends Emit {
       const sorted = [...customDir].sort((a, b) => a.name.localeCompare(b.name));
       const index = this.imports.index(this.imports.routeCustom(sorted[0]!.name));
       if (index) {
+        const exports = sorted
+          .flatMap((e) => {
+            const { className, interfaceName } = customRouteMeta(
+              e,
+              this.casing.authoredInterfaceName,
+            );
+            return [className, interfaceName];
+          })
+          .join(", ");
         entries.push(
           content(
             index,
@@ -187,6 +233,18 @@ class Generator extends Emit {
                 };
               }),
             }),
+            {
+              module: this.customModuleKey(index),
+              exports,
+              imports: sorted
+                .map((e) =>
+                  this.customModuleKey(
+                    this.imports.routeCustom(e.name, e.module),
+                  ),
+                )
+                .join(", "),
+              uses: exports,
+            },
           ),
         );
       }
@@ -195,6 +253,7 @@ class Generator extends Emit {
   }
 }
 
+/** Returns attributed entries. Cross-lane service imports need host `finalizeEntries`. */
 export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
