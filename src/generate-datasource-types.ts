@@ -1,10 +1,7 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import {
-  referenceAttributesFromEntries,
-  ReferenceVerifier,
-} from "@deterministic-code/generators-common/reference-verifier";
+import { verifyEntries } from "@deterministic-code/generators-common/reference-verifier";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -109,8 +106,6 @@ export const generate = async (
   const entries = new Generator(ctx.settings).from(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
   );
-  const verifier = new ReferenceVerifier();
-  verifier.verify(referenceAttributesFromEntries(entries));
-  verifier.verifyContents(entries);
+  verifyEntries(entries);
   return entries;
 };
