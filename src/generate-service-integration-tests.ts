@@ -9,7 +9,7 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   SERVICES_YAML,
-  type ExpandedDatasourceType,
+  type DatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { joinImport, libraryImportSpecifier } from "./library-import.ts";
 import { genericTmpl } from "./resources/service-integration-tests.ts";
@@ -24,8 +24,8 @@ const physicalTableName = (name: string, pluralizeFlag: boolean): string =>
 
 const tableByName = (
   name: string,
-  datasources: ExpandedDatasourceType[],
-): ExpandedDatasourceType | undefined => datasources.find((d) => d.name === name);
+  datasources: DatasourceType[],
+): DatasourceType | undefined => datasources.find((d) => d.name === name);
 
 class Generator extends Emit {
   private readonly pluralizeTableNames: boolean;

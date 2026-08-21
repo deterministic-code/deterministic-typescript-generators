@@ -7,7 +7,7 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   DATASOURCE_TYPES_YAML,
-  type ExpandedDatasourceType,
+  type DatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { idTypeToZod, toZod, toZodDefault } from "./common/type-converters/native-to-zod.ts";
 import { Emit } from "./emit.ts";
@@ -97,7 +97,7 @@ class Generator extends Emit {
     return entries;
   }
 
-  private validator(table: ExpandedDatasourceType): GenerateEntry {
+  private validator(table: DatasourceType): GenerateEntry {
     const fields = table.fields.map((field) => ({
       ident: this.casing.fieldIdent(field.name),
       zodExpr: zodForField(field, field.name === "id"),
@@ -117,7 +117,7 @@ class Generator extends Emit {
   }
 
   private index(
-    types: ExpandedDatasourceType[],
+    types: DatasourceType[],
     index: string,
   ): GenerateEntry {
     return content(
