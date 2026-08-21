@@ -53,11 +53,18 @@ import {
 } from "./verbose-output.ts";
 import { writeGenerateEntries } from "./write-generate-entries.ts";
 
+const isRootPatch = (entry: GenerateEntry): boolean =>
+  entry.kind === "patch" && !entry.filename.includes("/");
+
 const nestUnder = (dir: string, entries: GenerateEntry[]): GenerateEntry[] =>
-  entries.map((entry) => ({
-    ...entry,
-    filename: posix.normalize(`${dir}/${entry.filename}`),
-  }));
+  entries.map((entry) =>
+    isRootPatch(entry)
+      ? entry
+      : {
+          ...entry,
+          filename: posix.normalize(`${dir}/${entry.filename}`),
+        },
+  );
 
 const filenames = (entries: GenerateEntry[]): string[] =>
   entries.map((entry) => entry.filename);

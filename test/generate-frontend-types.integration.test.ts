@@ -86,6 +86,7 @@ const withoutImports = (body: string): string =>
 const byBase = (entries: GenerateEntry[]): Map<string, string> => {
   const map = new Map<string, string>();
   for (const entry of entries) {
+    if (entry.kind !== "content") continue;
     map.set(fileBase(entry.filename), entryBody(entry));
   }
   return map;
@@ -95,9 +96,11 @@ const assertSharedBodies = (
   frontend: GenerateEntry[],
   backend: GenerateEntry[],
 ) => {
+  const contentOf = (entries: GenerateEntry[]) =>
+    entries.filter((e) => e.kind === "content");
   assert.deepEqual(
-    frontend.map((e) => fileBase(e.filename)).sort(),
-    backend.map((e) => fileBase(e.filename)).sort(),
+    contentOf(frontend).map((e) => fileBase(e.filename)).sort(),
+    contentOf(backend).map((e) => fileBase(e.filename)).sort(),
   );
   const front = byBase(frontend);
   const back = byBase(backend);

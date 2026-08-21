@@ -185,6 +185,7 @@ types: []
       [
         "cardPayment.test.ts",
         "cashPayment.test.ts",
+        "package.json",
         "payment.test.ts",
         "tag.test.ts",
         "updateTag.test.ts",

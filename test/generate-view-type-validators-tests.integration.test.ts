@@ -158,6 +158,7 @@ describe("generate view type validators tests", () => {
       [
         "cardPayment.test.ts",
         "cashPayment.test.ts",
+        "package.json",
         "payment.test.ts",
         "role.test.ts",
         "tag.test.ts",

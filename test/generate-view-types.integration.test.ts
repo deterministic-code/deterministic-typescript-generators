@@ -202,6 +202,7 @@ types: []
         "payment.ts",
         "role.ts",
         "tag.ts",
+        "tsconfig.json",
         "updateTag.ts",
         "updateUser.ts",
         "updateUserSummary.ts",
@@ -209,6 +210,11 @@ types: []
         "userSummary.ts",
       ],
     );
+    const tsconfig = requireEntry(byName, "tsconfig.json");
+    assert.equal(tsconfig.kind, "patch");
+    assert.deepEqual(JSON.parse(entryBody(tsconfig)), {
+      include: ["types/**/*.ts"],
+    });
   });
 
   it("renders a shaped view with primitive, datasource, and view fields", async () => {

@@ -1,3 +1,5 @@
+import { patch, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
+
 type LanguageTarget = "typescript" | "rust" | "csharp";
 type SqlDialect = "postgres" | "sqlite" | "mysql" | "sqlserver" | "oracle";
 type FakeTestTarget = LanguageTarget | SqlDialect;
@@ -57,6 +59,24 @@ const typescriptFakerTestData: IFakeTestData = {
 };
 
 export const fakeTestData: IFakeTestData = typescriptFakerTestData;
+
+export const FAKER_DEV_DEPENDENCY = "^9.9.0";
+
+export const fakerPackagePatch = (
+  filename = "package.json",
+): GenerateEntry =>
+  patch(
+    filename,
+    JSON.stringify({
+      devDependencies: { "@faker-js/faker": FAKER_DEV_DEPENDENCY },
+    }),
+  );
+
+export const withFakerPackagePatch = (
+  entries: GenerateEntry[],
+  filename = "package.json",
+): GenerateEntry[] =>
+  entries.length === 0 ? entries : [...entries, fakerPackagePatch(filename)];
 
 export const asIdType = (idType: string): IdType => {
   if (idType === "uuid" || idType === "string" || idType === "biginteger") {

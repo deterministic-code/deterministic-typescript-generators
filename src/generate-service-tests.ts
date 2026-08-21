@@ -10,7 +10,12 @@ import {
   type ExpandedDatasourceType,
   type ServiceCandidate,
 } from "@deterministic-code/generators-common/specification";
-import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
+import {
+  asIdType,
+  fakeTestData,
+  preludeSource,
+  withFakerPackagePatch,
+} from "./common/fake-test-data.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import { genericTmpl } from "./resources/service-tests.ts";
 import { createCasing } from "./common/default-casing.ts";
@@ -67,8 +72,10 @@ export const generate = async (
     ctx.settings,
     { serviceClassName: (entity) => casing.serviceClassName(entity) },
   );
-  return new Generator(
-    ctx.settings,
-    deterministic.expandedDatasourceTypes,
-  ).from(deterministic);
+  return withFakerPackagePatch(
+    new Generator(
+      ctx.settings,
+      deterministic.expandedDatasourceTypes,
+    ).from(deterministic),
+  );
 };

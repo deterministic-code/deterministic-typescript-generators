@@ -75,7 +75,7 @@ class Generator extends Emit {
     if (this.settings.createIndex) {
       entries.push(...this.indexes(parsed.candidates, parsed.customs));
     }
-    return entries;
+    return this.withTsconfigInclude(entries, "routes");
   }
 
   private libImports(entity: string, customService: boolean) {

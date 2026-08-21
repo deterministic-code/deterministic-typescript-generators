@@ -28,7 +28,9 @@ import {
 import { writeGenerateEntries } from "./write-generate-entries.ts";
 
 const nestUnder = (dir: string, entries: GenerateEntry[]): GenerateEntry[] =>
-  entries.map((entry) => ({ ...entry, filename: `${dir}/${entry.filename}` }));
+  entries
+    .filter((entry) => entry.kind === "content")
+    .map((entry) => ({ ...entry, filename: `${dir}/${entry.filename}` }));
 
 export const generateFrontendSampleEntries = async (args: {
   yaml: Record<string, string>;

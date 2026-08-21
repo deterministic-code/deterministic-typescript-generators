@@ -64,10 +64,18 @@ describe("generate-service-tests", () => {
     });
     const paths = entries.map((e) => e.filename).sort();
     assert.deepEqual(paths, [
+      "package.json",
       "roleService.test.ts",
       "skuService.test.ts",
       "userService.test.ts",
     ]);
+    const pkg = entries.find((e) => e.filename === "package.json");
+    assert.equal(pkg?.kind, "patch");
+    if (pkg?.kind === "patch") {
+      assert.deepEqual(JSON.parse(pkg.content), {
+        devDependencies: { "@faker-js/faker": "^9.9.0" },
+      });
+    }
 
     const user = textOf(entries, "userService.test.ts");
     assert.match(user, /import \{ faker \} from "@faker-js\/faker"/);

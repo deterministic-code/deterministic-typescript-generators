@@ -8,7 +8,7 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   DATASOURCE_TYPES_YAML,
-  type ExpandedDatasourceType,
+  type DatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
 import { Emit } from "./emit.ts";
@@ -25,10 +25,10 @@ class Generator extends Emit {
     if (this.settings.createIndex && index) {
       entries.push(this.index(types, index));
     }
-    return entries;
+    return this.withTsconfigInclude(entries, "types");
   }
 
-  private type(dsType: ExpandedDatasourceType): GenerateEntry {
+  private type(dsType: DatasourceType): GenerateEntry {
     const { schemaVersion, simpleDoc, descriptionDoc, libraryReferenceMode } =
       this.settings;
     const className = this.casing.convertTypes(dsType.name);
@@ -74,7 +74,7 @@ class Generator extends Emit {
     );
   }
 
-  private index(types: ExpandedDatasourceType[], index: string): GenerateEntry {
+  private index(types: DatasourceType[], index: string): GenerateEntry {
     const modules = types.map((t) => this.imports.datasourceRel(t.name));
     const exports = types.map((t) => this.casing.convertTypes(t.name)).join(", ");
     return content(

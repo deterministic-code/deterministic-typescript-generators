@@ -10,7 +10,11 @@ import {
   type ShapedView,
   type ViewType,
 } from "@deterministic-code/generators-common/specification";
-import { preludeSource, fakeTestData } from "./common/fake-test-data.ts";
+import {
+  fakeTestData,
+  preludeSource,
+  withFakerPackagePatch,
+} from "./common/fake-test-data.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
 import {
   escapeTestName,
@@ -226,10 +230,13 @@ export const generate = async (
   const deterministic = await DeterministicParser(ctx.reader).parse(
     ctx.settings,
   );
-  return new Generator(
-    ctx.settings,
-    basePath,
-    deterministic,
-    referenceBackendType,
-  ).from();
+  return withFakerPackagePatch(
+    new Generator(
+      ctx.settings,
+      basePath,
+      deterministic,
+      referenceBackendType,
+    ).from(),
+    basePath === "." || basePath === "" ? "package.json" : "frontend/package.json",
+  );
 };

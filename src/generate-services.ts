@@ -31,7 +31,7 @@ class Generator extends Emit {
     }
     const modulePaths = this.customModulePathsPatch(customs);
     if (modulePaths !== undefined) entries.push(modulePaths);
-    return entries;
+    return this.withTsconfigInclude(entries, "services");
   }
 
   /** By-feature emit paths are project-root relative; remap YAML `module:` so runtime load matches. */

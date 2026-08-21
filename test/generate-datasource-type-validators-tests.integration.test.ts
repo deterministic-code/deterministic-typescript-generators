@@ -89,7 +89,10 @@ describe("generate datasource type validators tests", () => {
 
   it("emits one validator test file per datasource type", async () => {
     const byName = indexEntries(await generateWith({}));
-    assert.deepEqual([...byName.keys()].sort(), ["role.test.ts", "user.test.ts"]);
+    assert.deepEqual(
+      [...byName.keys()].sort(),
+      ["package.json", "role.test.ts", "user.test.ts"],
+    );
   });
 
   it("imports the generated schema and covers parse, nullable, and reject cases", async () => {

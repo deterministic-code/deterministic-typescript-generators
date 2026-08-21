@@ -27,6 +27,14 @@ describe("generate-perf-server", () => {
     assert.ok(names.includes("perf-server.ts"));
     assert.ok(names.includes("vitest.perf.config.ts"));
     assert.ok(names.includes("package.json"));
+    assert.ok(names.includes("tsconfig.json"));
+    const tsconfig = entries.find((e) => e.filename === "tsconfig.json");
+    assert.equal(tsconfig?.kind, "patch");
+    if (tsconfig?.kind === "patch") {
+      assert.deepEqual(JSON.parse(tsconfig.content), {
+        include: ["perf-server.ts"],
+      });
+    }
     const server = entries.find((e) => e.filename === "perf-server.ts");
     assert.equal(server?.kind, "content");
     if (server?.kind === "content") {

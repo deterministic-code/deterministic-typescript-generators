@@ -75,6 +75,15 @@ describe("generate-routes", () => {
     assert.ok(paths.includes("order.ts"));
     assert.ok(paths.includes("index.ts"));
     assert.ok(paths.includes("../custom/index.ts"));
+    assert.ok(paths.includes("tsconfig.json"));
+    const tsconfig = entries.find(
+      (e) => e.kind === "patch" && e.filename === "tsconfig.json",
+    );
+    assert.ok(tsconfig);
+    assert.equal(tsconfig.kind, "patch");
+    assert.deepEqual(JSON.parse(tsconfig.content), {
+      include: ["routes/**/*.ts"],
+    });
     assert.ok(paths.some((p) => p.includes("getHealth")));
     assert.ok(
       !paths.some((p) => p.includes("nested")),
