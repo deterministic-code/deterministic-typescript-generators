@@ -4,6 +4,7 @@ import { memoryReader } from "@deterministic-code/generators-common/deterministi
 import { content } from "@deterministic-code/generators-common/generate-entry";
 import {
   finalizeEntries,
+  referenceAttributesFromEntries,
   ReferenceVerifier,
 } from "@deterministic-code/generators-common/reference-verifier";
 import { generate as generateDatasourceTypes } from "../src/generate-datasource-types.ts";
@@ -87,7 +88,8 @@ describe("reference verifier aggregate", () => {
       }),
     ];
     assert.throws(
-      () => new ReferenceVerifier().verify(entries),
+      () =>
+        new ReferenceVerifier().verify(referenceAttributesFromEntries(entries)),
       /uses "user"/,
     );
   });
