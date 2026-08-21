@@ -96,7 +96,7 @@ class Generator extends Emit {
 
   private custom(entry: CustomServiceEntry): GenerateEntry {
     const { simpleDoc, descriptionDoc } = this.settings;
-    const className = entry.name;
+    const className = this.casing.customClassName(entry.name);
     const interfaceName = this.casing.authoredInterfaceName(entry.name);
     const path = this.imports.serviceCustom(entry.name, entry.module);
     return content(
@@ -170,7 +170,7 @@ class Generator extends Emit {
       if (index) {
         const exports = sorted
           .flatMap((e) => [
-            e.name,
+            this.casing.customClassName(e.name),
             this.casing.authoredInterfaceName(e.name),
           ])
           .join(", ");
@@ -182,7 +182,7 @@ class Generator extends Emit {
             index,
             fill(indexTmpl, {
               types: sorted.map((e) => ({
-                className: e.name,
+                className: this.casing.customClassName(e.name),
                 interfaceName: this.casing.authoredInterfaceName(e.name),
                 fileBase: this.casing.fileBase(e.name),
               })),
