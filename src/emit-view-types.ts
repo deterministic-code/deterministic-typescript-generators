@@ -92,7 +92,7 @@ class Generator extends Emit {
         ),
       );
     }
-    return entries;
+    return this.withTsconfigInclude(entries, "types");
   }
 
   private typeImport(

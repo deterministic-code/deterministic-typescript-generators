@@ -77,12 +77,14 @@ class Generator extends Emit {
       "tsconfig.json",
       named.healthTestFile,
     ]);
+    const featuresInclude = this.tsconfigIncludePatch("features");
     return [
       ...this.minimal(appName).filter((e) => !owned.has(e.filename)),
       patch(named.appFile, fill(appTs, named)),
       content(named.serverFile, fill(serverTs, named)),
       patch("package.json", fill(packageJson, named)),
       content("tsconfig.json", fill(tsconfigJson, named)),
+      ...(featuresInclude === undefined ? [] : [featuresInclude]),
       patch("Dockerfile", fill(dockerfile, named)),
       patch(".dockerignore", "node_modules"),
       patch("scripts/entrypoint.sh", entrypointSh),

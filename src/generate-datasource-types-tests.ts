@@ -16,6 +16,7 @@ import {
   fakeTestData,
   fieldExpr,
   preludeSource,
+  withFakerPackagePatch,
 } from "./common/fake-test-data.ts";
 import { Emit } from "./emit.ts";
 
@@ -72,7 +73,9 @@ export const generate = async (
   ctx: GenerateContext,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(DATASOURCE_TYPES_YAML);
-  return new Generator(ctx.settings).from(
-    await DeterministicParser(ctx.reader).parse(ctx.settings),
+  return withFakerPackagePatch(
+    new Generator(ctx.settings).from(
+      await DeterministicParser(ctx.reader).parse(ctx.settings),
+    ),
   );
 };

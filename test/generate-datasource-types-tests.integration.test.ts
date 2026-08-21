@@ -96,7 +96,15 @@ describe("generate datasource types tests", () => {
 
   it("emits one test file per datasource type", async () => {
     const byName = indexEntries(await generateWith({}));
-    assert.deepEqual([...byName.keys()].sort(), ["role.test.ts", "user.test.ts"]);
+    assert.deepEqual(
+      [...byName.keys()].sort(),
+      ["package.json", "role.test.ts", "user.test.ts"],
+    );
+    const pkg = requireEntry(byName, "package.json");
+    assert.equal(pkg.kind, "patch");
+    assert.deepEqual(JSON.parse(entryBody(pkg)), {
+      devDependencies: { "@faker-js/faker": "^9.9.0" },
+    });
   });
 
   it("imports the generated type from the sibling module", async () => {

@@ -13,7 +13,12 @@ import {
   type RouteCandidate,
   type ViewEnrichment,
 } from "@deterministic-code/generators-common/specification";
-import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
+import {
+  asIdType,
+  fakeTestData,
+  preludeSource,
+  withFakerPackagePatch,
+} from "./common/fake-test-data.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   byFieldDeleteListTmpl,
@@ -156,11 +161,13 @@ export const generate = async (
     ctx.settings,
   );
   const views = deterministic.viewTypes;
-  return new Generator(
-    ctx.settings,
-    deterministic.expandedDatasourceTypes,
-    new Map(
-      views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
-    ),
-  ).from(deterministic);
+  return withFakerPackagePatch(
+    new Generator(
+      ctx.settings,
+      deterministic.expandedDatasourceTypes,
+      new Map(
+        views.map((v) => [v.name, v.kind === "shaped" ? v.enrichments : []]),
+      ),
+    ).from(deterministic),
+  );
 };

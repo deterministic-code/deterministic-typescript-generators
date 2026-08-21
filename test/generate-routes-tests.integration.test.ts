@@ -64,6 +64,7 @@ describe("generate-routes-tests", () => {
     const paths = entries.map((e) => e.filename).sort();
     assert.deepEqual(paths, [
       "order.integration.test.ts",
+      "package.json",
       "role.integration.test.ts",
       "user.integration.test.ts",
     ]);

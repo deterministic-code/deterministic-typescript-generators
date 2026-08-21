@@ -73,6 +73,14 @@ describe("generate-services", () => {
     assert.ok(paths.includes("../custom/health-check-service.ts"));
     assert.ok(paths.includes("index.ts"));
     assert.ok(paths.includes("../custom/index.ts"));
+    const tsconfig = entries.find(
+      (e) => e.kind === "patch" && e.filename === "tsconfig.json",
+    );
+    assert.ok(tsconfig, "missing tsconfig.json include patch");
+    assert.equal(tsconfig.kind, "patch");
+    assert.deepEqual(JSON.parse(tsconfig.content), {
+      include: ["services/**/*.ts"],
+    });
     assert.equal(
       entries.some((e) => e.kind === "patch" && e.filename === "app.ts"),
       false,
@@ -177,5 +185,9 @@ services:
       /"\.\/services\/contact-import-service"/,
     );
     assert.match(remap.content, /features\//);
+    assert.equal(
+      entries.some((e) => e.kind === "patch" && e.filename === "tsconfig.json"),
+      false,
+    );
   });
 });

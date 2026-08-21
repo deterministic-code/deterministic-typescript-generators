@@ -61,6 +61,8 @@ describe("generate", () => {
     assert.deepEqual(kindsOf(entries, "package.json"), ["content", "patch"]);
     assert.deepEqual(kindsOf(entries, "server.ts"), ["content"]);
     assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content"]);
+    const tsconfig = JSON.parse(entryBody(requireEntry(byName, "tsconfig.json")));
+    assert.deepEqual(tsconfig.include, ["app.ts", "server.ts"]);
     assert.deepEqual(kindsOf(entries, "__tests__/health.test.ts"), ["content"]);
     assert.deepEqual(kindsOf(entries, "Dockerfile"), ["patch"]);
     for (const filename of uniqueNames(entries)) {
@@ -124,6 +126,7 @@ describe("generate", () => {
     assert.equal(pkg.overrides.glob, "^13.0.6");
     assert.equal(pkg.devDependencies.supertest, "^7.0.0");
     assert.equal(pkg.devDependencies["@types/supertest"], "^6.0.2");
+    assert.equal(pkg.devDependencies["@faker-js/faker"], undefined);
   });
 
   it("copies the project from the image root, not a language lane", () => {
@@ -245,5 +248,26 @@ describe("generate minimal", () => {
     assert.match(server, /await CreateBackendApp\(\)/);
     assert.match(server, /createServer\(app\)/);
     assert.doesNotMatch(server, /\.then\(/);
+  });
+});
+
+describe("generate by-feature", () => {
+  it("patches tsconfig.json with features/**/*.ts", async () => {
+    const entries = await generate({
+      reader: memoryReader({}),
+      settings: {
+        application_name: "catalog-api",
+        "other.organize_by_feature": "true",
+      },
+    });
+    assert.deepEqual(kindsOf(entries, "tsconfig.json"), ["content", "patch"]);
+    const include = entries.find(
+      (e) => e.kind === "patch" && e.filename === "tsconfig.json",
+    );
+    assert.ok(include);
+    assert.equal(include.kind, "patch");
+    assert.deepEqual(JSON.parse(include.content), {
+      include: ["features/**/*.ts"],
+    });
   });
 });
