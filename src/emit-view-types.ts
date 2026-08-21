@@ -2,10 +2,6 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
-  viewPaths,
-  type ViewPaths,
-} from "./common/paths.ts";
-import {
   DeterministicParser,
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
@@ -16,6 +12,11 @@ import {
   type ViewType,
 } from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
+import { jsIdent } from "./common/default-casing.ts";
+import {
+  createImportGenerator,
+  type TypeScriptImportGenerator,
+} from "./import-generator.ts";
 import {
   indexTmpl as defaultIndexTmpl,
   typeTmpl as defaultTypeTmpl,
@@ -29,6 +30,10 @@ export type ViewTypeTemplates = {
 export type ViewEmitMode = {
   referenceBackendType?: boolean;
   templates?: ViewTypeTemplates;
+  /** Emit root. `""` / `"."` → backend layout. A directory → files under that dir, by-feature off. */
+  basePath?: string;
+  /** Import generator base for datasource types referenced from views. */
+  datasourceBasePath?: string;
 };
 
 const docTokens = (settings: Record<string, string>) => {
@@ -40,34 +45,53 @@ const docTokens = (settings: Record<string, string>) => {
 };
 
 type EmitOptions = {
-  naming: ViewPaths;
+  imports: TypeScriptImportGenerator;
+  datasourceImports: TypeScriptImportGenerator;
   schemaVersion: string;
   simpleDoc: boolean;
   descriptionDoc: boolean;
-  createIndex: boolean;
+  createIndexSetting: string | undefined;
   referenceBackendType: boolean;
   templates: ViewTypeTemplates;
 };
 
 const emitOptions = (
   settings: Record<string, string>,
-  naming: ViewPaths,
   mode: ViewEmitMode,
 ): EmitOptions => {
-  const createIndex = settings["codegen.create_index"];
+  const referenceBackendType = mode.referenceBackendType ?? true;
   return {
-    naming,
+    imports: createImportGenerator(mode.basePath ?? ".", settings),
+    datasourceImports: createImportGenerator(
+      mode.datasourceBasePath ?? ".",
+      settings,
+    ),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
-    createIndex:
-      !naming.byFeature && (createIndex === undefined || createIndex === "true"),
-    referenceBackendType: mode.referenceBackendType ?? true,
+    createIndexSetting: settings["codegen.create_index"],
+    referenceBackendType,
     templates: mode.templates ?? {
       typeTmpl: defaultTypeTmpl,
       indexTmpl: defaultIndexTmpl,
     },
   };
 };
+
+const viewRel = (entity: string, opts: EmitOptions): string =>
+  opts.imports.viewRel(entity);
+
+const datasourceRel = (entity: string, opts: EmitOptions): string =>
+  opts.datasourceImports.datasourceRel(entity);
+
+const typeImport = (
+  from: string,
+  to: { entity: string; kind: "view" | "datasource" },
+  opts: EmitOptions,
+): string =>
+  opts.imports.spec(
+    viewRel(from, opts),
+    (to.kind === "view" ? viewRel : datasourceRel)(to.entity, opts),
+  );
 
 const importKind = (
   kind: "view" | "datasource",
@@ -93,8 +117,7 @@ const groupImports = (
 };
 
 const collectImports = (view: ViewType, opts: EmitOptions) => {
-  const { naming } = opts;
-  const self = naming.className(view.name);
+  const self = view.name;
   const entries: Array<{ original: string; alias?: string; fromPath: string }> =
     [];
   const seen = new Set<string>();
@@ -119,14 +142,13 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
     for (const m of view.members) refs.push({ entity: m, kind: "view" });
   }
   for (const { entity, kind } of refs) {
-    const cls = naming.className(entity);
-    if (kind === "view" && cls === self) continue;
+    if (kind === "view" && entity === self) continue;
     const alias =
-      opts.referenceBackendType && kind === "datasource" && cls === self
-        ? `${cls}Base`
+      opts.referenceBackendType && kind === "datasource" && entity === self
+        ? `${entity}Base`
         : undefined;
-    if (alias !== undefined) aliasByClass.set(cls, alias);
-    add(cls, alias, naming.importSpecifier(view.name, { entity, kind }));
+    if (alias !== undefined) aliasByClass.set(entity, alias);
+    add(entity, alias, typeImport(view.name, { entity, kind }, opts));
   }
   return { imports: groupImports(entries), aliasByClass };
 };
@@ -139,8 +161,7 @@ const fieldTs = (
   const base =
     field.kind === "primitive"
       ? toNative(field.base)
-      : (aliasByClass.get(opts.naming.className(field.base)) ??
-        opts.naming.className(field.base));
+      : (aliasByClass.get(field.base) ?? field.base);
   return field.isArray ? `${base}[]` : base;
 };
 
@@ -150,14 +171,14 @@ const extendsType = (
   aliasByClass: Map<string, string>,
 ): string | undefined => {
   if (!opts.referenceBackendType || view.inherits === null) return undefined;
-  const inheritCls = opts.naming.className(view.inherits);
+  const inheritCls = view.inherits;
   const parent = aliasByClass.get(inheritCls) ?? inheritCls;
   const omitKeys = [
     ...view.enrichments.map((e) => e.fkColumn),
     ...view.omit,
   ];
   if (omitKeys.length === 0) return parent;
-  return `Omit<${parent}, ${omitKeys.map((k) => JSON.stringify(opts.naming.fieldName(k))).join(" | ")}>`;
+  return `Omit<${parent}, ${omitKeys.map((k) => JSON.stringify(k)).join(" | ")}>`;
 };
 
 const renderView = (
@@ -165,8 +186,8 @@ const renderView = (
   expanded: ViewType | undefined,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming, schemaVersion, simpleDoc, descriptionDoc } = opts;
-  const className = naming.className(view.name);
+  const { schemaVersion, simpleDoc, descriptionDoc } = opts;
+  const className = view.name;
   const { imports, aliasByClass } = collectImports(view, opts);
   const isUnion = view.kind === "union";
   const parent = isUnion ? undefined : extendsType(view, opts, aliasByClass);
@@ -178,7 +199,7 @@ const renderView = (
         ? expanded.fields
         : view.fields;
   return content(
-    naming.filePath(view.name),
+    opts.imports.view(view.name),
     fill(opts.templates.typeTmpl, {
       schemaVersion,
       imports,
@@ -195,12 +216,12 @@ const renderView = (
       extendsType: parent ?? "",
       hasFields: fields.length > 0,
       fields: fields.map((f) => ({
-        ident: naming.fieldIdent(f.name),
+        ident: jsIdent(f.name),
         tsType: fieldTs(f, opts, aliasByClass),
         nullable: f.isNullable,
       })),
       unionMembers: isUnion
-        ? view.members.map((m) => naming.className(m)).join(" | ")
+        ? view.members.join(" | ")
         : "",
     }),
   );
@@ -209,10 +230,9 @@ const renderView = (
 const generateFrom = (
   deterministic: IDeterministic,
   settings: Record<string, string>,
-  naming: ViewPaths,
   mode: ViewEmitMode,
 ): GenerateEntry[] => {
-  const opts = emitOptions(settings, naming, mode);
+  const opts = emitOptions(settings, mode);
   const expandedByName = new Map(
     deterministic.expandedViewTypes.map((v) => [v.name, v]),
   );
@@ -220,14 +240,18 @@ const generateFrom = (
   const entries = views.map((v) =>
     renderView(v, expandedByName.get(v.name), opts),
   );
-  if (opts.createIndex) {
+  const index = opts.imports.index(opts.imports.view(views[0]?.name ?? "index"));
+  if (
+    index &&
+    (opts.createIndexSetting === undefined || opts.createIndexSetting === "true")
+  ) {
     entries.push(
       content(
-        naming.indexPath,
+        index,
         fill(opts.templates.indexTmpl, {
           types: views.map((v) => ({
-            className: opts.naming.className(v.name),
-            fileBase: opts.naming.fileBase(v.name),
+            className: v.name,
+            fileBase: v.name,
           })),
         }),
       ),
@@ -238,14 +262,12 @@ const generateFrom = (
 
 export const generateViewTypes = async (
   ctx: GenerateContext,
-  naming: ViewPaths = viewPaths(ctx.settings),
   mode: ViewEmitMode = {},
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(VIEW_TYPES_YAML);
   return generateFrom(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
     ctx.settings,
-    naming,
     mode,
   );
 };

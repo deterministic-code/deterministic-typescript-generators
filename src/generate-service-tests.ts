@@ -1,7 +1,6 @@
 import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { servicePaths, type ServicePaths } from "./common/paths.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -12,11 +11,12 @@ import {
   type ServiceCandidate,
 } from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
-import { joinImport, libraryImportSpecifier } from "./library-import.ts";
+import { libraryImportSpecifier } from "./library-import.ts";
+import { createImportGenerator } from "./import-generator.ts";
 import { genericTmpl } from "./resources/service-tests.ts";
 
 type EmitOptions = {
-  naming: ServicePaths;
+  imports: ReturnType<typeof createImportGenerator>;
   datasources: ExpandedDatasourceType[];
   libraryReferenceMode: string | undefined;
 };
@@ -25,7 +25,7 @@ const emitOptions = (
   settings: Record<string, string>,
   datasources: ExpandedDatasourceType[],
 ): EmitOptions => ({
-  naming: servicePaths(settings),
+  imports: createImportGenerator(".", settings),
   libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
   datasources,
 });
@@ -34,12 +34,13 @@ const renderTest = (
   candidate: ServiceCandidate,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { naming } = opts;
   const table = opts.datasources.find((d) => d.name === candidate.name);
   const column = table?.primaryKeyColumn ?? "id";
-  const idType = table?.idType ?? "integer";
-  const path = naming.testPath(candidate.name);
-  const fileBase = naming.fileBase(candidate.name);
+  const pkType =
+    table?.fields.find((f) => f.name === column)?.type ?? "integer";
+  const src = opts.imports.service(candidate.name);
+  const path = opts.imports.serviceTest(candidate.name);
+  const fileBase = `${candidate.name}_service`;
   return content(
     path,
     fill(genericTmpl, {
@@ -47,12 +48,10 @@ const renderTest = (
       repositoriesImport: libraryImportSpecifier(
         "repositories",
         opts.libraryReferenceMode,
-        naming.byFeature
-          ? path
-          : `services/generated/__tests__/${fileBase}.test.ts`,
+        opts.imports.serviceTestRel(candidate.name),
       ),
-      className: naming.serviceClassName(candidate.name),
-      importPath: joinImport("..", fileBase),
+      className: `${candidate.name}_service`,
+      importPath: opts.imports.testSpec(src, fileBase),
       entityNameJson: JSON.stringify(candidate.name),
       pkExpr: `new PrimaryKey(${JSON.stringify(column)}, ${JSON.stringify(pkType)})`,
       idExpr: fakeTestData.id(asIdType(pkType)),
@@ -74,7 +73,7 @@ export const generate = async (
   await ctx.reader.read(SERVICES_YAML);
   return generateFrom(
     await DeterministicParser(ctx.reader).parse(ctx.settings, {
-      serviceClassName: servicePaths(ctx.settings).serviceClassName,
+      serviceClassName: (entity) => `${entity}_service`,
     }),
     ctx.settings,
   );

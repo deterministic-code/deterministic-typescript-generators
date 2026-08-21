@@ -126,13 +126,12 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/templates dist/",
     "prepare": "npm run build",
-    "test": "node --experimental-strip-types --test test/*.test.ts src/common/default-casing.test.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts src/common/default-casing.test.ts src/import-generator.test.ts",
     "tests:e2e": "node --experimental-strip-types e2e/run.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
     "@deterministic-code/generators-common": "github:deterministic-code/generators-common",
-    "@deterministic-code/generators-openapi": "github:deterministic-code/generators-openapi",
     "@deterministic-code/patch-merger": "github:deterministic-code/patch-merger",
     "change-case": "^5.4.4",
     "mustache": "^4.2.0",

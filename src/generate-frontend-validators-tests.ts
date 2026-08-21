@@ -1,6 +1,6 @@
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import type { GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
-import { frontendViewValidatorPaths } from "./common/paths.ts";
+import { FRONTEND_VIEW_VALIDATOR_DIR } from "./import-generator.ts";
 import { generate as generateViewTypeValidatorsTests } from "./generate-view-type-validators-tests.ts";
 import { referencesBackend } from "./inline-inherited.ts";
 
@@ -10,7 +10,7 @@ export const generate = async (
   const referenceBackendType = referencesBackend(ctx.settings);
   return generateViewTypeValidatorsTests(
     ctx,
-    frontendViewValidatorPaths(ctx.settings, referenceBackendType),
+    FRONTEND_VIEW_VALIDATOR_DIR,
     referenceBackendType,
   );
 };

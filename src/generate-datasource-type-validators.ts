@@ -2,7 +2,7 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { isFiniteInt } from "@deterministic-code/generators-common/yaml-entry";
-import { datasourcePaths, type ArtifactPaths } from "./common/paths.ts";
+import { createImportGenerator } from "./import-generator.ts";
 import {
   DeterministicParser,
   type IDeterministic,
@@ -12,13 +12,13 @@ import {
   type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { idTypeToZod, toZod, toZodDefault } from "./common/type-converters/native-to-zod.ts";
+import { jsIdent } from "./common/default-casing.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-type-validators.ts";
 
 type EmitOptions = {
-  naming: ArtifactPaths;
+  imports: ReturnType<typeof createImportGenerator>;
   schemaVersion: string;
   withTypeAnnotation: boolean;
-  createIndex: boolean;
 };
 
 type FieldShape = {
@@ -33,23 +33,14 @@ type FieldShape = {
 };
 
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const naming = datasourcePaths(settings);
   return {
-    naming,
+    imports: createImportGenerator(".", settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     withTypeAnnotation: true,
-    createIndex:
-      settings["codegen.create_index"] !== "false" &&
-      !naming.byFeature,
   };
 };
 
 const schemaName = (entity: string): string => `${entity}Schema`;
-
-const validatorPath = (entity: string, naming: ArtifactPaths): string => {
-  if (!naming.byFeature) return `${naming.fileBase(entity)}.ts`;
-  return naming.filePath(entity).replace(/\.ts$/, ".validator.ts");
-};
 
 const tightenString = (base: string, field: FieldShape): string => {
   let expr = `${base}.trim()`;
@@ -116,15 +107,15 @@ const renderValidator = (
   opts: EmitOptions,
 ): GenerateEntry => {
   const fields = table.fields.map((field) => ({
-    ident: opts.naming.fieldIdent(field.name),
+    ident: jsIdent(field.name),
     zodExpr: zodForField(field, field.name === "id"),
   }));
   return content(
-    validatorPath(table.name, opts.naming),
+    opts.imports.datasourceValidator(table.name),
     fill(typeTmpl, {
       schemaVersion: opts.schemaVersion,
       schemaName: schemaName(table.name),
-      className: opts.naming.className(table.name),
+      className: table.name,
       withTypeAnnotation: opts.withTypeAnnotation,
       fields,
     }),
@@ -134,15 +125,16 @@ const renderValidator = (
 const renderIndex = (
   types: ExpandedDatasourceType[],
   opts: EmitOptions,
+  index: string,
 ): GenerateEntry =>
   content(
-    "index.ts",
+    index,
     fill(indexTmpl, {
       withTypeAnnotation: opts.withTypeAnnotation,
       types: types.map((t) => ({
         schemaName: schemaName(t.name),
-        className: opts.naming.className(t.name),
-        fileBase: opts.naming.fileBase(t.name),
+        className: t.name,
+        fileBase: t.name,
       })),
     }),
   );
@@ -154,7 +146,12 @@ const generateFrom = (
   const opts = emitOptions(settings);
   const types = deterministic.expandedDatasourceTypes;
   const entries = types.map((table) => renderValidator(table, opts));
-  if (opts.createIndex) entries.push(renderIndex(types, opts));
+  const index = opts.imports.index(
+    opts.imports.datasourceValidator(types[0]?.name ?? "index"),
+  );
+  if (index && settings["codegen.create_index"] !== "false") {
+    entries.push(renderIndex(types, opts, index));
+  }
   return entries;
 };
 

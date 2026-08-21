@@ -6,7 +6,7 @@ import { generate } from "../src/generate-client-bindings.ts";
 import { generate as generateLiveTests } from "../src/generate-client-bindings-live-tests.ts";
 import { generate as generateMockTests } from "../src/generate-client-bindings-mock-tests.ts";
 import { projectClientBindings } from "../src/client-bindings-ir.ts";
-import { httpPathFromRoutesApi } from "../src/common/paths.ts";
+import { httpPathFromRoutesApi } from "../src/common/http-path.ts";
 
 const DS_YAML = `types:
   - user:

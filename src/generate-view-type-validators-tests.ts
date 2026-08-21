@@ -2,10 +2,6 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
-  viewValidatorPaths,
-  type ViewValidatorPaths,
-} from "./common/paths.ts";
-import {
   DeterministicParser,
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
@@ -16,6 +12,10 @@ import {
 } from "@deterministic-code/generators-common/specification";
 import { preludeSource, fakeTestData } from "./common/fake-test-data.ts";
 import { typeTestTmpl } from "./resources/view-type-validators-tests.ts";
+import {
+  createImportGenerator,
+  type TypeScriptImportGenerator,
+} from "./import-generator.ts";
 import {
   escapeTestName,
   flattenNodes,
@@ -28,7 +28,7 @@ import {
 } from "./common/view-test-shape.ts";
 
 type EmitOptions = ShapeOpts & {
-  naming: ViewValidatorPaths;
+  imports: TypeScriptImportGenerator;
   schemaVersion: string;
 };
 
@@ -49,10 +49,10 @@ const MUTABLE_SCALAR = new Set([
 
 const emitBase = (
   settings: Record<string, string>,
-  naming: ViewValidatorPaths,
+  basePath: string,
 ) => {
   return {
-    naming,
+    imports: createImportGenerator(basePath, settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
   };
 };
@@ -190,27 +190,29 @@ const unionCases = (
   return cases;
 };
 
-const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry =>
-  content(
-    opts.naming.testPath(view.name),
+const renderTests = (view: ViewType, opts: EmitOptions): GenerateEntry => {
+  const src = opts.imports.viewValidator(view.name);
+  return content(
+    opts.imports.test(src, view.name),
     fill(typeTestTmpl, {
       prelude: preludeSource(fakeTestData),
       schemaVersion: opts.schemaVersion,
       schemaName: `${view.name}Schema`,
       viewName: view.name,
-      schemaImport: opts.naming.testImport(view.name),
+      schemaImport: opts.imports.testSpec(src, view.name),
       cases:
         view.kind === "union" ? unionCases(view, opts) : shapedCases(view, opts),
     }),
   );
+};
 
 const generateFrom = (
   deterministic: IDeterministic,
   settings: Record<string, string>,
-  naming: ViewValidatorPaths,
   referenceBackendType: boolean,
+  basePath: string,
 ): GenerateEntry[] => {
-  const base = emitBase(settings, naming);
+  const base = emitBase(settings, basePath);
   const views = deterministic.expandedViewTypes;
   const opts: EmitOptions = {
     ...base,
@@ -225,14 +227,14 @@ const generateFrom = (
 
 export const generate = async (
   ctx: GenerateContext,
-  naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
+  basePath = ".",
   referenceBackendType = true,
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(VIEW_TYPES_YAML);
   return generateFrom(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
     ctx.settings,
-    naming,
     referenceBackendType,
+    basePath,
   );
 };

@@ -2,14 +2,6 @@ import { fill } from "@deterministic-code/generators-common/fill";
 import type { GenerateContext } from "@deterministic-code/generators-common/generate-context";
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import {
-  importSpec,
-  modulePathParts,
-  routePaths,
-  servicePaths,
-  type RoutePaths,
-  type ServicePaths,
-} from "./common/paths.ts";
-import {
   DeterministicParser,
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
@@ -22,6 +14,10 @@ import {
 } from "@deterministic-code/generators-common/specification";
 import { isRecord } from "@deterministic-code/generators-common/yaml-entry";
 import { libraryImportSpecifier } from "./library-import.ts";
+import {
+  createImportGenerator,
+  type TypeScriptImportGenerator,
+} from "./import-generator.ts";
 import {
   byFieldDeleteListTmpl,
   byFieldDeleteUniqueTmpl,
@@ -44,41 +40,34 @@ const docTokens = (settings: Record<string, string>) => {
 };
 
 type EmitOptions = {
+  imports: TypeScriptImportGenerator;
   useOptimisticConcurrency: boolean;
-  naming: RoutePaths;
-  services: ServicePaths;
   simpleDoc: boolean;
   descriptionDoc: boolean;
   libraryReferenceMode: string | undefined;
-  createIndex: boolean;
+  createIndexSetting: string | undefined;
 };
 
-const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const naming = routePaths(settings);
-  const createIndex = settings["codegen.create_index"];
-  return {
-    useOptimisticConcurrency:
-      settings["datasource.use_optimistic_concurrency"] !== "false",
-    naming,
-    services: servicePaths(settings),
-    ...docTokens(settings),
-    libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
-    createIndex:
-      !naming.byFeature && (createIndex === undefined || createIndex === "true"),
-  };
-};
+const emitOptions = (settings: Record<string, string>): EmitOptions => ({
+  imports: createImportGenerator(".", settings),
+  useOptimisticConcurrency:
+    settings["datasource.use_optimistic_concurrency"] !== "false",
+  ...docTokens(settings),
+  libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
+  createIndexSetting: settings["codegen.create_index"],
+});
 
 const libImports = (
   opts: EmitOptions,
   entity: string,
   customService: boolean,
 ) => {
-  const projectRel = opts.naming.projectRelPath(entity);
+  const projectRel = opts.imports.routeRel(entity);
   const serviceRel = customService
-    ? opts.services.customProjectRelPath(entity)
-    : opts.services.projectRelPath(entity);
+    ? opts.imports.serviceCustomRel(entity)
+    : opts.imports.serviceRel(entity);
   return {
-    serviceImport: importSpec(projectRel, serviceRel),
+    serviceImport: opts.imports.spec(projectRel, serviceRel),
     routesImport: libraryImportSpecifier(
       "routes",
       opts.libraryReferenceMode,
@@ -128,7 +117,7 @@ const renderEntityRouter = (
   opts: EmitOptions,
   customServices: Set<string>,
 ): GenerateEntry => {
-  const { simpleDoc, descriptionDoc, naming } = opts;
+  const { simpleDoc, descriptionDoc, imports } = opts;
   const entity = candidate.name;
   const occ = entityUsesOptimisticConcurrency(
     {
@@ -145,7 +134,7 @@ const renderEntityRouter = (
       }))
     : candidate.byFields;
   return content(
-    naming.filePath(entity),
+    imports.route(entity),
     fill(readOnly ? readonlyTmpl : crudTmpl, {
       simpleDoc,
       descriptionDoc,
@@ -174,46 +163,14 @@ const customRouteMeta = (entry: CustomRouteEntry) => {
   return { module, className, interfaceName: `I${className}` };
 };
 
-const resolveCustomRoutePath = (
-  entry: CustomRouteEntry,
-  naming: RoutePaths,
-): string => {
-  const { module: mod } = customRouteMeta(entry);
-  const defaultStub = naming.customStubPath(entry.name);
-  const { byFeature } = naming;
-
-  if (byFeature) {
-    const isRelative = typeof mod === "string" && mod.startsWith(".");
-    const isLegacyLayer =
-      isRelative &&
-      (mod.startsWith("./services/") || mod.startsWith("./routes/"));
-    if (!isRelative || isLegacyLayer) return defaultStub;
-    const parts = modulePathParts(mod);
-    if (parts[0] !== "features") {
-      throw new Error(
-        `generateCustomRouteStub: route "${entry.name}" has module "${mod}" which is outside ./features/. ` +
-          `When organize=by-feature, custom routes must live under features/<entity>/custom/. ` +
-          `Drop the module: field to use the convention default (${defaultStub.replace(/\.ts$/, "")}), ` +
-          `or point module: into ./features/.`,
-      );
-    }
-    return `${parts.join("/")}.ts`;
-  }
-
-  if (mod === undefined || !mod.startsWith(".")) return defaultStub;
-  const parts = modulePathParts(mod);
-  if (parts[0] === "routes") parts.shift();
-  return `../${parts.join("/")}.ts`;
-};
-
 const renderCustom = (
   entry: CustomRouteEntry,
   opts: EmitOptions,
 ): GenerateEntry => {
-  const { simpleDoc, descriptionDoc, naming } = opts;
-  const { className, interfaceName } = customRouteMeta(entry);
+  const { simpleDoc, descriptionDoc, imports } = opts;
+  const { module, className, interfaceName } = customRouteMeta(entry);
   return content(
-    resolveCustomRoutePath(entry, naming),
+    imports.routeCustom(entry.name, module),
     fill(customStubTmpl, {
       simpleDoc,
       descriptionDoc,
@@ -226,23 +183,25 @@ const renderCustom = (
 const renderIndexes = (
   candidates: RouteCandidate[],
   customs: CustomRouteEntry[],
-  opts: EmitOptions,
+  imports: TypeScriptImportGenerator,
 ): GenerateEntry[] => {
-  const { naming } = opts;
   const entries: GenerateEntry[] = [];
   if (candidates.length > 0) {
     const sorted = [...candidates].sort((a, b) => a.name.localeCompare(b.name));
-    entries.push(
-      content(
-        "index.ts",
-        fill(indexTmpl, {
-          routers: sorted.map((c) => ({
-            fnName: `${c.name}Router`,
-            fileBase: naming.fileBase(c.name),
-          })),
-        }),
-      ),
-    );
+    const index = imports.index(imports.route(sorted[0]!.name));
+    if (index) {
+      entries.push(
+        content(
+          index,
+          fill(indexTmpl, {
+            routers: sorted.map((c) => ({
+              fnName: `${c.name}Router`,
+              fileBase: c.name,
+            })),
+          }),
+        ),
+      );
+    }
   }
   const customDir = customs.filter((e) => {
     const { module } = customRouteMeta(e);
@@ -250,17 +209,20 @@ const renderIndexes = (
   });
   if (customDir.length > 0) {
     const sorted = [...customDir].sort((a, b) => a.name.localeCompare(b.name));
-    entries.push(
-      content(
-        "../custom/index.ts",
-        fill(indexTmpl, {
-          types: sorted.map((e) => {
-            const { className } = customRouteMeta(e);
-            return { className, fileBase: `${e.name}_route` };
+    const index = imports.index(imports.routeCustom(sorted[0]!.name));
+    if (index) {
+      entries.push(
+        content(
+          index,
+          fill(indexTmpl, {
+            types: sorted.map((e) => {
+              const { className } = customRouteMeta(e);
+              return { className, fileBase: `${e.name}_route` };
+            }),
           }),
-        }),
-      ),
-    );
+        ),
+      );
+    }
   }
   return entries;
 };
@@ -278,8 +240,11 @@ const generateFrom = (
     ...parsed.candidates.map((c) => renderEntityRouter(c, opts, customServices)),
     ...parsed.customs.map((c) => renderCustom(c, opts)),
   ];
-  if (opts.createIndex) {
-    entries.push(...renderIndexes(parsed.candidates, parsed.customs, opts));
+  if (
+    opts.createIndexSetting === undefined ||
+    opts.createIndexSetting === "true"
+  ) {
+    entries.push(...renderIndexes(parsed.candidates, parsed.customs, opts.imports));
   }
   return entries;
 };

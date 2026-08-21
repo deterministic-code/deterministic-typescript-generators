@@ -3,13 +3,13 @@ import type { GenerateContext } from "@deterministic-code/generators-common/gene
 import { content, type GenerateEntry } from "@deterministic-code/generators-common/generate-entry";
 import { isFiniteInt } from "@deterministic-code/generators-common/yaml-entry";
 import {
-  viewValidatorPaths,
-  type ViewValidatorPaths,
-} from "./common/paths.ts";
-import {
   DeterministicParser,
   type IDeterministic,
 } from "@deterministic-code/generators-common/specification-parser";
+import {
+  createImportGenerator,
+  type TypeScriptImportGenerator,
+} from "./import-generator.ts";
 import {
   VIEW_TYPES_YAML,
   type ExpandedViewType,
@@ -18,6 +18,7 @@ import {
   type ViewType,
 } from "@deterministic-code/generators-common/specification";
 import { toZod } from "./common/type-converters/native-to-zod.ts";
+import { jsIdent } from "./common/default-casing.ts";
 import {
   indexTmpl as defaultIndexTmpl,
   schemaInheritTmpl as defaultSchemaInheritTmpl,
@@ -37,10 +38,13 @@ export type ViewValidatorTemplates = {
 export type ViewValidatorEmitMode = {
   referenceBackendType?: boolean;
   templates?: ViewValidatorTemplates;
+  basePath?: string;
+  datasourceBasePath?: string;
 };
 
 type EmitOptions = {
-  naming: ViewValidatorPaths;
+  imports: TypeScriptImportGenerator;
+  datasourceImports: TypeScriptImportGenerator;
   schemaVersion: string;
   referenceBackendType: boolean;
   templates: ViewValidatorTemplates;
@@ -48,13 +52,17 @@ type EmitOptions = {
 
 const emitOptions = (
   settings: Record<string, string>,
-  naming: ViewValidatorPaths,
   mode: ViewValidatorEmitMode,
 ): EmitOptions => {
+  const referenceBackendType = mode.referenceBackendType ?? true;
   return {
-    naming,
+    imports: createImportGenerator(mode.basePath ?? ".", settings),
+    datasourceImports: createImportGenerator(
+      mode.datasourceBasePath ?? ".",
+      settings,
+    ),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
-    referenceBackendType: mode.referenceBackendType ?? true,
+    referenceBackendType,
     templates: mode.templates ?? {
       typeTmpl: defaultTypeTmpl,
       indexTmpl: defaultIndexTmpl,
@@ -65,6 +73,12 @@ const emitOptions = (
   };
 };
 
+const viewRel = (entity: string, opts: EmitOptions): string =>
+  opts.imports.viewValidatorRel(entity);
+
+const datasourceRel = (entity: string, opts: EmitOptions): string =>
+  opts.datasourceImports.datasourceValidatorRel(entity);
+
 const schemaIdent = (name: string) => `${name}Schema`;
 const dsAlias = (name: string) => `datasource_${name}Schema`;
 const trio = (name: string) => ({
@@ -72,8 +86,8 @@ const trio = (name: string) => ({
   update: `update_${name}Schema`,
   patch: `patch_${name}Schema`,
 });
-const omitObj = (keys: string[], naming: ViewValidatorPaths) =>
-  keys.map((k) => `${JSON.stringify(naming.fieldName(k))}: true`).join(", ");
+const omitObj = (keys: string[]) =>
+  keys.map((k) => `${JSON.stringify(k)}: true`).join(", ");
 const viewOmits = (view: ShapedView, hasUuidColumn: boolean) =>
   view.omit.filter((k) => hasUuidColumn || k !== "uuid");
 
@@ -118,7 +132,6 @@ const zodForField = (field: ViewField, opts: EmitOptions): string => {
 };
 
 const collectImports = (view: ViewType, opts: EmitOptions) => {
-  const { naming } = opts;
   const byPath = new Map<string, Set<string>>();
   const refs: Array<{ entity: string; kind: "view" | "datasource" }> = [];
   if (view.kind === "shaped") {
@@ -141,10 +154,10 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
   }
   for (const { entity, kind } of refs) {
     if (kind === "view" && entity === view.name) continue;
-    const fromPath = naming.importSpecifier(view.name, {
-      entity,
-      kind: kind === "datasource" ? "datasource-validator" : "view-validator",
-    });
+    const fromPath = opts.imports.spec(
+      viewRel(view.name, opts),
+      (kind === "datasource" ? datasourceRel : viewRel)(entity, opts),
+    );
     const token =
       kind === "datasource"
         ? `${schemaIdent(entity)} as ${dsAlias(entity)}`
@@ -163,7 +176,7 @@ const collectImports = (view: ViewType, opts: EmitOptions) => {
 
 const fieldTokens = (fields: ViewField[], opts: EmitOptions) =>
   fields.map((f) => ({
-    ident: opts.naming.fieldIdent(f.name),
+    ident: jsIdent(f.name),
     zodExpr: zodForField(f, opts),
   }));
 
@@ -212,7 +225,7 @@ const schemaBody = (
     schemaName,
     dsAlias: dsAlias(parent),
     hasOmits: allOmits.length > 0,
-    omitObj: omitObj(allOmits, opts.naming),
+    omitObj: omitObj(allOmits),
     partialId: omits.length > 0 && !omits.includes("id"),
     hasFields: fields.length > 0,
     fields,
@@ -222,11 +235,10 @@ const schemaBody = (
     patchName: t.patch,
     updateOmitObj: omitObj(
       [...stamp, ...view.enrichments.map((e) => e.fkColumn)],
-      opts.naming,
     ),
     hasEnrich: view.enrichments.length > 0,
     enrichFields: view.enrichments.map((e) => ({
-      ident: JSON.stringify(opts.naming.fieldName(e.newField)),
+      ident: JSON.stringify(e.newField),
     })),
   }).trimEnd();
 };
@@ -241,33 +253,33 @@ const indexExports = (view: ViewType): string | undefined => {
 const generateFrom = (
   deterministic: IDeterministic,
   settings: Record<string, string>,
-  naming: ViewValidatorPaths,
   mode: ViewValidatorEmitMode,
 ): GenerateEntry[] => {
-  const opts = emitOptions(settings, naming, mode);
+  const opts = emitOptions(settings, mode);
   const expandedByName = new Map(
     deterministic.expandedViewTypes.map((v) => [v.name, v]),
   );
   const views = deterministic.viewTypes;
   const entries = views.map((view) =>
     content(
-      opts.naming.filePath(view.name),
+      opts.imports.viewValidator(view.name),
       fill(opts.templates.typeTmpl, {
         schemaVersion: opts.schemaVersion,
         imports: collectImports(view, opts),
         schemaBody: schemaBody(view, expandedByName.get(view.name), opts),
         withTypeAnnotation: true,
-        className: opts.naming.className(view.name),
+        className: view.name,
         schemaName: schemaIdent(view.name),
       }),
     ),
   );
-  const createIndex =
-    settings["codegen.create_index"] !== "false" && !opts.naming.byFeature;
-  if (createIndex) {
+  const index = opts.imports.index(
+    opts.imports.viewValidator(views[0]?.name ?? "index"),
+  );
+  if (index && settings["codegen.create_index"] !== "false") {
     entries.push(
       content(
-        opts.naming.indexPath,
+        index,
         fill(opts.templates.indexTmpl, {
           withTypeAnnotation: true,
           types: views.flatMap((view) => {
@@ -275,8 +287,8 @@ const generateFrom = (
             if (exports === undefined) return [];
             return [{
               exports,
-              className: opts.naming.className(view.name),
-              fileBase: opts.naming.fileBase(view.name),
+              className: view.name,
+              fileBase: view.name,
             }];
           }),
         }),
@@ -288,14 +300,12 @@ const generateFrom = (
 
 export const generate = async (
   ctx: GenerateContext,
-  naming: ViewValidatorPaths = viewValidatorPaths(ctx.settings),
   mode: ViewValidatorEmitMode = {},
 ): Promise<GenerateEntry[]> => {
   await ctx.reader.read(VIEW_TYPES_YAML);
   return generateFrom(
     await DeterministicParser(ctx.reader).parse(ctx.settings),
     ctx.settings,
-    naming,
     mode,
   );
 };

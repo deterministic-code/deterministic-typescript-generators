@@ -14,7 +14,7 @@ import {
   type ViewEnrichment,
 } from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
-import { routePaths, type RoutePaths } from "./common/paths.ts";
+import { createImportGenerator } from "./import-generator.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 import {
   byFieldDeleteListTmpl,
@@ -29,7 +29,7 @@ import {
 } from "./resources/routes-tests.ts";
 
 type EmitOptions = {
-  naming: RoutePaths;
+  imports: ReturnType<typeof createImportGenerator>;
   datasources: ExpandedDatasourceType[];
   libraryReferenceMode: string | undefined;
   useOcc: boolean;
@@ -42,7 +42,7 @@ const emitOptions = (
   enrichmentsByEntity: Map<string, ViewEnrichment[]>,
 ): EmitOptions => {
   return {
-    naming: routePaths(settings),
+    imports: createImportGenerator(".", settings),
     libraryReferenceMode: settings["languages.typescript.library_reference_mode"],
     useOcc: settings["datasource.use_optimistic_concurrency"] !== "false",
     datasources,
@@ -115,8 +115,8 @@ const renderTest = (
   const column = table?.primaryKeyColumn ?? "id";
   const pkType =
     table?.fields.find((f) => f.name === column)?.type ?? "integer";
-  const path = opts.naming.testPath(candidate.name);
-  const fileBase = opts.naming.fileBase(candidate.name);
+  const path = opts.imports.routeTest(candidate.name);
+  const fileBase = candidate.name;
   const mountPath = `/api/${candidate.name}`;
   const enrichments = opts.enrichmentsByEntity.get(candidate.name) ?? [];
   const occ = entityUsesOptimisticConcurrency(candidate, opts.useOcc);

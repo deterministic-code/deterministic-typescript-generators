@@ -8,14 +8,9 @@ import {
 import { toNative } from "../base-type-converter.ts";
 import { valueTmpl } from "../resources/view-types-tests.ts";
 import { fakeTestData, fieldExpr } from "./fake-test-data.ts";
-
-export type ShapeNaming = {
-  fieldIdent: (name: string) => string;
-  fieldName: (name: string) => string;
-};
+import { jsIdent } from "./default-casing.ts";
 
 export type ShapeOpts = {
-  naming: ShapeNaming;
   tables: Map<string, DatasourceType>;
   views: Map<string, ViewType>;
   referenceBackendType: boolean;
@@ -90,14 +85,12 @@ const scalarNode = (
     hasDefault?: boolean;
     size?: number;
   },
-  opts: ShapeOpts,
   accessPrefix: string,
   pathPrefix: string,
   isRoot: boolean,
 ): ShapeNode => {
-  const ident = opts.naming.fieldIdent(field.name);
-  const fieldName = opts.naming.fieldName(field.name);
-  const path = pathPrefix === "" ? fieldName : `${pathPrefix}.${fieldName}`;
+  const ident = jsIdent(field.name);
+  const path = pathPrefix === "" ? field.name : `${pathPrefix}.${field.name}`;
   return {
     name: field.name,
     ident,
@@ -125,7 +118,7 @@ const dsNodes = (
   const table = opts.tables.get(name);
   if (table === undefined) return [];
   return table.fields.map((f) =>
-    scalarNode(f, opts, accessPrefix, pathPrefix, false),
+    scalarNode(f, accessPrefix, pathPrefix, false),
   );
 };
 
@@ -138,9 +131,8 @@ const viewFieldNode = (
   isRoot: boolean,
 ): ShapeNode => {
   if (field.kind === "primitive") {
-    const ident = opts.naming.fieldIdent(field.name);
-    const fieldName = opts.naming.fieldName(field.name);
-    const path = pathPrefix === "" ? fieldName : `${pathPrefix}.${fieldName}`;
+    const ident = jsIdent(field.name);
+    const path = pathPrefix === "" ? field.name : `${pathPrefix}.${field.name}`;
     return {
       name: field.name,
       ident,
@@ -158,9 +150,8 @@ const viewFieldNode = (
       nested: [],
     };
   }
-  const ident = opts.naming.fieldIdent(field.name);
-  const fieldName = opts.naming.fieldName(field.name);
-  const path = pathPrefix === "" ? fieldName : `${pathPrefix}.${fieldName}`;
+  const ident = jsIdent(field.name);
+  const path = pathPrefix === "" ? field.name : `${pathPrefix}.${field.name}`;
   const access = `${accessPrefix}${fieldAccess(ident)}`;
   const childPrefix = field.isArray ? `${access}[0]` : access;
   const nested =

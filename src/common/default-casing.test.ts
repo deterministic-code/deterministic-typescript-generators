@@ -20,18 +20,6 @@ describe("createCasing Auto defaults", () => {
     assert.equal(casing.filePath(NAME), "notificationType.ts");
     assert.equal(casing.serviceClassName("user"), "UserService");
   });
-
-  it("puts Auto files under a cased feature directory", () => {
-    const casing = createCasing({ "other.organize_by_feature": "true" });
-    assert.equal(
-      casing.filePath(NAME),
-      "features/notificationType/notificationType.ts",
-    );
-    assert.equal(
-      casing.filePath("create_notification_type"),
-      "features/notificationType/createNotificationType.ts",
-    );
-  });
 });
 
 describe("createCasing overrides", () => {
@@ -46,14 +34,11 @@ describe("createCasing overrides", () => {
 
   it("kebabs file names and directories", () => {
     const casing = createCasing({
-      "other.organize_by_feature": "true",
       "languages.typescript.casing.file_names": "Kebab",
       "languages.typescript.casing.directories": "Kebab",
     });
-    assert.equal(
-      casing.filePath(NAME),
-      "features/notification-type/notification-type.ts",
-    );
+    assert.equal(casing.fileBase(NAME), "notification-type");
+    assert.equal(casing.directory(NAME), "notification-type");
   });
 
   it("snakes type names", () => {
@@ -88,13 +73,10 @@ describe("createCasing overrides", () => {
 
   it("snakes directories independently of files", () => {
     const casing = createCasing({
-      "other.organize_by_feature": "true",
       "languages.typescript.casing.file_names": "Pascal",
       "languages.typescript.casing.directories": "Snake",
     });
-    assert.equal(
-      casing.filePath(NAME),
-      "features/notification_type/NotificationType.ts",
-    );
+    assert.equal(casing.fileBase(NAME), "NotificationType");
+    assert.equal(casing.directory(NAME), "notification_type");
   });
 });

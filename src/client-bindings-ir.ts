@@ -6,7 +6,7 @@ import type {
 } from "@deterministic-code/generators-common/routes-api";
 import { loadRoutesApi } from "@deterministic-code/generators-common/routes-api-converter";
 import { isRecord, namedEntries } from "@deterministic-code/generators-common/yaml-entry";
-import { httpPathFromRoutesApi } from "./common/paths.ts";
+import { httpPathFromRoutesApi } from "./common/http-path.ts";
 import { resolvesToSelf } from "./frontend-bindings-routes.ts";
 
 const camelIdent = (name: string): string =>

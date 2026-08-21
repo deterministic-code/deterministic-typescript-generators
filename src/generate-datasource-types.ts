@@ -11,6 +11,10 @@ import {
   type ExpandedDatasourceType,
 } from "@deterministic-code/generators-common/specification";
 import { toNative } from "./base-type-converter.ts";
+import {
+  createImportGenerator,
+  type TypeScriptImportGenerator,
+} from "./import-generator.ts";
 import { indexTmpl, typeTmpl } from "./resources/datasource-types.ts";
 import { libraryImportSpecifier } from "./library-import.ts";
 
@@ -23,6 +27,7 @@ const docTokens = (settings: Record<string, string>) => {
 };
 
 type EmitOptions = {
+  imports: TypeScriptImportGenerator;
   casing: PackCasing;
   schemaVersion: string;
   simpleDoc: boolean;
@@ -31,20 +36,17 @@ type EmitOptions = {
   createIndex: boolean;
 };
 
-const projectRelPath = (casing: PackCasing, entity: string): string =>
-  casing.byFeature
-    ? casing.filePath(entity)
-    : `types/generated/datasource/${casing.filePath(entity)}`;
-
 const emitOptions = (settings: Record<string, string>): EmitOptions => {
-  const casing = createCasing(settings);
+  const imports = createImportGenerator(".", settings);
   return {
-    casing,
+    imports,
+    casing: createCasing(settings),
     schemaVersion: settings["codegen.schema_version"] ?? "1.0",
     ...docTokens(settings),
     libraryMode: settings["languages.typescript.library_reference_mode"],
     createIndex:
-      settings["codegen.create_index"] === "true" && !casing.byFeature,
+      settings["codegen.create_index"] === "true" &&
+      Boolean(imports.index("x.ts")),
   };
 };
 
@@ -67,14 +69,15 @@ const renderType = (
   const datetimeField =
     fields.find((f) => f.name === "created") ??
     fields.find((f) => f.name === "updated");
+  const file = opts.imports.datasource(dsType.name);
   return content(
-    casing.filePath(dsType.name),
+    file,
     fill(typeTmpl, {
       schemaVersion,
       libraryImport: libraryImportSpecifier(
         "types",
         libraryMode,
-        projectRelPath(casing, dsType.name),
+        opts.imports.datasourceRel(dsType.name),
       ),
       simpleDoc,
       descriptionDoc,
@@ -90,14 +93,15 @@ const renderType = (
 
 const renderIndex = (
   types: ExpandedDatasourceType[],
-  casing: PackCasing,
+  opts: EmitOptions,
+  index: string,
 ): GenerateEntry =>
   content(
-    "index.ts",
+    index,
     fill(indexTmpl, {
       types: types.map((t) => ({
-        className: casing.convertTypes(t.name),
-        fileBase: casing.fileBase(t.name),
+        className: opts.casing.convertTypes(t.name),
+        fileBase: opts.casing.fileBase(t.name),
       })),
     }),
   );
@@ -109,7 +113,10 @@ const generateFrom = (
   const opts = emitOptions(settings);
   const types = deterministic.expandedDatasourceTypes;
   const entries = types.map((dsType) => renderType(dsType, opts));
-  if (opts.createIndex) entries.push(renderIndex(types, opts.casing));
+  const index = opts.imports.index(
+    opts.imports.datasource(types[0]?.name ?? "index"),
+  );
+  if (opts.createIndex && index) entries.push(renderIndex(types, opts, index));
   return entries;
 };
 
