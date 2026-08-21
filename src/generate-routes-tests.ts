@@ -7,7 +7,8 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   ROUTES_YAML,
-  type ExpandedDatasourceType,
+  primaryKeyColumn,
+  type DatasourceType,
   type RouteByField,
   type RouteCandidate,
   type ViewEnrichment,
@@ -85,12 +86,12 @@ const byFieldsBlock = (
     .join("");
 
 class Generator extends Emit {
-  private readonly datasources: ExpandedDatasourceType[];
+  private readonly datasources: DatasourceType[];
   private readonly enrichmentsByEntity: Map<string, ViewEnrichment[]>;
 
   constructor(
     raw: Record<string, string>,
-    datasources: ExpandedDatasourceType[],
+    datasources: DatasourceType[],
     enrichmentsByEntity: Map<string, ViewEnrichment[]>,
   ) {
     super(raw);
@@ -104,7 +105,7 @@ class Generator extends Emit {
 
   private test(candidate: RouteCandidate): GenerateEntry {
     const table = this.datasources.find((d) => d.name === candidate.name);
-    const column = table?.primaryKeyColumn ?? "id";
+    const column = primaryKeyColumn(table);
     const pkType =
       table?.fields.find((f) => f.name === column)?.type ?? "integer";
     const path = this.imports.routeTest(candidate.name);

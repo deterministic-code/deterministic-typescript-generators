@@ -7,7 +7,8 @@ import {
 } from "@deterministic-code/generators-common/specification-parser";
 import {
   SERVICES_YAML,
-  type ExpandedDatasourceType,
+  primaryKeyColumn,
+  type DatasourceType,
   type ServiceCandidate,
 } from "@deterministic-code/generators-common/specification";
 import { asIdType, fakeTestData, preludeSource } from "./common/fake-test-data.ts";
@@ -17,11 +18,11 @@ import { createCasing } from "./common/default-casing.ts";
 import { Emit } from "./emit.ts";
 
 class Generator extends Emit {
-  private readonly datasources: ExpandedDatasourceType[];
+  private readonly datasources: DatasourceType[];
 
   constructor(
     raw: Record<string, string>,
-    datasources: ExpandedDatasourceType[],
+    datasources: DatasourceType[],
   ) {
     super(raw);
     this.datasources = datasources;
@@ -33,7 +34,7 @@ class Generator extends Emit {
 
   private test(candidate: ServiceCandidate): GenerateEntry {
     const table = this.datasources.find((d) => d.name === candidate.name);
-    const column = table?.primaryKeyColumn ?? "id";
+    const column = primaryKeyColumn(table);
     const pkType =
       table?.fields.find((f) => f.name === column)?.type ?? "integer";
     const src = this.imports.service(candidate.name);
